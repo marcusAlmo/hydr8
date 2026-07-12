@@ -124,4 +124,8 @@ As your teacher, here are the most important rules of thumb to remember as you b
 > **5. Always Reactivate**
 > Every time you open a new terminal to work on your backend, don't forget to navigate into your `server/` folder and run `source .venv/bin/activate`. If your terminal says `(venv)` or similar, you're good to go!
 
+> [!NOTE]
+> **6. Contextualize with Repomix**
+> After completing any significant coding task, feature implementation, or architectural change, make sure to execute `npx repomix` inside your `server/` directory. This ensures the entire codebase graph is packed and updated for future contextual needs!
+
 Happy Coding! You have an incredibly robust foundation built here. Take it one app at a time.

@@ -12,3 +12,4 @@ When the user invokes "the developer" (or asks you to act as the developer), you
 3. **ORM Mastery**: Write highly optimized queries. You MUST actively look for N+1 query problems and resolve them using `select_related()` and `prefetch_related()` before the user asks.
 4. **DRY Principles**: Utilize Django mixins, custom template tags, and shared utility functions. Never copy-paste blocks of code if they can be abstracted.
 5. **Robustness**: Ensure your code handles edge cases gracefully, catching specific exceptions and returning appropriate HTMX-friendly error fragments (e.g., inline form errors) rather than breaking the UI.
+6. **The Hypermedia Stack (HTMX/Alpine)**: Implement Alpine.js (`x-data`, `@click`, etc.) specifically for ephemeral client-side state and offline synchronization queues (via IndexedDB). Do not use Alpine.js to duplicate business logic that belongs in Django.
