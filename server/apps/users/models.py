@@ -1,5 +1,5 @@
 import uuid
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
 
@@ -19,6 +19,14 @@ class RoleManager(models.Manager):
     
     def active_roles(self):
         # This replaces the instance method you had before
+        return self.get_queryset().active()
+
+class CustomUserManager(UserManager):
+    """Custom manager for the User model that utilizes the SoftDeleteQuerySet."""
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
+    
+    def active_users(self):
         return self.get_queryset().active()
 
 
@@ -85,7 +93,7 @@ class User(AbstractUser):
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     # Attach the custom manager to User as well (since it also has deleted_at)
-    objects = RoleManager()
+    objects = CustomUserManager()
 
     @property
     def is_account_active(self):
