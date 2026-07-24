@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_htmx',
     # Local apps
+    'apps.users',
 ]
 
 MIDDLEWARE = [
@@ -117,3 +118,6 @@ REST_FRAMEWORK = {
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Allow all origins in debug mode
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+
+# Custom User Model
+AUTH_USER_MODEL = 'users.User'
