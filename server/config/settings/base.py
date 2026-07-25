@@ -33,6 +33,11 @@ INSTALLED_APPS = [
     'django_htmx',
     # Local apps
     'apps.users',
+    'apps.dispatch',
+    'apps.remittance',
+    'apps.core',
+    'apps.analytics',
+    'apps.finance',
 ]
 
 MIDDLEWARE = [
