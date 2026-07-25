@@ -1,0 +1,30 @@
+# Python
+*.pyc
+__pycache__/
+.venv/
+venv/
+env/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# Environments
+.env
+.env.local
+.env.production
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Repomix
+repomix-output.xml
+repomix-output.txt
+repomix.config.json

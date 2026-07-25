@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Hydr8 CRM</title>
+    <meta name="description"
+        content="Hydr8 CRM - Next generation customer relationship management built for performance.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Premium Dark Theme Tokens */
+            --bg-primary: #0B0E14;
+            --bg-secondary: rgba(22, 27, 34, 0.6);
+            --text-primary: #F0F6FC;
+            --text-secondary: #8B949E;
+            --accent-glow: #3B82F6;
+            --accent-glow-secondary: #8B5CF6;
+            --input-bg: rgba(255, 255, 255, 0.05);
+            --input-border: rgba(255, 255, 255, 0.1);
+
+            /* Glassmorphism */
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-blur: blur(16px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Dynamic Background Gradients */
+        .ambient-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
+            opacity: 0.15;
+            top: -200px;
+            left: -200px;
+            filter: blur(80px);
+            z-index: 0;
+            animation: pulse-slow 8s infinite alternate ease-in-out;
+        }
+
+        .ambient-glow-alt {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--accent-glow-secondary) 0%, transparent 60%);
+            opacity: 0.15;
+            bottom: -100px;
+            right: -100px;
+            filter: blur(80px);
+            z-index: 0;
+            animation: pulse-slow 10s infinite alternate-reverse ease-in-out;
+        }
+
+        @keyframes pulse-slow {
+            0% {
+                transform: scale(0.8) translate(0, 0);
+                opacity: 0.1;
+            }
+
+            100% {
+                transform: scale(1.2) translate(50px, 50px);
+                opacity: 0.2;
+            }
+        }
+
+        /* Navbar */
+        nav {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 5%;
+            background: transparent;
+        }
+
+        .brand {
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            background: linear-gradient(to right, #fff, #a5b4fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Main Content area */
+        main {
+            position: relative;
+            z-index: 10;
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 4rem;
+            align-items: center;
+            padding: 2rem 5%;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        @media (max-width: 960px) {
+            main {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 3rem;
+            }
+        }
+
+        .hero-content {
+            padding-right: 2rem;
+        }
+
+        @media (max-width: 960px) {
+            .hero-content {
+                padding-right: 0;
+            }
+        }
+
+        .hero-title {
+            font-size: 4rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .hero-title span {
+            background: linear-gradient(135deg, var(--accent-glow) 0%, var(--accent-glow-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+            font-size: 1.125rem;
+            color: var(--text-secondary);
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+            font-weight: 300;
+            max-width: 600px;
+        }
+
+        @media (max-width: 960px) {
+            .hero-subtitle {
+                margin: 0 auto 2.5rem auto;
+            }
+        }
+
+        /* Glassmorphism Card for Login */
+        .login-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+
+        .login-card h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .login-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-glow);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Premium Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.875rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-glow) 0%, var(--accent-glow-secondary) 100%);
+            color: white;
+            box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+            position: relative;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        /* Button inner glare effect */
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: rotate(45deg) scale(0);
+            transition: transform 0.6s ease;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:hover::after {
+            transform: rotate(45deg) scale(1);
+        }
+        
+        /* HTMX Indicator */
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator {
+            display: inline-block;
+            margin-left: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-alt"></div>
+
+    <nav>
+        <div class="brand">Hydr8</div>
+    </nav>
+
+    <main>
+        <div class="hero-content">
+            <h1 class="hero-title">Next-Gen <span>CRM</span> Platform</h1>
+            <p class="hero-subtitle">
+                Supercharge your customer relationships with high-performance workflows, deep analytics, and
+                privacy-first architecture. Built for scale.
+            </p>
+        </div>
+
+        <div class="login-card">
+            <h2>Welcome back</h2>
+            <p>Sign in to your account to continue</p>
+            
+            <!-- Login Form leveraging HTMX -->
+            <form hx-post="/login/" hx-target="this" hx-swap="outerHTML">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label" for="username">Username</label>
+                    <input type="text" id="username" name="username" class="form-input" placeholder="Enter your username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    Sign In
+                    <span class="htmx-indicator">...</span>
+                </button>
+            </form>
+        </div>
+    </main>
+
+    <!-- Optional: Include HTMX for standardizing dynamic interactions without JS frameworks -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</body>
+
+</html>
