@@ -1,0 +1,49 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Hydr8 CRM{% endblock %}</title>
+    <meta name="description" content="Hydr8 CRM - Next generation customer relationship management built for performance.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Global Styling -->
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Dynamic Ambient Backgrounds -->
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-alt"></div>
+
+    <nav>
+        <div class="brand">Hydr8</div>
+        {% block nav_actions %}{% endblock %}
+    </nav>
+
+    <main class="{% block main_class %}{% endblock %}">
+        {% block content %}
+        {% endblock %}
+    </main>
+    
+    <!-- HTMX Modal Root for dynamic loading if needed anywhere -->
+    <div id="modal-root"></div>
+
+    <!-- HTMX Base -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Global HTMX Config (e.g. CSRF tokens for all requests) -->
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        })
+    </script>
+
+    {% block extra_body %}{% endblock %}
+</body>
+</html>

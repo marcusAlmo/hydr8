@@ -1,0 +1,72 @@
+<div id="{{ modal_id|default:'base-modal-overlay' }}" class="modal-overlay" onclick="closeModal(event, '{{ modal_id|default:'base-modal-overlay' }}')">
+    <div class="glass-card modal-card" onclick="event.stopPropagation()">
+        {% if title %}
+        <div class="modal-header">
+            <h2>{{ title }}</h2>
+            {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="modal-body">
+            {% block modal_content %}
+            {% endblock %}
+        </div>
+    </div>
+    
+    <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-card {
+            padding: 3rem;
+            width: 100%;
+            max-width: {{ max_width|default:'500px' }};
+            animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-header h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .modal-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+    
+    <script>
+        if (typeof closeModal !== 'function') {
+            function closeModal(event, overlayId) {
+                const modal = document.getElementById(overlayId);
+                if (modal) {
+                    modal.remove();
+                }
+            }
+        }
+    </script>
+</div>
