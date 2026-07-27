@@ -28,9 +28,11 @@ class SoftDeleteQuerySet(models.QuerySet):
 # 2. STANDARD MANAGERS (The Correct Way)
 # ==========================================
 
-# For Role: Auto-generate a manager from our QuerySet. 
-# This automatically handles super() and exposes both .active() and .deleted()
-RoleManager = models.Manager.from_queryset(SoftDeleteQuerySet)
+class RoleManager(models.Manager.from_queryset(SoftDeleteQuerySet)):
+    """
+    Custom manager for Role model exposing SoftDeleteQuerySet methods.
+    """
+    pass
 
 # For User: Inherit from Django's built-in UserManager so 'createsuperuser' 
 # works, but merge it with our SoftDeleteQuerySet.
@@ -52,8 +54,8 @@ class Role(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
-    # STANDARD HOOK: Using our auto-generated manager class
-    objects = RoleManager()
+    # STANDARD HOOK: Using our custom manager class with explicit type hint
+    objects: RoleManager = RoleManager()
 
     def __str__(self) -> str:
         return str(self.name)
@@ -68,10 +70,10 @@ class Permission(models.Model):
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permissions")
     action = models.CharField(max_length=255, help_text="The resource or action being accessed (e.g., 'dashboard', 'users', 'reports')")
     
-    can_read = models.BooleanField(default=False)  # type: ignore
-    can_write = models.BooleanField(default=False)  # type: ignore
-    can_update = models.BooleanField(default=False)  # type: ignore
-    can_delete = models.BooleanField(default=False)  # type: ignore
+    can_read = models.BooleanField(default=False)
+    can_write = models.BooleanField(default=False)
+    can_update = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -94,8 +96,8 @@ class Permission(models.Model):
 
 class User(AbstractUser):
     class Status(models.TextChoices):
-        ACTIVE = 'ACTIVE', 'Active'  # type: ignore
-        DEACTIVATED = 'DEACTIVATED', 'Deactivated'  # type: ignore
+        ACTIVE = 'ACTIVE', 'Active'
+        DEACTIVATED = 'DEACTIVATED', 'Deactivated'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)

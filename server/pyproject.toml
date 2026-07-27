@@ -5,3 +5,8 @@ requires-python = ">=3.12"
 dependencies = [
     "django-unfold>=0.101.0",
 ]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=6.0.7",
+]
