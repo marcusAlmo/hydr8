@@ -28,20 +28,32 @@ class SoftDeleteQuerySet(models.QuerySet):
 # 2. STANDARD MANAGERS (The Correct Way)
 # ==========================================
 
-class RoleManager(models.Manager.from_queryset(SoftDeleteQuerySet)):
+class RoleManager(models.Manager):
     """
-    Custom manager for Role model exposing SoftDeleteQuerySet methods.
+    Custom manager for Role model exposing SoftDeleteQuerySet methods explicitly.
     """
-    pass
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
 
-# For User: Inherit from Django's built-in UserManager so 'createsuperuser' 
-# works, but merge it with our SoftDeleteQuerySet.
-class CustomUserManager(UserManager.from_queryset(SoftDeleteQuerySet)):
+    def active(self):
+        return self.get_queryset().active()
+
+    def deleted(self):
+        return self.get_queryset().deleted()
+
+
+class CustomUserManager(UserManager):
     """
-    Custom auth manager. Inheriting from_queryset ensures all background 
-    auth behavior is preserved via super() hooks handled internally by Django.
+    Custom auth manager inheriting from Django's UserManager and exposing SoftDeleteQuerySet methods.
     """
-    pass
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
+    def active(self):
+        return self.get_queryset().active()
+
+    def deleted(self):
+        return self.get_queryset().deleted()
 
 
 # ==========================================
