@@ -2,9 +2,21 @@ import uuid
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
+from django.db.models import CheckConstraint, Q, UniqueConstraint
+from django.db.models.functions import Length
+from django.core.exceptions import ObjectDoesNotExist
 
+# Register Length lookup so we can use __length in Q objects cleanly
+models.CharField.register_lookup(Length)
+
+
+# ==========================================
+# 1. THE CORE QUERYSET ABSTRACTION (DRY)
+# ==========================================
 class SoftDeleteQuerySet(models.QuerySet):
-    """Chainable custom QuerySet for handling soft deletes."""
+    """
+    Standard chainable QuerySet for handling soft deletes across any model.
+    """
     def active(self):
         return self.filter(deleted_at__isnull=True)
     
@@ -12,24 +24,27 @@ class SoftDeleteQuerySet(models.QuerySet):
         return self.filter(deleted_at__isnull=False)
 
 
-class RoleManager(models.Manager):
-    """Custom manager that utilizes the SoftDeleteQuerySet."""
-    def get_queryset(self):
-        return SoftDeleteQuerySet(self.model, using=self._db)
-    
-    def active_roles(self):
-        # This replaces the instance method you had before
-        return self.get_queryset().active()
+# ==========================================
+# 2. STANDARD MANAGERS (The Correct Way)
+# ==========================================
 
-class CustomUserManager(UserManager):
-    """Custom manager for the User model that utilizes the SoftDeleteQuerySet."""
-    def get_queryset(self):
-        return SoftDeleteQuerySet(self.model, using=self._db)
-    
-    def active_users(self):
-        return self.get_queryset().active()
+# For Role: Auto-generate a manager from our QuerySet. 
+# This automatically handles super() and exposes both .active() and .deleted()
+RoleManager = models.Manager.from_queryset(SoftDeleteQuerySet)
+
+# For User: Inherit from Django's built-in UserManager so 'createsuperuser' 
+# works, but merge it with our SoftDeleteQuerySet.
+class CustomUserManager(UserManager.from_queryset(SoftDeleteQuerySet)):
+    """
+    Custom auth manager. Inheriting from_queryset ensures all background 
+    auth behavior is preserved via super() hooks handled internally by Django.
+    """
+    pass
 
 
+# ==========================================
+# 3. MODELS
+# ==========================================
 class Role(models.Model):
     id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
@@ -37,11 +52,11 @@ class Role(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
-    # Attach the custom manager
+    # STANDARD HOOK: Using our auto-generated manager class
     objects = RoleManager()
 
-    def __str__(self):
-        return self.name
+    def __str__(self) -> str:
+        return str(self.name)
     
     class Meta:
         verbose_name = "Role"
@@ -49,41 +64,40 @@ class Role(models.Model):
 
 
 class Permission(models.Model):
-    """
-    Defines the access levels a specific role has for various actions/resources.
-    This establishes the Permissions Matrix for RBAC.
-    """
     id = models.BigAutoField(primary_key=True)
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permissions")
     action = models.CharField(max_length=255, help_text="The resource or action being accessed (e.g., 'dashboard', 'users', 'reports')")
     
-    # Representing RWUD (Read, Write, Update, Delete) access
-    can_read = models.BooleanField(default=False)
-    can_write = models.BooleanField(default=False)
-    can_update = models.BooleanField(default=False)
-    can_delete = models.BooleanField(default=False)
+    can_read = models.BooleanField(default=False)  # type: ignore
+    can_write = models.BooleanField(default=False)  # type: ignore
+    can_update = models.BooleanField(default=False)  # type: ignore
+    can_delete = models.BooleanField(default=False)  # type: ignore
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # STANDARD HOOK: Explicitly define the default manager for strict type checkers
+    objects = models.Manager()
+
     class Meta:
         verbose_name = "Permission"
         verbose_name_plural = "Permissions"
-        # Ensure a role only has one permission entry per action
-        unique_together = ('role', 'action')
-
+        constraints = [
+            UniqueConstraint(
+                fields=['role', 'action'],
+                name='unique_role_action_permission'
+            )
+        ]
     def __str__(self):
         return f"{self.role.name} - {self.action}"
 
 
-
 class User(AbstractUser):
     class Status(models.TextChoices):
-        ACTIVE = 'ACTIVE', 'Active'
-        DEACTIVATED = 'DEACTIVATED', 'Deactivated'
+        ACTIVE = 'ACTIVE', 'Active'  # type: ignore
+        DEACTIVATED = 'DEACTIVATED', 'Deactivated'  # type: ignore
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
     email = models.EmailField(unique=True)
     role = models.ForeignKey(Role, on_delete=models.RESTRICT, null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
@@ -92,54 +106,59 @@ class User(AbstractUser):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
-    # Attach the custom manager to User as well (since it also has deleted_at)
+    # STANDARD HOOK: Use the custom UserManager that safely inherits core features
     objects = CustomUserManager()
 
     @property
     def is_account_active(self):
-        """Derived state based on instance fields."""
         return self.status == self.Status.ACTIVE and self.deleted_at is None
 
     # --- FAT MODEL: BUSINESS LOGIC METHODS ---
     def deactivate(self):
-        """Encapsulate the business logic for deactivating a user."""
         self.status = self.Status.DEACTIVATED
         self.deleted_at = timezone.now()
         self.save(update_fields=['status', 'deleted_at'])
 
     def activate(self):
-        """Encapsulate the business logic for reactivating a user."""
         self.status = self.Status.ACTIVE
         self.deleted_at = None
         self.save(update_fields=['status', 'deleted_at'])
 
     def assign_role(self, role_name):
-        """Encapsulate the logic of finding and assigning a role."""
         try:
-            role = Role.objects.get(name=role_name)
+            # Look how clean! .active() can now be safely called on Role managers
+            role = Role.objects.active().get(name=role_name)
             self.role = role
             self.save(update_fields=['role'])
             return True
-        except Role.DoesNotExist:
+        except ObjectDoesNotExist:
             return False
 
     def has_permission(self, action, access_type='read'):
-        """
-        Check if the user has a specific permission (RWUD) via their role.
-        """
         if not self.role:
             return False
             
         try:
-            perm = self.role.permissions.get(action=action)
-            # We use getattr to dynamically check can_read, can_write, etc.
+            # Query the Permission model directly to avoid reverse-relation type checker issues
+            perm = Permission.objects.get(role=self.role, action=action)
             return getattr(perm, f'can_{access_type}', False)
-        except Permission.DoesNotExist:
+        except ObjectDoesNotExist:
             return False
 
     def __str__(self):
         return self.username
     
-    class Meta:
+    class Meta(AbstractUser.Meta):
         verbose_name = "User"
         verbose_name_plural = "Users"
+        constraints = [
+            # Check constraints for first_name and last_name length
+            CheckConstraint(
+                condition=Q(first_name__length__gte=3),
+                name='user_first_name_min_length'
+            ),
+            CheckConstraint(
+                condition=Q(last_name__length__gte=3),
+                name='user_last_name_min_length'
+            )
+        ]
