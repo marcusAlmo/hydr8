@@ -1,0 +1,74 @@
+<!-- SideNavBar (The Abyss Sidebar) -->
+{% with active_item=active_page|default:request.resolver_match.url_name|default:request.resolver_match.app_name %}
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-inverse-surface flex flex-col p-4 shadow-md z-50">
+    <!-- Brand Header -->
+    <div class="mb-8 px-2 flex items-center gap-3">
+        <div class="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary shadow-sm">
+            <span class="material-symbols-outlined">water_drop</span>
+        </div>
+        <div>
+            <h1 class="font-headline-md text-headline-md font-bold text-primary-fixed leading-tight">Hydr8</h1>
+            <p class="text-[10px] text-on-secondary-fixed-variant uppercase tracking-widest font-bold">Water. Delivered. Managed.</p>
+        </div>
+    </div>
+
+    <!-- Navigation Links -->
+    <nav class="flex-1 space-y-1">
+        <!-- Dashboard -->
+        <a href="{% url 'users:index' %}" 
+           class="flex items-center gap-3 px-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'dashboard' or active_item == 'index' or active_item == 'home' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed{% endif %}">
+            <span class="material-symbols-outlined">dashboard</span>
+            <span class="font-body-md text-body-md">Dashboard</span>
+        </a>
+
+        <!-- Remittance -->
+        <a href="#" 
+           class="flex items-center gap-3 px-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'remittance' or active_item == 'remittances' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed{% endif %}">
+            <span class="material-symbols-outlined">payments</span>
+            <span class="font-body-md text-body-md">Remittance</span>
+        </a>
+
+        <!-- Customers -->
+        <a href="#" 
+           class="flex items-center gap-3 px-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'customers' or active_item == 'customer' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed{% endif %}">
+            <span class="material-symbols-outlined">group</span>
+            <span class="font-body-md text-body-md">Customers</span>
+        </a>
+
+        <!-- Products & Pricing -->
+        <a href="#" 
+           class="flex items-center gap-3 px-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'products' or active_item == 'pricing' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed{% endif %}">
+            <span class="material-symbols-outlined">inventory_2</span>
+            <span class="font-body-md text-body-md">Products &amp; Pricing</span>
+        </a>
+
+        <!-- Employees & Users -->
+        <a href="#" 
+           class="flex items-center gap-3 px-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'users' or active_item == 'employees' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed{% endif %}">
+            <span class="material-symbols-outlined">badge</span>
+            <span class="font-body-md text-body-md">Employees &amp; Users</span>
+        </a>
+
+        <!-- Settings -->
+        <a href="#" 
+           class="flex items-center gap-3 px-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'settings' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed{% endif %}">
+            <span class="material-symbols-outlined">settings</span>
+            <span class="font-body-md text-body-md">Settings</span>
+        </a>
+    </nav>
+
+    <!-- Bottom Actions -->
+    <div class="mt-auto pt-4 border-t border-on-secondary-fixed-variant/20 space-y-1">
+        <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200"
+                type="button">
+            <span class="material-symbols-outlined">light_mode</span>
+            <span class="font-body-md text-body-md">Theme Toggle</span>
+        </button>
+        <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200"
+                type="button">
+            <span class="material-symbols-outlined">account_circle</span>
+            <span class="font-body-md text-body-md">Profile</span>
+        </button>
+    </div>
+</aside>
+{% endwith %}

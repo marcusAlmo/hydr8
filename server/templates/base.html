@@ -98,19 +98,15 @@
     
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen flex">
     <!-- Dynamic Ambient Backgrounds -->
     <div class="ambient-glow"></div>
     <div class="ambient-glow-alt"></div>
 
-    {% block navbar %}
-    <nav>
-        <div class="brand">Hydr8</div>
-        {% block nav_actions %}{% endblock %}
-    </nav>
+    {% block sidebar %}
     {% endblock %}
 
-    <main class="{% block main_class %}{% endblock %}">
+    <main class="{% block main_class %}flex-1 flex flex-col overflow-hidden relative{% endblock %}">
         {% block content %}
         {% endblock %}
     </main>

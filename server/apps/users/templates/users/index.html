@@ -9,24 +9,28 @@
 {% block content %}
 <div class="min-h-screen w-full flex flex-col md:flex-row">
     <!-- Left Panel (Abyss Theme) -->
-    <div class="hidden md:flex flex-col justify-center items-center w-1/2 abyss-bg relative overflow-hidden p-8 min-h-screen">
+    <div class="hidden md:flex flex-col justify-center items-center w-1/2 abyss-bg bg-gradient-to-br from-[#06101E] via-[#0B192C] to-[#00273F] text-white relative overflow-hidden p-8 min-h-screen">
         <!-- Atmospheric micro-interaction element -->
-        <div class="absolute inset-0 opacity-20 pointer-events-none">
-            <div class="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-primary rounded-full blur-[120px]"></div>
-            <div class="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-tertiary rounded-full blur-[120px]"></div>
+        <div class="absolute inset-0 opacity-30 pointer-events-none">
+            <div class="absolute top-0 -left-1/4 w-3/4 h-3/4 bg-sky-500/30 rounded-full blur-[120px]"></div>
+            <div class="absolute bottom-0 -right-1/4 w-3/4 h-3/4 bg-emerald-500/20 rounded-full blur-[120px]"></div>
         </div>
 
-        <div class="relative z-10 flex flex-col items-center text-center space-y-3">
-            <h1 class="font-headline-lg text-6xl font-black tracking-tight text-primary-fixed">
+        <div class="relative z-10 flex flex-col items-center text-center space-y-4 max-w-md px-6">
+            <div class="w-16 h-16 bg-sky-500/20 border border-sky-400/30 rounded-2xl flex items-center justify-center shadow-lg backdrop-blur-md mb-2">
+                <span class="material-symbols-outlined text-4xl text-sky-300">water_drop</span>
+            </div>
+            <h1 class="font-headline-lg text-6xl font-black tracking-tight text-white drop-shadow-md">
                 Hydr8
             </h1>
-            <p class="font-body-md text-sm text-secondary-fixed-dim uppercase tracking-[0.25em] opacity-80 font-medium">
+            <p class="font-body-md text-xs md:text-sm text-sky-200 font-semibold uppercase tracking-[0.3em] drop-shadow-sm">
                 Water. Delivered. Managed.
             </p>
+            <div class="w-12 h-1 bg-gradient-to-r from-transparent via-sky-400/60 to-transparent rounded-full mt-2"></div>
         </div>
 
         <!-- Subtle Grid Pattern Overlay -->
-        <div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
+        <div class="absolute inset-0 opacity-[0.05]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
     </div>
 
     <!-- Right Panel (Login Surface) -->

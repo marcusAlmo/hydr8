@@ -195,7 +195,8 @@ body {
 
 /* Abyss Brand Background */
 .abyss-bg {
-    background-color: #0F172A;
+    background-color: #0B192C !important;
+    color: #FFFFFF;
 }
 
 /* Auth Card Shimmer Effect */
