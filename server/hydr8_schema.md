@@ -1,5 +1,5 @@
-# Hydr8 — Domain-Driven Database Schema (v2 — Final)
-> Incorporates all user clarifications. Maps 1-to-1 with Django apps in `server/apps/`.
+# Hydr8 — Domain-Driven Database Schema (v3 — Simplified Remittance Architecture)
+> Pivot from dispatch-centric to remittance-centric. Manual daily remittance entry. Gemma 2B edge AI. Light/Dark mode PWA.
 
 ---
 
@@ -7,31 +7,34 @@
 
 ```
 server/apps/
-├── users/        ← Domain: Identity & Access (IAM)
-├── core/         ← Domain: Catalog & Configuration (shared kernel)
-├── dispatch/     ← Domain: Operations (Sessions, Dispatches, Deliveries, Customers)
-├── remittance/   ← Domain: Finance (Session Finance, Expenses, Tithes)
-└── analytics/    ← Domain: Reporting (read-only aggregates — Week 2)
+├── users/       ← Domain: Identity & Access (IAM + RBAC)
+├── core/        ← Domain: Catalog & Configuration (shared kernel)
+├── customers/   ← Domain: Customer Accounts (debts, borrowed items)
+├── remittance/  ← Domain: Daily Remittance (primary operational domain)
+└── analytics/   ← Domain: AI Insights & Reporting (read-only, Gemma 2B)
 ```
 
 Unidirectional dependency flow (no circular imports):
 ```
-users → core → dispatch → remittance → analytics
+users → core → customers → remittance → analytics
 ```
 
-### Key Decision Record (from user clarifications)
+### Key Decision Record (v3 Clarifications)
 
 | Decision | Rationale |
 |---|---|
-| Session is time-bounded, not date-bounded | Opened/closed manually by admin; PIN-protected close |
-| Dispatch is bulk (per rider), not per-customer | Customer assignment happens on return |
-| Commission is a rider × product rate matrix | Removed `commission_rate` from `users_user` |
-| Debt payment is per-container (no fractional amounts) | Keeps commission tracking clean |
-| Retroactive commission on debt repayment | When debt paid, original rider earns commission |
-| Tithes/Offerings do NOT reduce Net Profit | Shown as separate spiritual obligations |
-| Gross Expected = all deliveries + debt paid in; Gross Sales = Gross Expected - new debt | Three-line financial display |
-| Order Queue (Kanban) is independent of bulk dispatch | Separate `dispatch_customerorder` table |
-| Dispatch status defaults to DISPATCHED (no PENDING) | Simplified state machine |
+| No dispatch/session lifecycle | Replaced by daily manual remittance entry |
+| One remittance per calendar day | Single `DATE` unique constraint on `remittance_remittance` |
+| `qty_credited` creates customer debt record | Credited items tracked against `customers_customer.debt_balance` |
+| Tithes computed on **Net Profit** | After commissions + expenses — not on gross sales |
+| Commission is per-rider × per-product matrix | `users_drivercommission` retained unchanged |
+| Offering is a manual entry per remittance | Entered at finalize time |
+| Expenses are editable until finalized | Linked to the remittance, not a session |
+| RBAC is admin-assignable | Not hardcoded — `users_permission` rows drive sidebar visibility |
+| Gemma 2B downloads in background | System operates normally; settings page shows download status |
+| AI chatbot is read-only | No write tools in this iteration |
+| Light/Dark mode via CSS custom properties | Alpine.js toggles `data-theme` on `<html>`, persisted in `localStorage` |
+| PIN stored on user model | Used for lockscreen timeout feature |
 
 ---
 
@@ -42,17 +45,24 @@ users → core → dispatch → remittance → analytics
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
-| `name` | `VARCHAR(100)` | UNIQUE, NOT NULL | `Admin`, `Dispatcher`, `Driver` |
+| `name` | `VARCHAR(100)` | UNIQUE, NOT NULL | `Admin`, `Staff`, `Driver` |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `deleted_at` | `TIMESTAMPTZ` | NULL | Soft delete |
+
+**Seeded roles:** `Admin`, `Staff`, `Driver`
+
+> [!NOTE]
+> The old `Dispatcher` role is renamed `Staff`. Drivers still exist in the system for commission tracking but do not log in.
+
+---
 
 ### Table: `users_permission`
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
 | `role_id` | `BIGINT` | FK → `users_role.id`, CASCADE | |
-| `action` | `VARCHAR(100)` | NOT NULL | e.g. `dashboard`, `session`, `settings` |
+| `action` | `VARCHAR(100)` | NOT NULL | e.g. `dashboard`, `remittance`, `customers` |
 | `can_read` | `BOOLEAN` | DEFAULT FALSE | |
 | `can_write` | `BOOLEAN` | DEFAULT FALSE | |
 | `can_update` | `BOOLEAN` | DEFAULT FALSE | |
@@ -62,27 +72,33 @@ users → core → dispatch → remittance → analytics
 
 **Unique constraint:** `(role_id, action)`
 
-**Seeded permission matrix:**
+**Seeded permission matrix (default, Admin-adjustable):**
 
-| Action | Admin | Dispatcher | Driver |
+| Action | Admin | Staff | Driver |
 |---|---|---|---|
 | `dashboard` | R/W/U/D | R | — |
-| `dispatch` | R/W/U/D | R/W/U | — |
-| `order_queue` | R/W/U/D | R/W/U | — |
-| `session` | R/W/U/D | — | — |
+| `remittance` | R/W/U/D | R/W/U | — |
 | `customers` | R/W/U/D | R/W/U | — |
-| `settings` | R/W/U/D | — | — |
-| `analytics` | R | — | — |
+| `products` | R/W/U/D | R | — |
+| `employees` | R/W/U/D | — | — |
+| `settings` | R/W/U/D | R | — |
+| `analytics` | R | R | — |
+
+> [!IMPORTANT]
+> These defaults are seeded but **admin-adjustable** at runtime via the Employees & Users screen. The permission matrix drives sidebar visibility and view-level access checks via `PermissionRequiredMixin`.
+
+---
 
 ### Table: `users_user` *(extends `AbstractUser`)*
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `UUID` | PK, default `uuid4` | |
 | `username` | `VARCHAR(150)` | UNIQUE, NOT NULL | |
-| `email` | `VARCHAR(254)` | UNIQUE, NOT NULL | |
+| `email` | `VARCHAR(254)` | UNIQUE, NULL | Optional for staff/drivers |
 | `first_name` | `VARCHAR(150)` | NOT NULL | |
 | `last_name` | `VARCHAR(150)` | NOT NULL | |
-| `password` | `VARCHAR(128)` | NOT NULL | Hashed |
+| `password` | `VARCHAR(128)` | NOT NULL | Hashed (Django PBKDF2) |
+| `pin` | `VARCHAR(128)` | NULL | Hashed PIN for lockscreen |
 | `is_active` | `BOOLEAN` | DEFAULT TRUE | |
 | `is_staff` | `BOOLEAN` | DEFAULT FALSE | |
 | `is_superuser` | `BOOLEAN` | DEFAULT FALSE | |
@@ -95,25 +111,27 @@ users → core → dispatch → remittance → analytics
 | `date_joined` | `TIMESTAMPTZ` | NOT NULL | Inherited |
 
 > [!IMPORTANT]
-> `commission_rate` field **removed** from this model compared to v1. Commission is now a per-rider × per-product matrix stored in `users_drivercommission`.
+> `pin` is a new field in v3. It is hashed using Django's `make_password()` and checked with `check_password()`. It is **separate** from the login password and is used exclusively for the lockscreen timeout feature.
 
-### Table: `users_drivercommission` *(NEW — commission rate matrix)*
+---
+
+### Table: `users_drivercommission` *(commission rate matrix — unchanged from v2)*
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
-| `driver_id` | `UUID` | FK → `users_user.id`, CASCADE | |
+| `driver_id` | `UUID` | FK → `users_user.id`, CASCADE | Must be a user with `Driver` role |
 | `product_id` | `BIGINT` | FK → `core_product.id`, CASCADE | |
-| `rate_per_unit` | `DECIMAL(10,2)` | NOT NULL, DEFAULT 0.00 | ₱ per container, fixed amount |
+| `rate_per_unit` | `DECIMAL(10,2)` | NOT NULL, DEFAULT 0.00 | ₱ per container delivered & sold (cash) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 
 **Unique constraint:** `(driver_id, product_id)` — one rate per rider per product
 
-> **"Set All" Global Rate:** The Settings UI will have a "Set rate for all drivers" input per product. This triggers a bulk `UPDATE` via Django ORM on this table — it does NOT bypass the 1:1 model. Every driver still gets their own row; they're just all updated to the same value in one action.
+> **"Set All" Bulk Rate:** The Products & Pricing screen has a "Set rate for all drivers" input per product. This triggers a bulk `UPDATE` via Django ORM — every driver row for that product is updated in one query. Each driver still has their own row; they're just batch-set.
 
 **Indexes:**
-- `(driver_id)` — Pulled when computing commission at session close
-- `(product_id)` — Pulled when checking if a product has rates assigned
+- `(driver_id)` — Commission computation per rider
+- `(product_id)` — Check if product has rates assigned
 
 ---
 
@@ -127,312 +145,287 @@ users → core → dispatch → remittance → analytics
 | `name` | `VARCHAR(100)` | NOT NULL | e.g. `Purified`, `Alkaline` |
 | `variation` | `VARCHAR(100)` | NOT NULL | e.g. `8-Gallon Round`, `8-Gallon Slim`, `500ml PET` |
 | `price` | `DECIMAL(10,2)` | NOT NULL | Current retail price per unit |
-| `is_active` | `BOOLEAN` | DEFAULT TRUE | |
+| `is_active` | `BOOLEAN` | DEFAULT TRUE | Inactive = hidden from remittance dropdowns |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 
 **Unique constraint:** `(name, variation)`
+
+> [!NOTE]
+> Price changes only apply to **new** remittance lines. Existing `unit_price_snapshot` fields on saved remittance lines are immutable — they are copied at the time of entry, not read from this table at close time.
+
+---
 
 ### Table: `core_systemconfig`
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
 | `key` | `VARCHAR(100)` | UNIQUE, NOT NULL | |
-| `value` | `VARCHAR(255)` | NOT NULL | Cast by application layer |
+| `value` | `VARCHAR(255)` | NOT NULL | Cast by the application layer |
 | `description` | `TEXT` | NULL | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `updated_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
 
-**Seeded keys:**
+**Seeded keys (v3):**
 
-| `key` | `value` | Notes |
+| `key` | Default `value` | Notes |
 |---|---|---|
-| `tithe_rate` | `0.10` | 10% of Gross Sales per session |
-| `late_threshold_minutes` | `30` | Minutes before a dispatched batch is flagged late |
-| `session_close_pin` | `[hashed]` | PIN used to protect session closure |
+| `tithe_rate` | `0.10` | 10% of Net Profit per remittance |
+| `lockscreen_timeout_minutes` | `5` | Minutes of idle before PIN prompt |
+| `is_password_strict` | `false` | Enforce password complexity rules |
+| `company_name` | `Hydr8 Water Station` | Shown in header + PDF receipts |
+| `contact_number` | `` | Shown in settings company tab |
+| `email_address` | `` | Shown in settings company tab |
+| `session_close_pin` | `[hashed]` | PIN for finalizing remittance |
+| `ai_model_id` | `gemma-2-2b-it-q4f16_1-MLC` | Currently loaded AI model identifier |
+| `ai_model_version` | `2b-q4f16` | Display label for settings |
+| `ai_download_status` | `not_started` | `not_started`, `downloading`, `ready` — updated by PWA |
+| `ai_download_percent` | `0` | 0–100 integer, updated by PWA on progress |
 
 > [!NOTE]
-> `offering_amount` is **no longer a system config**. It is a manual numeric input on the session finance form, entered per session. Different sessions can have different offering amounts.
+> `ai_download_status` and `ai_download_percent` are **client-driven** — the PWA writes to these via a dedicated authenticated PATCH endpoint when the Gemma download progresses. They allow the Settings page to show the AI status even across devices/sessions.
 
 ---
 
-## Domain 3: Operations (Dispatch)
-**App:** `apps.dispatch` | **DB prefix:** `dispatch_`
+## Domain 3: Customer Accounts
+**App:** `apps.customers` | **DB prefix:** `customers_`
 
-This domain is the busiest. It owns: the session lifecycle, customer accounts, the order queue (Kanban), bulk dispatches, and per-customer delivery records.
+> [!NOTE]
+> This is the refactored form of `dispatch_customer` from v2, promoted to its own app to reflect the simplified architecture. The `dispatch_` prefix is dropped.
 
-### Table: `dispatch_session` *(TOP-LEVEL entity — replaces shift)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `opened_by_id` | `UUID` | FK → `users_user.id`, PROTECT | Admin/Dispatcher who opened session |
-| `opened_at` | `TIMESTAMPTZ` | NOT NULL, auto | Timestamp of "Open Session" click |
-| `closed_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | Admin who closed (NULL while open) |
-| `closed_at` | `TIMESTAMPTZ` | NULL | Timestamp of "Close Session" click |
-| `is_open` | `BOOLEAN` | DEFAULT TRUE | False = session finalized |
-| `notes` | `TEXT` | NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
-
-**Business rules:**
-- Only one session can have `is_open = TRUE` at a time (enforced at the application layer via a pre-save check).
-- Closing a session requires PIN verification. The PIN is compared against `core_systemconfig['session_close_pin']`.
-- Once `is_open = FALSE`, no new dispatches, delivery records, or expenses can be added to this session.
-
-**Indexes:**
-- `(is_open)` — Dashboard query: "is there an open session right now?"
-
----
-
-### Table: `dispatch_customerorder` *(Order Queue — Kanban)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `session_id` | `BIGINT` | FK → `dispatch_session.id`, PROTECT | Which session this order belongs to |
-| `customer_id` | `BIGINT` | FK → `dispatch_customer.id`, PROTECT | |
-| `product_id` | `BIGINT` | FK → `core_product.id`, PROTECT | |
-| `quantity` | `SMALLINT` | NOT NULL, MIN 1 | |
-| `status` | `VARCHAR(20)` | NOT NULL | `PENDING`, `DISPATCHED`, `DELIVERED` |
-| `notes` | `TEXT` | NULL | e.g. "customer requested afternoon delivery" |
-| `created_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
-
-**State machine:**
-```
-PENDING ──→ DISPATCHED ──→ DELIVERED
-   │
-   └──→ CANCELED
-```
-
-**At session close:** All `DELIVERED` orders for this session are hidden from the Kanban (filtered out on the dashboard query). They remain in the DB for history.
-
-**Indexes:**
-- `(session_id, status)` — Kanban board query: today's open session, non-delivered orders
-- `(customer_id)` — Customer order history
-
----
-
-### Table: `dispatch_customer`
+### Table: `customers_customer`
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
 | `name` | `VARCHAR(255)` | NOT NULL | |
-| `address` | `TEXT` | NOT NULL | |
+| `address` | `TEXT` | NULL | Optional |
 | `contact_number` | `VARCHAR(20)` | NULL | |
-| `debt_balance` | `DECIMAL(10,2)` | DEFAULT 0.00, NOT NULL | Running total monetary debt in ₱ |
-| `borrowed_round_8gal` | `SMALLINT` | DEFAULT 0, NOT NULL | Denormalized count for fast display |
+| `debt_balance` | `DECIMAL(10,2)` | DEFAULT 0.00, NOT NULL | Running ₱ debt total (denormalized) |
+| `borrowed_round_8gal` | `SMALLINT` | DEFAULT 0, NOT NULL | Denormalized borrowed container count |
 | `borrowed_slim_8gal` | `SMALLINT` | DEFAULT 0, NOT NULL | |
 | `borrowed_other` | `SMALLINT` | DEFAULT 0, NOT NULL | |
+| `last_credit_at` | `TIMESTAMPTZ` | NULL | Timestamp of most recent unpaid credit line |
 | `notes` | `TEXT` | NULL | |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 | `deleted_at` | `TIMESTAMPTZ` | NULL | Soft delete |
 
 > [!IMPORTANT]
-> `debt_balance` and `borrowed_*` are **denormalized running totals** updated atomically with `F()` expressions. They are the source of truth for display. The delivery records and debt payment logs are the audit trail — never recompute from scratch on every read.
-
----
-
-### Table: `dispatch_bulkdispatch` *(The physical rider load)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `session_id` | `BIGINT` | FK → `dispatch_session.id`, PROTECT | |
-| `driver_id` | `UUID` | FK → `users_user.id`, PROTECT | The rider assigned this load |
-| `status` | `VARCHAR(20)` | NOT NULL | `DISPATCHED`, `RETURNED` |
-| `dispatched_at` | `TIMESTAMPTZ` | NOT NULL, auto | When created (rider leaves immediately) |
-| `returned_at` | `TIMESTAMPTZ` | NULL | When dispatcher marks the rider as returned |
-| `notes` | `TEXT` | NULL | |
-| `created_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
-
-> Default status is `DISPATCHED` — there is no `PENDING` state. Creating the dispatch = rider is loaded and leaving.
+> `debt_balance` and `borrowed_*` are **denormalized running totals** updated atomically with Django `F()` expressions. They are the source of truth for the dashboard card display. The `customers_creditline` table is the audit trail.
+>
+> `last_credit_at` enables the Customers screen to display "Days Since Last Unpaid Credit" without a subquery on every read.
 
 **Indexes:**
-- `(session_id, status)` — Dashboard: dispatches in current session not yet returned
-- `(driver_id, status)` — Driver performance: dispatches returned today
-
-### Table: `dispatch_bulkdispatchitem` *(Line items on the bulk load)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `bulk_dispatch_id` | `BIGINT` | FK → `dispatch_bulkdispatch.id`, CASCADE | |
-| `product_id` | `BIGINT` | FK → `core_product.id`, PROTECT | |
-| `qty_loaded` | `SMALLINT` | NOT NULL, MIN 1 | Total containers loaded for this product |
-| `unit_price_snapshot` | `DECIMAL(10,2)` | NOT NULL | Price at dispatch time — immutable |
-
-**Unique constraint:** `(bulk_dispatch_id, product_id)` — one line per product type per dispatch
-
-**Computed (not stored):**
-```python
-@property
-def total_expected_collectible(self) -> Decimal:
-    """qty_loaded × unit_price_snapshot = the full value of this line if all are cash-paid."""
-    return self.qty_loaded * self.unit_price_snapshot
-```
+- `(debt_balance)` — Filter customers with debt > 0
+- `(last_credit_at)` — Sort by oldest unpaid credit
 
 ---
 
-### Table: `dispatch_deliveryrecord` *(Per-customer outcome, recorded on rider return)*
+### Table: `customers_creditline` *(append-only ledger — one row per credited delivery line)*
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
-| `bulk_dispatch_id` | `BIGINT` | FK → `dispatch_bulkdispatch.id`, CASCADE | Which dispatch this belongs to |
-| `customer_id` | `BIGINT` | FK → `dispatch_customer.id`, PROTECT | |
-| `product_id` | `BIGINT` | FK → `core_product.id`, PROTECT | |
-| `qty_delivered` | `SMALLINT` | NOT NULL, MIN 1 | Containers delivered to this customer |
-| `payment_type` | `VARCHAR(10)` | NOT NULL | `CASH` or `DEBT` |
-| `unit_price_snapshot` | `DECIMAL(10,2)` | NOT NULL | Copied from `dispatch_bulkdispatchitem` |
-| `total_amount` | `DECIMAL(12,2)` | NOT NULL | `qty_delivered × unit_price_snapshot` |
-| `borrowed_round_8gal` | `SMALLINT` | DEFAULT 0 | Containers borrowed at this delivery |
-| `borrowed_slim_8gal` | `SMALLINT` | DEFAULT 0 | |
-| `borrowed_other` | `SMALLINT` | DEFAULT 0 | |
+| `customer_id` | `BIGINT` | FK → `customers_customer.id`, PROTECT | |
+| `remittance_rider_product_id` | `BIGINT` | FK → `remittance_remittanceriderproductline.id`, PROTECT | The remittance line that created this credit |
+| `product_id` | `BIGINT` | FK → `core_product.id`, PROTECT | Denormalized for fast queries |
+| `qty_credited` | `SMALLINT` | NOT NULL, MIN 1 | Containers taken on credit |
+| `unit_price_snapshot` | `DECIMAL(10,2)` | NOT NULL | Price at time of remittance entry |
+| `total_credit_amount` | `DECIMAL(12,2)` | NOT NULL | `qty_credited × unit_price_snapshot` |
+| `qty_remaining` | `SMALLINT` | NOT NULL | Containers not yet paid (decremented on payment) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+
+> [!NOTE]
+> Credit lines are created automatically when a `remittance_remittanceriderproductline` with `qty_credited > 0` is saved. Each credit line is linked back to its remittance line for full audit traceability.
+
+---
+
+### Table: `customers_creditpayment` *(append-only — per-container payments)*
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `BIGINT` | PK, auto-increment | |
+| `credit_line_id` | `BIGINT` | FK → `customers_creditline.id`, PROTECT | |
+| `remittance_id` | `BIGINT` | FK → `remittance_remittance.id`, PROTECT | Remittance session in which payment was received |
+| `containers_paid` | `SMALLINT` | NOT NULL, MIN 1 | |
+| `amount` | `DECIMAL(12,2)` | NOT NULL | `containers_paid × credit_line.unit_price_snapshot` |
 | `recorded_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 
 **Business rules on save:**
-- If `payment_type = DEBT`: `dispatch_customer.debt_balance += total_amount` (atomic F() update)
-- If `payment_type = DEBT` and `borrowed_*` > 0: `dispatch_customer.borrowed_*` counts are incremented
-- Commission is **NOT** recorded here for debt deliveries. Commission is deferred to debt payment time.
-- Commission IS calculated and stored at `remittance_ridercommissionsummary` level for CASH deliveries.
-
-**Indexes:**
-- `(bulk_dispatch_id)` — Load all records for one dispatch
-- `(customer_id, payment_type)` — Customer's outstanding debts
-- `(product_id, payment_type)` — Analytics: cash vs. debt split per product
-
----
-
-### Table: `dispatch_debtpayment` *(Append-only ledger — per-container payments)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `delivery_record_id` | `BIGINT` | FK → `dispatch_deliveryrecord.id`, PROTECT | Which specific delivery is being paid |
-| `session_id` | `BIGINT` | FK → `dispatch_session.id`, PROTECT | Session in which payment was received |
-| `containers_paid` | `SMALLINT` | NOT NULL, MIN 1 | How many containers paid for |
-| `amount` | `DECIMAL(12,2)` | NOT NULL | `containers_paid × delivery_record.unit_price_snapshot` |
-| `recorded_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
-
-**Business rules on save:**
-- `dispatch_customer.debt_balance -= amount` (atomic F() update)
-- `containers_paid` must not exceed `delivery_record.qty_delivered - previously_paid_containers` (validated in service layer)
-- Commission IS earned retroactively. The original driver (from `delivery_record.bulk_dispatch.driver_id`) earns: `containers_paid × commission_rate_for_product`
-- Commission from debt payment is credited to the driver in the current open session's `remittance_ridercommissionsummary`
+- `customers_customer.debt_balance -= amount` (atomic `F()` update)
+- `customers_creditline.qty_remaining -= containers_paid` (atomic `F()` update)
+- `containers_paid` must not exceed `credit_line.qty_remaining` (validated in service layer)
+- `customers_customer.last_credit_at` is refreshed only if `qty_remaining` drops to 0 on all active credit lines — otherwise it remains unchanged
 
 > [!IMPORTANT]
-> **Partial payment = per-container, not per-peso.** You can pay for 2 of 5 owed containers. You cannot pay ₱22.50 for half a container. The unit of debt is always 1 container.
+> **Partial payment is per-container, not per-peso.** You pay for 2 of 5 owed containers. You cannot pay ₱22.50 for half a container. The unit of debt is always 1 container.
 
-**Computed (not stored):**
-```python
-# In selectors.py — how many containers remain unpaid on a delivery record
-def containers_remaining(delivery_record):
-    paid = DebtPayment.objects.filter(
-        delivery_record=delivery_record
-    ).aggregate(total=Sum('containers_paid'))['total'] or 0
-    return delivery_record.qty_delivered - paid
-```
+**Indexes:**
+- `(credit_line_id)` — Load all payments for one credit line
+- `(remittance_id)` — Payments received within a given remittance
 
 ---
 
-## Domain 4: Finance (Remittance)
+## Domain 4: Daily Remittance (Primary Operational Domain)
 **App:** `apps.remittance` | **DB prefix:** `remittance_`
 
-Owns the financial close of a session and all per-rider commission summaries.
+This is the **core domain** in v3. It replaces the entire `dispatch` + session lifecycle from v2.
 
-### Table: `remittance_expense` *(Admin-entered operational costs per session)*
+### Table: `remittance_remittance` *(Top-level entity — one per calendar day)*
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | `id` | `BIGINT` | PK, auto-increment | |
-| `session_id` | `BIGINT` | FK → `dispatch_session.id`, PROTECT | |
-| `description` | `VARCHAR(255)` | NOT NULL | e.g. "Fuel — Rider A's motorcycle" |
+| `date` | `DATE` | UNIQUE, NOT NULL | One remittance per calendar day enforced at DB level |
+| `created_by_id` | `UUID` | FK → `users_user.id`, PROTECT | Admin/Staff who created this remittance |
+| `finalized_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | Admin who finalized (NULL while DRAFT) |
+| `status` | `VARCHAR(20)` | NOT NULL, DEFAULT `DRAFT` | `DRAFT` or `FINALIZED` |
+| `total_sales` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all `qty_sold × unit_price_snapshot` across all riders |
+| `total_credit_sales` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all `qty_credited × unit_price_snapshot` |
+| `total_commission` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all rider commissions |
+| `total_expenses` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all linked expenses |
+| `total_borrowed_items` | `SMALLINT` | DEFAULT 0 | Σ of `borrowed_items` across all product lines |
+| `net_profit` | `DECIMAL(12,2)` | DEFAULT 0.00 | `total_sales − total_commission − total_expenses` |
+| `tithe_rate_snapshot` | `DECIMAL(5,4)` | NULL | Copied from `core_systemconfig['tithe_rate']` at finalize |
+| `tithe_amount` | `DECIMAL(12,2)` | DEFAULT 0.00 | `net_profit × tithe_rate_snapshot` |
+| `offering_amount` | `DECIMAL(12,2)` | DEFAULT 0.00 | Manually entered at finalize |
+| `tithes_paid` | `BOOLEAN` | DEFAULT FALSE | Admin toggles after the fact |
+| `offering_paid` | `BOOLEAN` | DEFAULT FALSE | Admin toggles after the fact |
+| `notes` | `TEXT` | NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+| `finalized_at` | `TIMESTAMPTZ` | NULL | Set when status → FINALIZED |
+
+**Business rules:**
+- `UNIQUE(date)` enforced at DB level — only one remittance per calendar day.
+- While `status = DRAFT`: all child rows are editable; totals are recalculated on each save.
+- When `status → FINALIZED`: `tithe_rate_snapshot` is frozen from config; `finalized_at` is set; all child rows become immutable.
+- `tithes_paid` and `offering_paid` remain toggleable even after finalization (these are updated after payment is made separately).
+
+**Financial display model:**
+```
+─── Revenue ────────────────────────────────────────────
+Total Sales          ₱[total_sales]     (cash, qty_sold × price)
+Credit Sales        +₱[total_credit_sales] (creates customer debt)
+
+─── Deductions ─────────────────────────────────────────
+Total Commissions   -₱[total_commission]
+Total Expenses      -₱[total_expenses]
+                     ────────────
+Net Profit           ₱[net_profit]    ← Bold, large, primary display
+
+─── Spiritual Obligations (amber card) ─────────────────
+Tithes Due (10% of Net)  ₱[tithe_amount]   ☐ Tithes Paid
+Offering (manual)        ₱[offering_amount] ☐ Offering Paid
+```
+
+**Indexes:**
+- `(date)` — Unique + primary lookup
+- `(status)` — Dashboard: "is there a DRAFT remittance today?"
+- `(tithes_paid, offering_paid)` — History: flag unpaid obligations
+
+---
+
+### Table: `remittance_remittancerider` *(one row per rider per remittance)*
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `BIGINT` | PK, auto-increment | |
+| `remittance_id` | `BIGINT` | FK → `remittance_remittance.id`, CASCADE | |
+| `rider_id` | `UUID` | FK → `users_user.id`, PROTECT | Must have `Driver` role |
+| `subtotal_payable` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of product line `subtotal_payable` |
+| `subtotal_commission` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of product line `subtotal_commission` |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+
+**Unique constraint:** `(remittance_id, rider_id)` — one rider row per remittance
+
+**Indexes:**
+- `(remittance_id)` — Fetch all riders for a given remittance
+- `(rider_id)` — Rider performance history
+
+---
+
+### Table: `remittance_remittanceriderproductline` *(manual entry rows — one per product per rider)*
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `BIGINT` | PK, auto-increment | |
+| `remittance_rider_id` | `BIGINT` | FK → `remittance_remittancerider.id`, CASCADE | |
+| `product_id` | `BIGINT` | FK → `core_product.id`, PROTECT | |
+| `qty_sold` | `SMALLINT` | NOT NULL, MIN 0 | Containers sold for cash |
+| `qty_credited` | `SMALLINT` | DEFAULT 0 | Containers taken on credit (creates `customers_creditline`) |
+| `borrowed_items` | `SMALLINT` | DEFAULT 0 | Containers borrowed (empty containers left with customer) |
+| `unit_price_snapshot` | `DECIMAL(10,2)` | NOT NULL | Copied from `core_product.price` at entry time — immutable |
+| `commission_rate_snapshot` | `DECIMAL(10,2)` | NOT NULL, DEFAULT 0.00 | Copied from `users_drivercommission` at entry time — immutable |
+| `subtotal_payable` | `DECIMAL(12,2)` | NOT NULL | `qty_sold × unit_price_snapshot` |
+| `subtotal_credit` | `DECIMAL(12,2)` | NOT NULL | `qty_credited × unit_price_snapshot` |
+| `subtotal_commission` | `DECIMAL(12,2)` | NOT NULL | `qty_sold × commission_rate_snapshot` |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+
+**Unique constraint:** `(remittance_rider_id, product_id)` — one product per rider per remittance
+
+> [!IMPORTANT]
+> **Snapshot pattern is mandatory.** `unit_price_snapshot` and `commission_rate_snapshot` are copied at the moment the row is created/updated. Future price or commission rate changes do NOT affect finalized or even saved-draft lines. This preserves the financial audit integrity.
+
+**Business rules on save:**
+- Recalculate `subtotal_payable`, `subtotal_credit`, `subtotal_commission` from quantities × snapshots.
+- Propagate updated subtotals up to `remittance_remittancerider` (atomic `F()` or service-layer update).
+- Propagate to `remittance_remittance` totals.
+- If `qty_credited > 0` and remittance is being finalized: create/update `customers_creditline` records.
+
+**Indexes:**
+- `(remittance_rider_id)` — Fetch all product lines for one rider
+- `(product_id)` — Analytics: product performance across remittances
+
+---
+
+### Table: `remittance_expense` *(operational costs per remittance)*
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `BIGINT` | PK, auto-increment | |
+| `remittance_id` | `BIGINT` | FK → `remittance_remittance.id`, CASCADE | |
+| `description` | `VARCHAR(255)` | NOT NULL | e.g. "Fuel — Rider A motorcycle" |
 | `amount` | `DECIMAL(10,2)` | NOT NULL | |
 | `recorded_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
 
----
+> Editable until the remittance is `FINALIZED`. Adding or editing an expense triggers a recalculation of `remittance_remittance.total_expenses` and `net_profit`.
 
-### Table: `remittance_ridercommissionsummary` *(Per-rider commission breakdown per session)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `session_id` | `BIGINT` | FK → `dispatch_session.id`, CASCADE | |
-| `driver_id` | `UUID` | FK → `users_user.id`, PROTECT | |
-| `containers_cash` | `SMALLINT` | DEFAULT 0 | Containers delivered as CASH this session |
-| `commission_from_cash` | `DECIMAL(12,2)` | DEFAULT 0.00 | Sum of cash-delivery commissions |
-| `containers_debt_paid` | `SMALLINT` | DEFAULT 0 | Containers whose debt was paid this session |
-| `commission_from_debt` | `DECIMAL(12,2)` | DEFAULT 0.00 | Sum of retroactive debt-payment commissions |
-| `total_commission` | `DECIMAL(12,2)` | NOT NULL | `commission_from_cash + commission_from_debt` |
-| `cash_remitted` | `DECIMAL(12,2)` | NOT NULL | What the driver physically handed in |
-| `cash_expected` | `DECIMAL(12,2)` | NOT NULL | Sum of all cash deliveries by this driver |
-| `cash_variance` | `DECIMAL(12,2)` | NOT NULL | `cash_remitted − cash_expected` |
-
-**Unique constraint:** `(session_id, driver_id)` — one record per rider per session
-
-> Commission rates are stored in `users_drivercommission` (live table). When a session closes, the rates are **snapshot-copied** into the calculation and stored as line items — not re-queried later. This is done in the `SessionFinanceService`.
+**Index:** `(remittance_id)`
 
 ---
 
-### Table: `remittance_sessionfinance` *(1-to-1 with session — the financial close record)*
-| Column | Type | Constraints | Notes |
-|---|---|---|---|
-| `id` | `BIGINT` | PK, auto-increment | |
-| `session_id` | `BIGINT` | FK → `dispatch_session.id`, CASCADE, UNIQUE | 1-to-1 with session |
-| `gross_expected` | `DECIMAL(12,2)` | NOT NULL | All deliveries (cash+debt) × price + debt repayments received this session |
-| `total_new_debt` | `DECIMAL(12,2)` | NOT NULL | Value of all debt deliveries this session (not yet paid) |
-| `gross_sales` | `DECIMAL(12,2)` | NOT NULL | `gross_expected − total_new_debt` (actual cash in) |
-| `total_commissions` | `DECIMAL(12,2)` | NOT NULL | Sum of all rider `total_commission` values |
-| `total_expenses` | `DECIMAL(12,2)` | NOT NULL | Sum of all `remittance_expense.amount` for this session |
-| `net_profit` | `DECIMAL(12,2)` | NOT NULL | `gross_sales − total_commissions − total_expenses` |
-| `tithe_rate_snapshot` | `DECIMAL(5,4)` | NOT NULL | Copied from `core_systemconfig['tithe_rate']` at close time |
-| `tithe_amount` | `DECIMAL(12,2)` | NOT NULL | `gross_sales × tithe_rate_snapshot` |
-| `offering_amount` | `DECIMAL(12,2)` | NOT NULL | Manually entered by admin at session close |
-| `tithes_paid` | `BOOLEAN` | DEFAULT FALSE | Admin toggles when tithe payment is made |
-| `offering_paid` | `BOOLEAN` | DEFAULT FALSE | Admin toggles when offering is made |
-| `notes` | `TEXT` | NULL | |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
-
-**The financial display model (3-line gross + obligations):**
-```
-Gross Expected     = ₱[all deliveries × price] + ₱[debt repayments received]
-  Less: New Debt   = ₱[debt deliveries not yet paid]
-─────────────────────────────────────────────────────
-Gross Sales        = ₱[gross_expected − total_new_debt]
-
-Less: Commissions  = ₱[total_commissions]
-Less: Expenses     = ₱[total_expenses]
-─────────────────────────────────────────────────────
-Net Profit         = ₱[net_profit]
-
-── Spiritual Obligations ────────────────────────────
-Tithes Due (10%)   = ₱[tithe_amount]    ☐ Paid
-Offering           = ₱[offering_amount] ☐ Paid
-```
-
-> [!IMPORTANT]
-> **Snapshot pattern is mandatory.** `tithe_rate_snapshot` is copied from config at session close time. Future rate changes do NOT affect closed sessions. Similarly, commission rates are snapshotted via `remittance_ridercommissionsummary` rows, not re-read from `users_drivercommission`.
-
----
-
-## Domain 5: Analytics / Reporting (Week 2)
+## Domain 5: Analytics & AI Insights (Read-Only)
 **App:** `apps.analytics` | **DB prefix:** `analytics_`
 
 > [!NOTE]
-> Deferred. `models.py` remains empty. Do not create migrations for this domain in Week 1.
+> This domain provides lightweight Django REST API endpoints consumed by the PWA's Gemma 2B edge model via tool-calling (JSON Mode). No GPU inference runs server-side. The server only returns structured data; Gemma synthesizes the natural-language response on the client device.
+
+### API Endpoints (Django REST Framework, read-only)
+
+| Tool Name | Endpoint | Returns |
+|---|---|---|
+| `fetch_remittance_summary` | `GET /api/analytics/remittance-summary/?start=&end=` | Aggregated totals per day range |
+| `fetch_rider_performance` | `GET /api/analytics/rider-performance/?rider_id=&start=&end=` | Per-rider sales, commission, product breakdown |
+| `fetch_customer_debts` | `GET /api/analytics/customer-debts/?filter=` | Customer list with `debt_balance`, `days_overdue` |
+| `fetch_tithe_status` | `GET /api/analytics/tithe-status/` | List of remittances with unpaid tithes/offerings |
+| `fetch_ai_model_status` | `GET /api/analytics/ai-status/` | Returns `ai_download_status`, `ai_download_percent` from config |
+| `PATCH /api/analytics/ai-status/` | Updates `ai_download_status` and `ai_download_percent` | PWA progress callback writes here |
+
+All endpoints require `IsAuthenticated`. All responses use minimal field selection (no `SELECT *`).
 
 ### Table: `analytics_dailysnapshot` *(pg_cron — write once, read many)*
 | Column | Type | Notes |
 |---|---|---|
 | `snapshot_date` | `DATE` UNIQUE | The day aggregated |
-| `gross_expected` | `DECIMAL(12,2)` | |
-| `total_new_debt` | `DECIMAL(12,2)` | |
-| `gross_sales` | `DECIMAL(12,2)` | |
-| `net_profit` | `DECIMAL(12,2)` | |
-| `total_tithes_due` | `DECIMAL(12,2)` | |
-| `total_offerings` | `DECIMAL(12,2)` | |
+| `total_sales` | `DECIMAL(12,2)` | |
+| `total_credit_sales` | `DECIMAL(12,2)` | |
+| `total_commission` | `DECIMAL(12,2)` | |
 | `total_expenses` | `DECIMAL(12,2)` | |
-| `total_deliveries` | `SMALLINT` | |
+| `net_profit` | `DECIMAL(12,2)` | |
+| `tithe_amount` | `DECIMAL(12,2)` | |
+| `total_borrowed_items` | `SMALLINT` | |
 | `created_at` | `TIMESTAMPTZ` | When pg_cron job ran |
+
+> pg_cron job runs nightly at 23:55 to snapshot the finalized remittance for that day into this table for fast analytics queries.
 
 ---
 
@@ -455,6 +448,7 @@ erDiagram
     users_user {
         uuid id PK
         varchar username
+        varchar pin
         bigint role_id FK
         varchar status
         timestamptz deleted_at
@@ -477,115 +471,94 @@ erDiagram
         varchar key
         varchar value
     }
-    dispatch_session {
-        bigint id PK
-        uuid opened_by_id FK
-        timestamptz opened_at
-        uuid closed_by_id FK
-        timestamptz closed_at
-        bool is_open
-    }
-    dispatch_customerorder {
-        bigint id PK
-        bigint session_id FK
-        bigint customer_id FK
-        bigint product_id FK
-        smallint quantity
-        varchar status
-    }
-    dispatch_customer {
+    customers_customer {
         bigint id PK
         varchar name
         decimal debt_balance
         smallint borrowed_round_8gal
         smallint borrowed_slim_8gal
+        timestamptz last_credit_at
         timestamptz deleted_at
     }
-    dispatch_bulkdispatch {
+    customers_creditline {
         bigint id PK
-        bigint session_id FK
-        uuid driver_id FK
-        varchar status
-        timestamptz dispatched_at
-        timestamptz returned_at
-    }
-    dispatch_bulkdispatchitem {
-        bigint id PK
-        bigint bulk_dispatch_id FK
-        bigint product_id FK
-        smallint qty_loaded
-        decimal unit_price_snapshot
-    }
-    dispatch_deliveryrecord {
-        bigint id PK
-        bigint bulk_dispatch_id FK
         bigint customer_id FK
+        bigint remittance_rider_product_id FK
         bigint product_id FK
-        smallint qty_delivered
-        varchar payment_type
-        decimal unit_price_snapshot
-        decimal total_amount
-        smallint borrowed_round_8gal
-        smallint borrowed_slim_8gal
+        smallint qty_credited
+        decimal total_credit_amount
+        smallint qty_remaining
     }
-    dispatch_debtpayment {
+    customers_creditpayment {
         bigint id PK
-        bigint delivery_record_id FK
-        bigint session_id FK
+        bigint credit_line_id FK
+        bigint remittance_id FK
         smallint containers_paid
         decimal amount
-        timestamptz created_at
     }
-    remittance_expense {
+    remittance_remittance {
         bigint id PK
-        bigint session_id FK
-        varchar description
-        decimal amount
-    }
-    remittance_ridercommissionsummary {
-        bigint id PK
-        bigint session_id FK
-        uuid driver_id FK
-        decimal commission_from_cash
-        decimal commission_from_debt
+        date date
+        uuid created_by_id FK
+        varchar status
+        decimal total_sales
+        decimal total_credit_sales
         decimal total_commission
-        decimal cash_remitted
-        decimal cash_variance
-    }
-    remittance_sessionfinance {
-        bigint id PK
-        bigint session_id FK
-        decimal gross_expected
-        decimal total_new_debt
-        decimal gross_sales
-        decimal total_commissions
         decimal total_expenses
         decimal net_profit
         decimal tithe_amount
         decimal offering_amount
         bool tithes_paid
         bool offering_paid
+        timestamptz finalized_at
+    }
+    remittance_remittancerider {
+        bigint id PK
+        bigint remittance_id FK
+        uuid rider_id FK
+        decimal subtotal_payable
+        decimal subtotal_commission
+    }
+    remittance_remittanceriderproductline {
+        bigint id PK
+        bigint remittance_rider_id FK
+        bigint product_id FK
+        smallint qty_sold
+        smallint qty_credited
+        smallint borrowed_items
+        decimal unit_price_snapshot
+        decimal commission_rate_snapshot
+        decimal subtotal_payable
+        decimal subtotal_credit
+        decimal subtotal_commission
+    }
+    remittance_expense {
+        bigint id PK
+        bigint remittance_id FK
+        varchar description
+        decimal amount
+    }
+    analytics_dailysnapshot {
+        date snapshot_date
+        decimal total_sales
+        decimal net_profit
+        decimal tithe_amount
     }
 
     users_role ||--o{ users_permission : "grants"
     users_role ||--o{ users_user : "assigned to"
     users_user ||--o{ users_drivercommission : "has rates"
     core_product ||--o{ users_drivercommission : "rates for"
-    users_user ||--o{ dispatch_session : "opens"
-    dispatch_session ||--o{ dispatch_customerorder : "queues"
-    dispatch_session ||--o{ dispatch_bulkdispatch : "contains"
-    dispatch_session ||--o{ dispatch_debtpayment : "records payment in"
-    dispatch_session ||--o{ remittance_expense : "expenses"
-    dispatch_session ||--o{ remittance_ridercommissionsummary : "summarizes"
-    dispatch_session ||--|| remittance_sessionfinance : "closes into"
-    dispatch_customer ||--o{ dispatch_customerorder : "places"
-    dispatch_customer ||--o{ dispatch_deliveryrecord : "receives"
-    dispatch_bulkdispatch ||--o{ dispatch_bulkdispatchitem : "loads"
-    dispatch_bulkdispatch ||--o{ dispatch_deliveryrecord : "results in"
-    core_product ||--o{ dispatch_bulkdispatchitem : "loaded as"
-    core_product ||--o{ dispatch_deliveryrecord : "delivered as"
-    dispatch_deliveryrecord ||--o{ dispatch_debtpayment : "paid by"
-    users_user ||--o{ remittance_ridercommissionsummary : "earns"
+    core_product ||--o{ remittance_remittanceriderproductline : "sold as"
+    users_user ||--o{ remittance_remittance : "creates"
+    remittance_remittance ||--o{ remittance_remittancerider : "contains"
+    remittance_remittance ||--o{ remittance_expense : "expenses"
+    remittance_remittance ||--o{ customers_creditpayment : "payments received"
+    remittance_remittancerider ||--o{ remittance_remittanceriderproductline : "product lines"
+    users_user ||--o{ remittance_remittancerider : "is rider"
+    remittance_remittanceriderproductline ||--o{ customers_creditline : "creates debt"
+    customers_customer ||--o{ customers_creditline : "owes"
+    customers_creditline ||--o{ customers_creditpayment : "paid by"
 ```
 
 ---
@@ -594,198 +567,239 @@ erDiagram
 
 ```
 users_role ←── users_user ──→ users_drivercommission ←── core_product
-                  │
-                  ▼
-           dispatch_session
-          /       |        \
-         ▼        ▼         ▼
-dispatch_      dispatch_   remittance_
-customerorder  bulkdispatch  expense
-                  │
-                  ▼
-         dispatch_bulkdispatchitem
-                  │
-                  ▼
-         dispatch_deliveryrecord ──→ dispatch_debtpayment
-                                            │
-                                            ▼
-                               remittance_ridercommissionsummary
-                                            │
-                                            ▼
-                               remittance_sessionfinance
+                  │                                             │
+                  ▼                                             │
+           remittance_remittance ◄─────────────────────────────┘
+          /        |         \
+         ▼         ▼          ▼
+remittance_    remittance_  remittance_
+remittancerider  expense   (totals rollup)
+      │
+      ▼
+remittance_remittanceriderproductline
+      │
+      ▼
+customers_creditline ──→ customers_creditpayment
+      │
+      ▼
+customers_customer (debt_balance, borrowed_* denorm)
 ```
 
 ---
 
 ## Key ORM Patterns (Anti-N+1 Reference)
 
-### Dashboard: Today's Open Session + Active Dispatches
+### Dashboard: Today's Remittance Summary
 ```python
-# apps/dispatch/selectors.py
-def get_active_session_with_dispatches():
+# apps/remittance/selectors.py
+from django.utils import timezone
+
+def get_todays_remittance():
+    today = timezone.localdate()
     return (
-        Session.objects
+        Remittance.objects
         .prefetch_related(
             Prefetch(
-                'bulkdispatches',
-                queryset=BulkDispatch.objects
-                    .select_related('driver')
-                    .prefetch_related('items__product')
-                    .filter(status='DISPATCHED'),
-                to_attr='active_dispatches'
-            )
+                'riders',
+                queryset=RemittanceRider.objects
+                    .select_related('rider')
+                    .prefetch_related('product_lines__product'),
+                to_attr='rider_rows'
+            ),
+            'expenses',
         )
-        .get(is_open=True)  # At most one open session
+        .filter(date=today)
+        .first()  # Returns None if no remittance created yet today
     )
 ```
 
-### Order Queue Kanban
-```python
-# apps/dispatch/selectors.py
-def get_kanban_orders(session_id):
-    return (
-        CustomerOrder.objects
-        .select_related('customer', 'product')
-        .filter(session_id=session_id)
-        .exclude(status='DELIVERED')  # Delivered orders hidden from Kanban
-        .order_by('status', '-created_at')
-    )
-```
-
-### Session Finance Calculation (at close time)
+### Remittance Form: Add Product Line & Propagate Totals
 ```python
 # apps/remittance/services.py
-from django.db.models import Sum, Q
+from django.db.models import F, Sum
 
-def calculate_session_finance(session):
+def save_product_line(remittance_rider, product, qty_sold, qty_credited, borrowed_items):
     """
-    Called when admin clicks Close Session (after PIN verification).
-    Computes all financial fields and writes them to remittance_sessionfinance.
-    All values are snapshot-frozen at this moment.
+    Creates or updates a product line and propagates totals upward atomically.
+    Called on every HTMX form save (partial submit, not just on finalize).
     """
-    # 1. All cash deliveries this session
-    cash_deliveries = DeliveryRecord.objects.filter(
-        bulk_dispatch__session=session,
-        payment_type='CASH'
+    product_obj = Product.objects.get(pk=product.id)
+    try:
+        commission_rate = DriverCommission.objects.get(
+            driver=remittance_rider.rider,
+            product=product_obj
+        ).rate_per_unit
+    except DriverCommission.DoesNotExist:
+        commission_rate = Decimal('0.00')
+
+    subtotal_payable = qty_sold * product_obj.price
+    subtotal_credit = qty_credited * product_obj.price
+    subtotal_commission = qty_sold * commission_rate
+
+    line, created = RemittanceRiderProductLine.objects.update_or_create(
+        remittance_rider=remittance_rider,
+        product=product_obj,
+        defaults={
+            'qty_sold': qty_sold,
+            'qty_credited': qty_credited,
+            'borrowed_items': borrowed_items,
+            'unit_price_snapshot': product_obj.price,
+            'commission_rate_snapshot': commission_rate,
+            'subtotal_payable': subtotal_payable,
+            'subtotal_credit': subtotal_credit,
+            'subtotal_commission': subtotal_commission,
+        }
+    )
+
+    # Recalculate rider row totals from all its product lines
+    rider_agg = RemittanceRiderProductLine.objects.filter(
+        remittance_rider=remittance_rider
     ).aggregate(
-        total=Sum('total_amount'),
-        count=Sum('qty_delivered')
+        payable=Sum('subtotal_payable'),
+        commission=Sum('subtotal_commission'),
+    )
+    RemittanceRider.objects.filter(pk=remittance_rider.pk).update(
+        subtotal_payable=rider_agg['payable'] or 0,
+        subtotal_commission=rider_agg['commission'] or 0,
     )
 
-    # 2. All debt deliveries this session
-    debt_deliveries = DeliveryRecord.objects.filter(
-        bulk_dispatch__session=session,
-        payment_type='DEBT'
-    ).aggregate(total=Sum('total_amount'))
+    # Recalculate remittance-level totals from all its riders
+    _recalculate_remittance_totals(remittance_rider.remittance)
+    return line
 
-    # 3. Debt repayments RECEIVED in this session (from previous sessions' debts)
-    debt_repayments = DebtPayment.objects.filter(
-        session=session
-    ).aggregate(total=Sum('amount'))
 
-    gross_expected = (
-        (cash_deliveries['total'] or 0)
-        + (debt_deliveries['total'] or 0)
-        + (debt_repayments['total'] or 0)
+def _recalculate_remittance_totals(remittance):
+    """Single source of truth for totals rollup. Call after any mutation."""
+    agg = RemittanceRiderProductLine.objects.filter(
+        remittance_rider__remittance=remittance
+    ).aggregate(
+        sales=Sum('subtotal_payable'),
+        credit=Sum('subtotal_credit'),
+        commission=Sum('subtotal_commission'),
+        borrowed=Sum('borrowed_items'),
     )
-    total_new_debt = debt_deliveries['total'] or 0
-    gross_sales = gross_expected - total_new_debt
-
-    # 4. Per-rider commission summaries
-    # (already built up incrementally as deliveries/payments are recorded)
-    total_commissions = RiderCommissionSummary.objects.filter(
-        session=session
-    ).aggregate(total=Sum('total_commission'))['total'] or 0
-
-    total_expenses = Expense.objects.filter(
-        session=session
+    expense_total = Expense.objects.filter(
+        remittance=remittance
     ).aggregate(total=Sum('amount'))['total'] or 0
 
-    tithe_rate = Decimal(SystemConfig.objects.get_value('tithe_rate', '0.10'))
+    total_sales = agg['sales'] or 0
+    total_commission = agg['commission'] or 0
+    net_profit = total_sales - total_commission - expense_total
 
-    return SessionFinance.objects.create(
-        session=session,
-        gross_expected=gross_expected,
-        total_new_debt=total_new_debt,
-        gross_sales=gross_sales,
-        total_commissions=total_commissions,
-        total_expenses=total_expenses,
-        net_profit=gross_sales - total_commissions - total_expenses,
-        tithe_rate_snapshot=tithe_rate,
-        tithe_amount=gross_sales * tithe_rate,
-        offering_amount=0,  # Set separately by admin after close
+    Remittance.objects.filter(pk=remittance.pk).update(
+        total_sales=total_sales,
+        total_credit_sales=agg['credit'] or 0,
+        total_commission=total_commission,
+        total_expenses=expense_total,
+        total_borrowed_items=agg['borrowed'] or 0,
+        net_profit=net_profit,
     )
 ```
 
-### Debt Payment: Record + Trigger Commission
+### Finalize Remittance: Snapshot + Create Credit Lines
 ```python
-# apps/dispatch/services.py
-from django.db.models import F
+# apps/remittance/services.py
+from django.db import transaction
+from django.utils import timezone
+from decimal import Decimal
 
-def record_debt_payment(delivery_record, containers_paid, recorded_by, session):
+@transaction.atomic
+def finalize_remittance(remittance, offering_amount, finalized_by):
     """
-    Pays for X containers on a debt delivery.
-    Triggers retroactive commission for the original rider.
+    PIN-verified. Freezes the remittance.
+    1. Snapshots tithe rate.
+    2. Computes final tithes on net_profit (not gross).
+    3. Creates customers_creditline for all qty_credited > 0 lines.
+    4. Updates customers_customer.last_credit_at where applicable.
+    5. Sets status → FINALIZED.
     """
-    amount = containers_paid * delivery_record.unit_price_snapshot
+    if remittance.status == 'FINALIZED':
+        raise ValueError("Remittance is already finalized.")
 
-    # 1. Write the payment ledger entry
-    payment = DebtPayment.objects.create(
-        delivery_record=delivery_record,
-        session=session,
-        containers_paid=containers_paid,
-        amount=amount,
-        recorded_by=recorded_by,
+    tithe_rate = Decimal(SystemConfig.objects.get_value('tithe_rate', '0.10'))
+    _recalculate_remittance_totals(remittance)
+    remittance.refresh_from_db()
+
+    tithe_amount = remittance.net_profit * tithe_rate
+
+    # Create credit lines for all credited product lines
+    for rider_row in remittance.riders.prefetch_related('product_lines__product').all():
+        for line in rider_row.product_lines.all():
+            if line.qty_credited > 0:
+                # Credit lines link back to the remittance line for traceability
+                CreditLine.objects.create(
+                    customer=None,  # NOTE: customer assignment handled via UI before finalize
+                    remittance_rider_product=line,
+                    product=line.product,
+                    qty_credited=line.qty_credited,
+                    unit_price_snapshot=line.unit_price_snapshot,
+                    total_credit_amount=line.subtotal_credit,
+                    qty_remaining=line.qty_credited,
+                )
+
+    Remittance.objects.filter(pk=remittance.pk).update(
+        status='FINALIZED',
+        tithe_rate_snapshot=tithe_rate,
+        tithe_amount=tithe_amount,
+        offering_amount=offering_amount,
+        finalized_by=finalized_by,
+        finalized_at=timezone.now(),
     )
+```
 
-    # 2. Reduce customer debt atomically (no race conditions)
-    Customer.objects.filter(pk=delivery_record.customer_id).update(
-        debt_balance=F('debt_balance') - amount
+### Customers: Days Since Last Unpaid Credit
+```python
+# apps/customers/selectors.py
+from django.utils import timezone
+
+def get_customers_with_debt():
+    """
+    Returns customers who have outstanding debt or borrowed items.
+    Includes computed 'days_overdue' for display without a subquery per row.
+    """
+    today = timezone.now()
+    customers = (
+        Customer.objects
+        .filter(deleted_at__isnull=True)
+        .filter(models.Q(debt_balance__gt=0) | models.Q(borrowed_round_8gal__gt=0) | models.Q(borrowed_slim_8gal__gt=0))
+        .order_by('-debt_balance')
     )
-
-    # 3. Trigger retroactive commission for the original rider
-    driver = delivery_record.bulk_dispatch.driver
-    commission_rate = DriverCommission.objects.get(
-        driver=driver, product=delivery_record.product
-    ).rate_per_unit
-    earned = containers_paid * commission_rate
-
-    # Update or create the rider's commission summary for the CURRENT session
-    summary, _ = RiderCommissionSummary.objects.get_or_create(
-        session=session, driver=driver,
-        defaults={'cash_remitted': 0, 'cash_expected': 0, 'cash_variance': 0}
-    )
-    RiderCommissionSummary.objects.filter(pk=summary.pk).update(
-        containers_debt_paid=F('containers_debt_paid') + containers_paid,
-        commission_from_debt=F('commission_from_debt') + earned,
-        total_commission=F('total_commission') + earned,
-    )
-
-    return payment
+    # Annotate days_overdue using the denormalized last_credit_at
+    for customer in customers:
+        if customer.last_credit_at:
+            delta = today - customer.last_credit_at
+            customer.days_overdue = delta.days
+        else:
+            customer.days_overdue = None
+    return customers
 ```
 
 ---
 
-## Week 1 Migration Sequence
+## Migration Sequence (v3 — Fresh Dev, No Data Migration)
 
 ```bash
-# 1. IAM domain (no external deps — extends AbstractUser already done)
+# 1. IAM domain (no external deps)
 python manage.py makemigrations users
 
-# 2. Shared kernel (no external deps)
+# 2. Shared kernel
 python manage.py makemigrations core
 
-# 3. Operations domain (refs users + core; includes session)
-python manage.py makemigrations dispatch
+# 3. Customer accounts (refs users + core)
+python manage.py makemigrations customers
 
-# 4. Finance domain (refs dispatch + users)
+# 4. Remittance domain (refs users + core + customers)
 python manage.py makemigrations remittance
 
-# 5. Apply all at once
+# 5. Analytics (refs remittance — can stay empty for now)
+python manage.py makemigrations analytics
+
+# 6. Apply all migrations
 python manage.py migrate
 
-# 6. Seed required data
+# 7. Seed required data
 python manage.py loaddata roles permissions system_config
 ```
 
-> Analytics app migrations: deferred. `apps.analytics` is in `INSTALLED_APPS` but `models.py` stays empty.
+> [!NOTE]
+> The `dispatch` app from v2 is **deprecated**. Remove it from `INSTALLED_APPS` and delete its migrations. No data migration is needed (fresh dev environment).

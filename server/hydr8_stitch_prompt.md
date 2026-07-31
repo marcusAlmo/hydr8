@@ -1,293 +1,531 @@
-# Hydr8 — Stitch Design Prompt (v2 — Final)
-> Architecture-aware. User-centric. Scoped for 1-week delivery.
+# Hydr8 — Stitch Design Prompt (v3 — Simplified Remittance Architecture)
+> Manual remittance-first. Edge AI insights. Light + Dark mode. One week delivery.
 
 ---
 
 ## Project Context
 
-**Hydr8** is an internal day-operations management tool for a water refilling and delivery business. It is used by a business owner (Admin) and a counter staff member (Dispatcher). Delivery riders do not use the system at all — they receive their load and report back verbally.
+**Hydr8** is an internal daily operations tool for a water refilling and delivery business. The core daily loop is simple:
 
-**The core daily loop:**
-1. Open session → 2. Dispatch bulk loads to riders → 3. Record delivery outcomes when riders return → 4. Log expenses → 5. Close session (PIN-protected) → 6. Review financials, mark tithes/offering paid
+1. Admin opens the day → 2. Create a daily remittance → 3. Add riders with their sold/credited products → 4. Log expenses → 5. Finalize remittance (PIN-protected) → 6. Monitor outstanding customer debts and borrowed containers → 7. Ask AI for insights on demand.
 
-**Users and their real frustrations:**
-- **Admin** — Drowns in mental math at end of day. Needs to see net profit, commissions per rider, tithes due, and offering status at a glance without a calculator. Also needs to know if tithes from last Tuesday were ever paid.
-- **Dispatcher** — Needs to build a rider's load fast, record their return quickly, and keep the order queue Kanban tidy. Hates switching screens.
-- **Driver/Rider** — Has **no system access**. They are registered in the system but do not log in.
+**Users and their real contexts:**
+- **Admin** — Needs to enter remittance data fast, see net profit, tithes due, and commission breakdown at a glance. Manages products, employees, and system config.
+- **Staff** — Assists with data entry (remittance, customers). Cannot access employee management or sensitive settings.
+- **Driver/Rider** — Has **no system access**. They are registered for commission tracking only.
+
+**Removed from v2:** Dispatch, bulk loads, Kanban order queue, session open/close lifecycle. These are replaced entirely by the manual daily remittance.
 
 ---
 
-## Technical Constraints (Architecture-Aware)
+## Technical Constraints
 
-- **Backend:** Django + HTMX. Hypermedia-driven — server renders HTML partials, no SPA or React.
+- **Backend:** Django + HTMX. Hypermedia-driven. Server renders HTML partials. No SPA.
 - **Styling:** Tailwind CSS.
-- **Charts:** Chart.js (deferred to Week 2).
-- **Auth/RBAC:** Role FK on User model. Strictly enforced via Django `PermissionRequiredMixin` at the view level AND sidebar visibility.
-- **Session Model:** A `dispatch_session` table, not calendar-day based. Exactly one session is open at a time. The session owns all dispatches, delivery records, expenses, and the financial close.
-- **Debt Payment:** Paid per container (not per peso). Each container payment triggers retroactive commission for the original rider.
-- **Commission:** Per-rider × per-product rate matrix (`users_drivercommission`). Not a flat rate.
+- **Charts:** Chart.js (deferred to post-MVP).
+- **Theme:** Light + Dark mode via CSS custom properties. Alpine.js controls `data-theme` on `<html>`, persisted in `localStorage`.
+- **Auth/RBAC:** Role FK on User model. Permission matrix is Admin-assignable at runtime. Enforced via Django `PermissionRequiredMixin` and sidebar visibility.
+- **AI:** Gemma 2B (`gemma-2-2b-it-q4f16_1-MLC`) via `@mlc-ai/web-llm` WebGPU. Client-side only. Read-only tool calling. Background download with progress written to server config via PATCH API.
 
 ---
 
-## Role Access Matrix (Strict)
+## Navigation Structure (7 Items)
 
-| Screen | Admin | Dispatcher | Driver |
+```
+Sidebar (always dark — brand consistency)
+├── Dashboard          (icon: grid/home)
+├── Remittance         (icon: receipt/layers)
+├── Customers          (icon: users)
+├── Products & Pricing (icon: tag/box)
+├── Employees & Users  (icon: user-cog)
+├── Settings           (icon: gear)
+└── [Theme Toggle]     (sun/moon — bottom of sidebar)
+```
+
+---
+
+## Role Access Matrix (Admin-Assignable Defaults)
+
+| Screen | Admin | Staff | Driver |
 |---|---|---|---|
-| Dashboard | ✓ | ✓ | ✗ |
-| Order Queue (Kanban) | ✓ | ✓ | ✗ |
-| Dispatch (Create Load + Record Return) | ✓ | ✓ | ✗ |
-| Session Close & Finance Summary | ✓ | ✗ | ✗ |
-| Session History | ✓ | ✗ | ✗ |
-| Customer Debts & Containers | ✓ | ✓ | ✗ |
-| Settings | ✓ | ✗ | ✗ |
-| Analytics | ✓ | ✗ | ✗ |
+| Dashboard | Full | Read | — |
+| Remittance (Add + History) | Full | Add/Edit DRAFT | — |
+| Customers | Full | Add/Edit | — |
+| Products & Pricing | Full | Read-only | — |
+| Employees & Users | Full | — | — |
+| Settings | Full | Profile only | — |
+| AI Chatbot | Full | Full | — |
+
+> These defaults are seeded but the Admin can adjust per-role permissions at any time via the Employees & Users screen.
 
 ---
 
-## Week 1 Screens
+## Screen 1: Login
+**Goal:** Single form. Zero friction. Role-based redirect after auth.
 
-### Screen 1: Login
-**Goal:** Single form. No friction. Role-based redirect after authentication.
+**Layout:** Split — left panel (dark `Abyss` bg, logo + tagline "Water. Delivered. Managed.") + right panel (login form on light bg in Light mode; elevated surface in Dark mode).
 
-- Split layout: left = brand panel (dark, `#0F172A`, logo + tagline "Water. Delivered. Managed."), right = login form.
-- Fields: `Username`, `Password`. One "Sign In" button.
-- Error: Inline below form — "Invalid credentials." No toast or modal.
-- Mobile: Brand panel hidden. Form fills full screen.
-- **Anti-patterns:** No hero copy. No social login. No "Forgot password."
+**Fields:** `Username`, `Password`. One "Sign In" button. Optional PIN login button below for returning users.
 
----
+**Error:** Inline below form — "Invalid credentials." No toast, no modal.
 
-### Screen 2: Dashboard
-**Goal:** The operational heartbeat of the open session, readable in under 3 seconds.
+**Mobile:** Left panel hidden. Form fills full screen with centered logo above.
 
-**Layout:** Left sidebar nav (icon-only on mobile) + main content.
-
-**Session Status Bar (top of main content):**
-- If session is open: Green pill "Session Open" + opened time + "Close Session" button (right-aligned, destructive amber color).
-- If no session open: Full-width amber banner: "No active session. Open a new session to begin operations." with an "Open Session" button.
-- "Close Session" opens a PIN entry modal with a confirmation summary before finalizing.
-
-**Stats Row (asymmetric, not 3 equal cards):**
-- Today's Gross Sales (large, Geist Mono, blue accent border)
-- Open Dispatches (riders still out — count, amber if > 0)
-- Active Customer Debt (₱ total, red accent border if > 0)
-
-**Order Queue Kanban (Kanban board — 3 columns):**
-- Columns: `Pending`, `Dispatched`, `Delivered`
-- Each card shows: Customer name, Product, Qty, assigned (optional note)
-- Cards drag is **not required** in Week 1 — status buttons on each card move it forward
-- At session close, Delivered column cards are cleared (archived)
-- Add Order button opens a quick-add modal: Customer (searchable), Product, Qty, Notes
-
-**Active Dispatches Panel (below Kanban or right column on wide screens):**
-- Compact list of riders still out (status = DISPATCHED)
-- Shows: Rider name, dispatch time, products loaded (condensed), total expected collectible
-- "Record Return" button per row — opens the return reconciliation form
-
-**Driver Leaderboard (bottom):**
-- Compact ranked list: Rider name, containers delivered, commission earned this session
-- Text-first, no charts in Week 1
+**Anti-patterns:** No hero copy. No social login. No "Forgot password" link.
 
 ---
 
-### Screen 3: Dispatch — Create Bulk Load
-**Goal:** Dispatcher builds a rider's physical load and sends them out in under 90 seconds.
+## Screen 2: Dashboard
+**Goal:** Operational heartbeat. Readable in under 3 seconds. Shows today's financial state and AI insights.
 
-- Select Rider: dropdown of active drivers
-- Add products: repeating row — `Product` dropdown (shows name + variation), `Qty` stepper
-- "Add Another Product" adds a new row (HTMX partial append)
-- **Expected Collectible Preview (live, right panel or below on mobile):** Updated via HTMX as rows change. Shows each line: `Product × Qty = ₱[amount]` and a total.
-- Notes: Optional textarea
-- Submit: "Create Dispatch" button → rider is immediately `DISPATCHED`, no pending state
-- Defensiveness: If no riders are active, disable form and show: "No active riders. Add riders in Settings → Users."
+**Layout:** Sidebar (always dark) + main content area (themed).
+
+**Theme toggle:** Sun/Moon icon pinned at the bottom of the sidebar. Clicking toggles `data-theme="light"` / `data-theme="dark"` on `<html>`. State persists via `localStorage`. No page reload.
 
 ---
 
-### Screen 4: Dispatch — Record Return
-**Goal:** When a rider returns, the dispatcher records exactly who got what and how they paid.
+### Dashboard — Today's Remittance Banner
+- **If no remittance today:** Full-width amber banner: "No remittance for today yet." + prominent "Create Today's Remittance" button (right-aligned).
+- **If DRAFT remittance exists:** Teal/blue pill "Remittance — Draft" + date + "Continue Editing" button.
+- **If FINALIZED:** Green pill "Remittance Finalized" + date + "View Summary" button.
 
-**Context header (read-only):** Rider name, dispatch time, products loaded (from `dispatch_bulkdispatchitem`)
+---
 
-**Per-Customer Delivery Entry (repeating rows, HTMX append):**
-Each row:
-- `Customer` — searchable dropdown (can create new customer inline)
-- `Product` — dropdown limited to products in this dispatch
-- `Qty Delivered` — stepper
-- `Payment Type` — Toggle button: `Cash` (green) / `Debt` (amber)
-- `Borrowed Containers` — two small steppers: `Round 8Gal`, `Slim 8Gal`
+### Dashboard — Stats Row (Asymmetric, 3 Cards)
+Cards are NOT 3 equal columns. Use a weighted layout:
 
-**Running reconciliation sidebar/panel (live HTMX update):**
+1. **Today's Total Sales** — Large (`2xl` Geist Mono), 2px top `Hydr8 Blue` border, shows `₱X,XXX.XX`. Below: small credit sales sub-label.
+2. **Unpaid Credits** — Medium, 2px top `Amber Warning` border, shows `₱X,XXX.XX`. Red if > ₱0.
+3. **Outstanding Customer Debt** — Medium, 2px top `Rose Danger` border, shows `₱X,XXX.XX` + `N customers` count label below.
+
+---
+
+### Dashboard — AI Insights Panel
+This section appears below the stats row. It has a subtle animated gradient header bar (slow horizontal shimmer, `Hydr8 Blue` → `Emerald` gradient).
+
+**Header:** "AI Insights" with a small Gemma badge (version label). Right side: model status chip — `Ready`, `Initializing...`, or `Downloading XX%`.
+
+**Insight Cards (3–4 auto-generated chips, horizontal scroll on mobile):**
+- Each chip is a compact card with an icon, one-line insight text, and a subtle category label.
+- Examples:
+  - "Rider Dela Cruz contributed 38% of this week's net sales."
+  - "3 customers overdue 7+ days — ₱4,800 in unpaid credits."
+  - "Tithes for last Monday are still unpaid."
+- Chips are **read-only display** — clicking one opens the AI chatbot pre-filled with a follow-up question.
+- If AI model is not ready: chips show skeleton loaders with label "AI insights will appear once model is ready."
+
+**"Ask Hydr8 AI" button** — right-aligned, opens the global AI chatbot bubble.
+
+---
+
+### Dashboard — Recent Remittances (Table, Last 5)
+Compact table below AI Insights:
+- Columns: `Date`, `Total Sales`, `Net Profit`, `Commission`, `Tithes`, `☑ Paid`, `Actions`
+- Row amber left border if tithes or offering is unpaid
+- `View` button links to the Remittance History detail
+
+---
+
+## Screen 3: Remittance
+**Goal:** The primary data-entry screen. Add riders, products, quantities, and expenses. See real-time financial summary.
+
+### Tab A: Remittance History (Default View)
+
+**Table (full width):**
+- Columns: `Date`, `Created By`, `Total Sales`, `Credit Sales`, `Commission`, `Net Profit`, `Tithes`, `☑ Tithes Paid`, `☑ Offering Paid`, `Actions`
+- `☑ Tithes Paid` and `☑ Offering Paid` are **inline toggleable checkboxes** — clicking updates immediately via HTMX (no page reload)
+- Row amber left border if either is unchecked on a finalized remittance
+- `View` — opens FINALIZED remittance in read-only mode
+- `Edit` — available only for DRAFT remittances; opens the Add Remittance sub-tab
+- Filter: date range picker (top right)
+- Empty state: "No remittances recorded yet. Create today's remittance to get started."
+
+**"Add Remittance" button** — top right. Opens the Add Remittance sub-tab (slide-in, not a modal).
+
+---
+
+### Tab B: Add Remittance (Slide-In Sub-Tab)
+
+**Sub-tab header:**
+- "New Remittance — [Today's Date]" (date field, pre-filled, editable for backfill)
+- Right side: status badge (`DRAFT`) + "Save Draft" + "Finalize Remittance" buttons
+
+---
+
+#### Pinned Summary Card (top of form, live-updated via HTMX on every input change)
 ```
-Loaded:        30 Purified 8-Gal
-Recorded:      22 Purified 8-Gal
-Unaccounted:    8 Purified 8-Gal  ← shown in amber until = 0
+┌────────────────────────────────────────────────────────────────────┐
+│  Remittance Summary                    Date: [________]            │
+│────────────────────────────────────────────────────────────────────│
+│  Total Sales:      ₱  0.00  │  Credit Sales:     ₱  0.00          │
+│  Total Commission: ₱  0.00  │  Borrowed Items:   0                 │
+│  Total Expenses:   ₱  0.00  │  Net Profit:       ₱  0.00          │
+│  Tithes (10%):     ₱  0.00  │                                      │
+└────────────────────────────────────────────────────────────────────┘
 ```
-
-Submit: "Finalize Return" button — only enabled when all loaded qty is accounted for
-Defensiveness: Block submission if `unaccounted > 0` with error: "You have 8 unaccounted Purified 8-Gal. Record remaining deliveries or mark as returned stock."
+This card is sticky/pinned at top while scrolling the form below.
 
 ---
 
-### Screen 5: Session Close & Financial Summary
-**Goal:** Admin closes the session with full financial clarity and zero ambiguity. Admin-only.
+#### Rider Sections (HTMX-driven, expandable)
 
-**Triggered by:** "Close Session" button on dashboard → PIN modal → summary screen.
+**Empty state:** "No riders added yet." with a prominent "+ Add Rider" button.
 
-**PIN Modal:**
-- Numeric PIN input (4–6 digits)
-- If wrong: "Incorrect PIN. Session remains open."
-- If correct: Load the Session Summary page
-
-**Session Finance Summary (read-only once confirmed):**
-
+**Rider Section Structure (repeating per rider):**
 ```
-─── Revenue ────────────────────────────────────────────
-Gross Expected      ₱[amount]   (all deliveries + debts repaid)
-  Less: New Debt   -₱[amount]   (debt deliveries not yet paid)
-                   ────────────
-Gross Sales         ₱[amount]
-
-─── Deductions ─────────────────────────────────────────
-Total Commissions  -₱[amount]
-Total Expenses     -₱[amount]
-                   ────────────
-Net Profit          ₱[amount]   ← Bold, large, primary display
-
-─── Spiritual Obligations (separate visual card, amber/gold left border)
-Tithes Due (10%)    ₱[amount]   ☐ Tithes Paid
-Offering            ₱[input]    ☐ Offering Paid   ← Offering is manual input
+┌──────────────────────────────────────────────────────────────────┐
+│  Rider: [Dropdown — Driver users only]           [Remove Rider]  │
+│──────────────────────────────────────────────────────────────────│
+│  Product Lines:                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │ Product: [dropdown] │ Sold: [±stepper] │ Credited:[±stepper]│  │
+│  │ Borrowed Items: [±stepper]                                │    │
+│  │ Subtotal Payable: ₱X.XX  │  Commission: ₱X.XX            │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│  [+ Add Product]                                                  │
+│──────────────────────────────────────────────────────────────────│
+│  Rider Subtotals:  Payable ₱X.XX  │  Commission ₱X.XX           │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-**Per-Rider Breakdown (expandable rows below):**
-Each rider:
-- Containers (Cash): [N] × rate = ₱commission
-- Containers (Debt Paid): [N] × rate = ₱commission (retroactive)
-- Total Commission: ₱[X]
-- Cash Expected: ₱[X] | Cash Remitted: ₱[X] | Variance: ₱[+/-]
+**Behavior:**
+- Clicking a Rider dropdown auto-expands the product section below it.
+- "+ Add Product" appends a new product line row via HTMX partial append.
+- Each qty change triggers an HTMX partial recalculation of: line subtotals → rider subtotals → summary card.
+- Rider dropdown only shows users with `Driver` role and `ACTIVE` status.
+- Product dropdown only shows `is_active = True` products.
+- A rider can only be added once per remittance (duplicate check on dropdown).
 
-**Expenses List (editable until finalized):**
-- Table of expenses added this session (description, amount)
-- "Add Expense" button (HTMX modal): description + amount
-
-**"Finalize & Close Session" button:**
-- Large, destructive. Requires explicit second click with confirmation: "This will lock all records for this session. Continue?"
-- Once finalized: entire page becomes read-only. Badge shows "Finalized [date/time] by [user]"
+**"+ Add Rider" button** — below all existing rider sections. Appends a new rider block via HTMX.
 
 ---
 
-### Screen 6: Session History
-**Goal:** Admin reviews all past sessions, tracks outstanding tithes/offerings.
+#### Expenses Section (below all rider sections)
 
-- Table: `Date/Time Opened`, `Opened By`, `Gross Sales`, `Net Profit`, `Tithes Due`, `☑ Tithes Paid`, `☑ Offering Paid`, `View Details`
-- Tithes Paid and Offering Paid are **inline toggleable checkboxes** — clicking them updates the record immediately via HTMX (no page reload)
-- Row highlight: amber left border if `tithes_paid = FALSE` or `offering_paid = FALSE`
-- "View Details" opens the full Session Finance Summary in read-only mode
-- Filter: date range picker
-- Empty state: "No sessions recorded yet."
+**Header:** "Expenses" with an "+ Add Expense" button (right-aligned).
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ Description                          │ Amount      │ Actions   │
+│──────────────────────────────────────│─────────────│───────────│
+│ [Fuel — Rider A motorcycle     ]     │ ₱[150.00]   │ [Delete]  │
+│ [Seal replacement               ]    │ ₱[ 80.00]   │ [Delete]  │
+└────────────────────────────────────────────────────────────────┘
+│ Total Expenses:                                      ₱230.00   │
+```
+
+Each expense row is editable inline. Deleting an expense triggers a summary card recalculation via HTMX.
 
 ---
 
-### Screen 7: Customer Debts & Borrowed Containers
-**Goal:** See who owes what, in money and containers. Log payments per-container.
+#### Finalize Remittance
 
-**Filters (quick chips):** `All`, `Has Debt`, `Has Borrowed Containers`, `Clear Accounts`
+At the bottom of the form, after the expenses section:
 
-**Table:** `Customer Name`, `Address`, `Monetary Debt (₱)`, `Borrowed Round 8Gal`, `Borrowed Slim 8Gal`, `Actions`
-- Row amber highlight if debt > 0 or any borrowed containers > 0
+```
+─── Spiritual Obligations ────────────────────────── (amber/gold left border card)
+Offering Amount:  ₱ [__________]  (manual input)
+Tithes (10% of Net Profit):  ₱ X,XXX.XX  (read-only, computed)
 
-**"Record Payment" modal (per customer):**
-- Shows list of debt delivery records for that customer (session date, product, qty_owed, qty_remaining)
-- For each debt record with remaining containers: `[input: containers to pay]` field (max = remaining)
-- Amount auto-calculates: `containers × unit_price`
-- Submit records payment, updates customer debt balance atomically
-- Important: No fractional payments. Input is container count only.
+[Save as Draft]                         [Finalize Remittance ⚠]
+```
 
-**"Update Containers" modal:**
-- Per container type (Round 8Gal, Slim 8Gal): current count + decrease/increase stepper
+Clicking "Finalize Remittance":
+1. Opens PIN entry modal (4–6 digits).
+2. If wrong PIN: "Incorrect PIN. Remittance remains as Draft."
+3. If correct: Confirmation dialog — "This will lock all entries for [date]. This cannot be undone. Continue?"
+4. On confirm: Status → `FINALIZED`. All fields become read-only. Badge shows "Finalized [date/time] by [user]".
+
+---
+
+## Screen 4: Customers
+**Goal:** See who owes money or has borrowed containers. Track and log payments.
+
+### Customer List View
+
+**Filter chips (top):** `All` · `Has Debt` · `Has Borrowed Items` · `Clear Accounts`
+
+**Search bar:** Live search by customer name (HTMX debounced).
+
+**Table / Card View (responsive):**
+| Column | Description |
+|---|---|
+| `Name` | Customer name |
+| `Balance` | `debt_balance` in ₱, rose text if > 0 |
+| `Borrowed Items` | Total borrowed containers count |
+| `Payable Amount` | Total outstanding monetary debt |
+| `Last Credit` | "X days ago" computed from `last_credit_at` — amber if > 7 days |
+| `Actions` | Pay, Update Containers, View History |
+
+Row amber left border if `debt_balance > 0` or borrowed items > 0.
+
+**"Add Customer" button** — top right. Opens modal with: Name, Address, Contact Number, Notes.
+
+**Mobile:** Collapses to per-customer card layout (name bold, debt prominent, action buttons below).
+
+---
+
+### "Record Payment" Modal (per customer)
+
+- Shows list of open credit lines for that customer (remittance date, product, qty owed, qty remaining, amount)
+- Per credit line: `[input: containers to pay now]` (max = `qty_remaining`)
+- Amount auto-calculates: `containers × unit_price_snapshot`
+- Submit: updates `customers_creditline.qty_remaining`, decrements `customers_customer.debt_balance` atomically
+- Defensiveness: block submit if any input exceeds `qty_remaining`
+
+---
+
+### "Update Containers" Modal (per customer)
+
+- Per container type (Round 8-Gal, Slim 8-Gal, Other): current count + increase/decrease stepper
 - Notes field: "Customer returned 2 slim containers"
-
-**Mobile:** Collapses to per-customer card layout.
-
----
-
-### Screen 8: Settings (Admin Only — Tabbed)
-
-**Tab 1: Products**
-- Table: Product Name, Variation, Price, Status, Edit/Deactivate
-- "Add Product" → inline row (HTMX). Fields: name, variation, price.
-- Edit price inline. Deactivate hides from dispatch dropdowns.
-
-**Tab 2: Users / Staff**
-- Table: Name, Username, Role, Status, Actions
-- "Add Staff" modal: Full Name, Username, Email, Password, Role (Admin/Dispatcher/Driver)
-- Deactivate = soft delete. Cannot deactivate the last active Admin.
-
-**Tab 3: Commission Rates**
-- Matrix view: Rows = Drivers, Columns = Products
-- Each cell: editable ₱ rate input (inline HTMX save on blur)
-- "Set rate for all drivers" per product column → updates all cells in that column simultaneously (bulk UPDATE), then refreshes the matrix
-
-**Tab 4: System Config**
-- `Tithe Rate (%)`: numeric input, default 10%
-- `Late Threshold (minutes)`: numeric input, default 30
-- `Session Close PIN`: masked input (change requires current PIN first)
-- Save button per field.
+- Updates `customers_customer.borrowed_*` atomically
 
 ---
 
-## Design System (Stitch DESIGN.md Directives)
+## Screen 5: Products & Pricing
+**Goal:** Manage product catalog and delivery commission rates. Standalone nav item.
 
-**Visual Atmosphere:** Operational cockpit. Dense but structured. Clinical but human. Like the back office of a well-run business, not a tech startup.
-- **Density:** 7/10 — data tables, real numbers, compact rows
-- **Variance:** 4/10 — predictable layouts, stressed users need familiarity
-- **Motion:** 4/10 — subtle HTMX swap transitions, no animations for their own sake
+### Sub-Tab 1: Products
 
-**Color Palette:**
-- `Abyss` (`#0F172A`) — Sidebar, dark canvas
-- `Navy Surface` (`#1E293B`) — Cards, modals, elevated containers
-- `Slate Border` (`rgba(148,163,184,0.15)`) — 1px structural lines
-- `Muted Slate` (`#94A3B8`) — Secondary labels, metadata, timestamps
-- `Off-White` (`#F1F5F9`) — Primary body text on dark surfaces
-- `Hydr8 Blue` (`#0EA5E9`) — CTAs, active nav, focus rings (Sky-500)
-- `Amber Warning` (`#F59E0B`) — Late, debt, pending, session tithes card
-- `Emerald Success` (`#10B981`) — Cash payment, delivered, positive variance
-- `Rose Danger` (`#F43F5E`) — Negative variance, errors, destructive actions
+**Table:**
+| Column | Notes |
+|---|---|
+| `Name` | Product name, e.g. Purified |
+| `Variation` | e.g. 8-Gallon Round |
+| `Price (₱)` | Editable inline — save on blur via HTMX |
+| `Active` | Toggle switch — inactive hides from remittance dropdowns |
+| `Actions` | Edit row, Deactivate |
 
-**Typography:**
-- `Geist` — Headlines, nav labels, body
-- `Geist Mono` — ALL monetary values, quantities, timestamps, container counts
-- **Banned:** `Inter`, serif fonts, pure black `#000000`
+**"Add Product" button** → inline row append via HTMX. Fields: Name, Variation, Price.
 
-**Components:**
-- Status badges: pill, 15% tint background, full-color text
-- Table rows: 52px min-height, 1px `Slate Border` bottom, hover `Navy Surface`
-- Stats cards: `Navy Surface` bg, `2px` top border in semantic color, `1rem` radius, NO box-shadow
-- Primary button: `Hydr8 Blue` fill, `-1px` translateY on active
-- Inputs: `Navy Surface` bg, `Slate Border` border, `2px Hydr8 Blue` focus ring
-- Sidebar: `Abyss` bg, active item = `3px Hydr8 Blue` left border + `rgba(14,165,233,0.1)` bg
-- Kanban cards: `Navy Surface`, `1px` border, status color as left accent `3px`
-- Tithes/Offering card: amber/gold `3px` left border to signal spiritual importance
+> [!NOTE]
+> Price changes apply only to new remittance entries. All saved lines use `unit_price_snapshot` — immutable from the moment of entry.
 
-**Anti-Patterns (BANNED):**
-- No emojis
+---
+
+### Sub-Tab 2: Delivery Commissions
+
+**Matrix View:**
+- Rows = Active Drivers (from `users_user` where role = Driver, status = ACTIVE)
+- Columns = Active Products (from `core_product` where `is_active = TRUE`)
+- Each cell: editable `₱ rate` input. Save on blur via HTMX.
+- Empty cell = `₱0.00` (commission not set for that combination)
+
+**Bulk action per column:** "Set rate for all drivers" input at column header → bulk UPDATE via Django ORM → matrix refreshes.
+
+---
+
+## Screen 6: Employees & Users
+**Goal:** Full employee lifecycle management. Standalone nav item. Admin only.
+
+### Sub-Tab 1: Staff List
+
+**Table:**
+| Column | Notes |
+|---|---|
+| `Full Name` | |
+| `Username` | |
+| `Role` | Admin / Staff / Driver |
+| `Status` | `ACTIVE` or `DEACTIVATED` |
+| `Actions` | Edit, Deactivate, Reset Credentials |
+
+**"Add Employee" button** → modal. Fields: Full Name, Username, Email (optional), Password, PIN (optional), Role.
+
+**Deactivate** = soft delete. Cannot deactivate the last active Admin.
+
+---
+
+### Sub-Tab 2: Access Management
+
+Per-role permission matrix editor:
+- Rows = Actions (`dashboard`, `remittance`, `customers`, `products`, `employees`, `settings`, `analytics`)
+- Columns = Roles (`Admin`, `Staff`, `Driver`)
+- Each cell: checkboxes for `Read`, `Write`, `Update`, `Delete`
+- Save button per row. Changes apply immediately to sidebar visibility and view-level access.
+
+---
+
+### Sub-Tab 3: Security & Credentials
+
+Per-employee actions (accessible via "Reset Credentials" in Staff List):
+- Change Password
+- Change Username
+- Change PIN (4–6 digit numeric)
+- Lock Account (temporary — blocks login without deactivating)
+
+---
+
+### Sub-Tab 4: Commission Assignment
+
+Per-employee commission editor (only for users with `Driver` role):
+- Shows the commission matrix rows for the selected driver
+- Editable ₱ rate per product
+- Same save-on-blur HTMX behavior as the Products & Pricing commission tab
+
+---
+
+## Screen 7: Settings
+**Goal:** System configuration and personal profile management. Admin-only (Staff sees Profile tab only).
+
+### Tab 1: System Config
+
+| Setting | Input | Notes |
+|---|---|---|
+| Lockscreen Timeout | Number input (minutes) | Idle minutes before PIN prompt |
+| Password Policy | Toggle (`is_password_strict`) | Requires uppercase, numbers, symbols |
+| Tithe Rate | `%` input | Default 10% — applies to net profit |
+
+---
+
+### Tab 2: Company
+
+| Setting | Input |
+|---|---|
+| Company Name | Text input |
+| Contact Number | Text input |
+| Email Address | Email input |
+
+---
+
+### Tab 3: My Profile
+
+- Update own: First Name, Last Name, Email, Username, Password, PIN
+- Current password required to change password or PIN
+
+---
+
+### Tab 4: AI Model
+
+**Shows:**
+- Model Name: `Gemma 2B (gemma-2-2b-it-q4f16_1-MLC)`
+- Download Status: `Ready` / `Downloading (XX%)` / `Not Started`
+- Progress bar (if downloading)
+- Model size: ~1.2 GB (stored in browser IndexedDB — device-local)
+- "The AI model downloads once per device. It never leaves your browser."
+- [Trigger Download] button — starts background download if not started
+
+**Behavior:** Model download happens in the background. The main system operates normally. Only the AI Insights panel and chatbot show "AI initializing..." while downloading. This tab shows live progress (HTMX polling or SSE).
+
+---
+
+## Global: AI Chatbot Bubble
+
+**Trigger:** Fixed bottom-right floating action button (chat icon). Visible on all screens.
+
+**Bubble states:**
+- **Model not ready:** FAB shows an amber pulsing ring. Clicking shows: "AI model is downloading in the background (XX%). Insights will be available shortly."
+- **Model ready:** FAB is static `Hydr8 Blue`. Clicking opens the chat drawer.
+
+**Chat Drawer (slide-in from right, 400px wide):**
+- Header: "Hydr8 AI" + Gemma badge + Close button
+- Message thread (scrollable)
+- Input box + Send button
+- "Ask me about today's sales, commissions, customer debts, or unpaid tithes."
+
+**Available tools (read-only, JSON mode):**
+- `fetch_remittance_summary(start_date, end_date)` — Sales, commission, net, tithes across date range
+- `fetch_rider_performance(rider_id, start_date, end_date)` — Per-rider breakdown
+- `fetch_customer_debts(filter)` — Customers with outstanding balances
+- `fetch_tithe_status()` — Unpaid tithes/offering list
+
+**On close:** `engine.unload()` called — 100% VRAM freed.
+
+**Fallback:** If `navigator.gpu` is unavailable → graceful message: "AI chatbot requires WebGPU. Please use Chrome 113+ or Edge 113+. Your other data is unaffected."
+
+---
+
+## Design System — Light + Dark Mode
+
+### Mode Architecture
+
+- CSS custom properties defined on `:root` (light defaults) and `[data-theme="dark"]` override block.
+- Alpine.js: `x-data` on `<body>` with `theme: localStorage.getItem('theme') || 'light'`, bound to `document.documentElement.dataset.theme`.
+- Sidebar always uses `Abyss` dark palette regardless of theme (brand consistency).
+
+### Color Tokens
+
+| Token | Light Mode | Dark Mode |
+|---|---|---|
+| `--bg-canvas` | `#F8FAFC` | `#0F172A` |
+| `--bg-surface` | `#FFFFFF` | `#1E293B` |
+| `--bg-elevated` | `#F1F5F9` | `#263248` |
+| `--border` | `rgba(15,23,42,0.10)` | `rgba(148,163,184,0.15)` |
+| `--text-primary` | `#0F172A` | `#F1F5F9` |
+| `--text-secondary` | `#64748B` | `#94A3B8` |
+| `--text-mono` | `#1E293B` | `#E2E8F0` |
+| `--accent-blue` | `#0EA5E9` | `#38BDF8` |
+| `--accent-amber` | `#D97706` | `#F59E0B` |
+| `--accent-emerald` | `#059669` | `#10B981` |
+| `--accent-rose` | `#E11D48` | `#F43F5E` |
+| `--sidebar-bg` | `#0F172A` | `#0F172A` |
+| `--sidebar-text` | `#94A3B8` | `#94A3B8` |
+| `--sidebar-active-bg` | `rgba(14,165,233,0.10)` | `rgba(14,165,233,0.10)` |
+| `--sidebar-active-border` | `#0EA5E9` | `#38BDF8` |
+
+### Typography
+
+- `Geist` — All body, nav, labels, headings
+- `Geist Mono` — **ALL** monetary values, quantities, timestamps, percentages, container counts
+- **Banned:** `Inter`, serif fonts, pure black `#000000`, pure white `#FFFFFF`
+
+### Icons
+
+- Use **Google Material Symbols Rounded**.
+- **CRITICAL:** You MUST include the CDN link in the `<head>` of your HTML to prevent broken text icons: `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />`
+- Usage: `<span class="material-symbols-rounded">grid_view</span>`
+
+### Component Standards
+
+| Component | Spec |
+|---|---|
+| Stats cards | `var(--bg-surface)` bg, `2px` top border in semantic color, `0.75rem` radius, no box-shadow |
+| Table rows | 52px min-height, `1px var(--border)` bottom, hover `var(--bg-elevated)` |
+| Status badges | Pill shape, 15% tint bg, full-color text, `Geist` weight 500 |
+| Primary button | `var(--accent-blue)` fill, white text, `-1px` translateY on active |
+| Danger button | `var(--accent-rose)` fill, white text, explicit confirmation required |
+| Inputs | `var(--bg-surface)` bg, `1px var(--border)` border, `2px var(--accent-blue)` focus ring |
+| Sidebar | `var(--sidebar-bg)` bg, active item = `3px left border var(--sidebar-active-border)` + `var(--sidebar-active-bg)` |
+| Tithes card | `3px amber/gold left border` + `rgba(245,158,11,0.08)` bg tint to signal spiritual importance |
+| Remittance summary card | `var(--bg-surface)`, `2px top border var(--accent-blue)`, sticky on scroll |
+| Rider section | `var(--bg-elevated)`, `1px border var(--border)`, `0.5rem radius` |
+| Expense row | Alternating `var(--bg-surface)` / `var(--bg-elevated)`, no border |
+| AI Insights panel | Animated shimmer header (`Hydr8 Blue` → Emerald gradient, 3s loop), `var(--bg-surface)` body |
+| Chatbot drawer | `var(--bg-surface)` bg, `1px var(--border)` left border, slide-in `0.25s ease` |
+| Progress bars | `var(--accent-blue)` fill, `var(--bg-elevated)` track, `4px` height, smooth transition |
+| Skeleton loaders | `var(--bg-elevated)` base, shimmer animation — NO circular spinners |
+
+### Motion & Density
+
+- **Density:** 7/10 — data tables, real numbers, compact rows. Not a dashboard wallpaper.
+- **Variance:** 4/10 — consistent layouts. Stressed operators need familiarity.
+- **Motion:** 4/10 — HTMX swap fades (`150ms opacity`), pinned card live updates, AI shimmer header. No decorative animations.
+
+### Anti-Patterns (BANNED)
+
+- No emojis anywhere in the interface
 - No `Inter` font
-- No purple/neon/glow
-- No pure black `#000000`
-- No 3-equal-card grids
-- No fabricated data or metrics
+- No purple, neon, or glow effects
+- No pure black `#000000` or pure white `#FFFFFF`
+- No 3-equal-card grid layouts
+- No fabricated or placeholder data
 - No "Seamless", "Elevate", "Unleash", "Next-Gen" copy
-- No circular spinners — skeletal loaders only
+- No circular spinners — skeleton loaders only
 - No horizontal scroll on mobile
-- No centered hero layouts
+- No centered hero section layouts
+- No toast for form validation errors — inline only
 
 ---
 
-## Deferred to Week 2
+## Deferred to Post-MVP
 
 | Feature | Reason |
 |---|---|
-| Analytics / Chart.js (sales trends, best rider) | Needs real session data |
-| PDF/Excel export | Build after analytics page is designed |
-| Customer creation as a separate flow | MVP: create inline in dispatch return form |
-| Forgot password | No email service |
-| SMS/push notifications | Out of scope |
+| Analytics charts (Chart.js — sales trends, rider leaderboard) | Needs real session data |
+| PDF / Excel export of remittance | Build after analytics page is complete |
+| Customer creation as a separate full-page flow | MVP: inline modal |
+| Forgot password / email reset | No email service configured |
+| SMS / push notifications | Out of scope |
+| AI write tools (create remittance via voice) | Requires stronger guardrails and validation |
+| Branch / multi-tenant support | Single-branch MVP first |
+| Offline-first IndexedDB sync | Phase 2 when connectivity SLA is confirmed |
