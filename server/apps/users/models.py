@@ -5,62 +5,35 @@ from django.utils import timezone
 from django.db.models import CheckConstraint, Q, UniqueConstraint
 from django.db.models.functions import Length
 from django.core.exceptions import ObjectDoesNotExist
+from apps.core.models import SoftDeleteManagerMixin
 
 # Register Length lookup so we can use __length in Q objects cleanly
 models.CharField.register_lookup(Length)
 
 
 # ==========================================
-# 1. THE CORE QUERYSET ABSTRACTION (DRY)
-# ==========================================
-class SoftDeleteQuerySet(models.QuerySet):
-    """
-    Standard chainable QuerySet for handling soft deletes across any model.
-    """
-    def active(self):
-        return self.filter(deleted_at__isnull=True)
-    
-    def deleted(self):
-        return self.filter(deleted_at__isnull=False)
-
-
-# ==========================================
-# 2. STANDARD MANAGERS (The Correct Way)
+# 1. MANAGERS
 # ==========================================
 
-class RoleManager(models.Manager):
+
+class RoleManager(SoftDeleteManagerMixin, models.Manager):
     """
-    Custom manager for Role model exposing SoftDeleteQuerySet methods explicitly.
+    Custom manager for Role model using SoftDeleteQuerySet.
     """
-    def get_queryset(self):
-        return SoftDeleteQuerySet(self.model, using=self._db)
-
-    def active(self):
-        return self.get_queryset().active()
-
-    def deleted(self):
-        return self.get_queryset().deleted()
+    pass
 
 
-class CustomUserManager(UserManager):
+class CustomUserManager(SoftDeleteManagerMixin, UserManager):
     """
     Custom auth manager inheriting from Django's UserManager and exposing SoftDeleteQuerySet methods.
     """
-    def get_queryset(self):
-        return SoftDeleteQuerySet(self.model, using=self._db)
-
-    def active(self):
-        return self.get_queryset().active()
-
-    def deleted(self):
-        return self.get_queryset().deleted()
+    pass
 
 
 # ==========================================
 # 3. MODELS
 # ==========================================
 class Role(models.Model):
-    id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -75,10 +48,15 @@ class Role(models.Model):
     class Meta:
         verbose_name = "Role"
         verbose_name_plural = "Roles"
+        constraints = [
+            CheckConstraint(
+                condition=Q(name__length__gte=2),
+                name='role_name_min_length'
+            )
+        ]
 
 
 class Permission(models.Model):
-    id = models.BigAutoField(primary_key=True)
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permissions")
     action = models.CharField(max_length=255, help_text="The resource or action being accessed (e.g., 'dashboard', 'users', 'reports')")
     
@@ -131,24 +109,34 @@ class User(AbstractUser):
     def deactivate(self):
         self.status = self.Status.DEACTIVATED
         self.deleted_at = timezone.now()
-        self.save(update_fields=['status', 'deleted_at'])
+        self.updated_at = timezone.now()
+        self.save(update_fields=['status', 'deleted_at', 'updated_at'])
 
     def activate(self):
         self.status = self.Status.ACTIVE
         self.deleted_at = None
-        self.save(update_fields=['status', 'deleted_at'])
+        self.updated_at = timezone.now()
+        self.save(update_fields=['status', 'deleted_at', 'updated_at'])
 
     def assign_role(self, role_name):
         try:
             # Look how clean! .active() can now be safely called on Role managers
             role = Role.objects.active().get(name=role_name)
             self.role = role
-            self.save(update_fields=['role'])
+            self.updated_at = timezone.now()
+            self.save(update_fields=['role', 'updated_at'])
             return True
         except ObjectDoesNotExist:
             return False
 
     def has_permission(self, action, access_type='read'):
+        """
+        Check if this user's role grants the specified access type for a given action.
+
+        WARNING: This method issues a DB query on every call.
+        For bulk permission checks, prefetch 'role__permissions' at the QuerySet level
+        in your view or serializer to avoid N+1 queries.
+        """
         if not self.role:
             return False
             
