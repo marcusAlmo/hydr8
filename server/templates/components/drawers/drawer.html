@@ -1,0 +1,93 @@
+<div id="{{ drawer_id|default:'base-drawer-overlay' }}" 
+     class="drawer-overlay"
+     x-data="{ open: true }"
+     x-show="open"
+     @keydown.escape.window="open = false; setTimeout(() => document.getElementById('{{ drawer_id|default:'base-drawer-overlay' }}')?.remove(), 250)">
+    
+    <div class="drawer-backdrop" 
+         @click="open = false; setTimeout(() => document.getElementById('{{ drawer_id|default:'base-drawer-overlay' }}')?.remove(), 250)"></div>
+
+    <div class="drawer-panel"
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="translate-x-full"
+         x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="translate-x-0"
+         x-transition:leave-end="translate-x-full">
+        
+        <div class="drawer-header">
+            <div>
+                <h3 class="drawer-title">{{ title|default:"Details" }}</h3>
+                {% if subtitle %}<p class="drawer-subtitle">{{ subtitle }}</p>{% endif %}
+            </div>
+            <button type="button" 
+                    class="drawer-close" 
+                    @click="open = false; setTimeout(() => document.getElementById('{{ drawer_id|default:'base-drawer-overlay' }}')?.remove(), 250)">
+                &times;
+            </button>
+        </div>
+
+        <div class="drawer-body">
+            {% block drawer_content %}{% endblock %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .drawer-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1050;
+        display: flex;
+        justify-content: flex-end;
+    }
+    .drawer-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.6);
+        backdrop-filter: blur(4px);
+    }
+    .drawer-panel {
+        position: relative;
+        width: 100%;
+        max-width: {{ width|default:'480px' }};
+        height: 100%;
+        background: var(--surface-container, #0f172a);
+        border-left: 1px solid var(--outline-variant, rgba(226, 232, 240, 0.15));
+        box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        z-index: 10;
+    }
+    .drawer-header {
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--outline-variant, rgba(226, 232, 240, 0.1));
+    }
+    .drawer-title {
+        font-family: var(--font-display, 'Geist', sans-serif);
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--on-surface, #ffffff);
+    }
+    .drawer-subtitle {
+        font-size: 0.8125rem;
+        color: var(--on-surface-variant, #94a3b8);
+        margin-top: 0.125rem;
+    }
+    .drawer-close {
+        background: transparent;
+        border: none;
+        color: var(--on-surface-variant, #94a3b8);
+        font-size: 1.5rem;
+        cursor: pointer;
+        line-height: 1;
+    }
+    .drawer-body {
+        padding: 1.5rem;
+        flex: 1;
+        overflow-y: auto;
+    }
+</style>

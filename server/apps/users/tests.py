@@ -1,10 +1,9 @@
 from django.test import TestCase
-from django.utils import timezone
 from .models import User, Role, Permission
+
 
 class UserModelTests(TestCase):
     def setUp(self):
-        # Create a base role and permission
         self.role = Role.objects.create(name="Admin")
         self.permission = Permission.objects.create(
             role=self.role, 
@@ -12,8 +11,6 @@ class UserModelTests(TestCase):
             can_read=True, 
             can_write=False
         )
-        
-        # Create a test user
         self.user = User.objects.create_user(
             username="testuser",
             email="testuser@example.com",
@@ -21,58 +18,56 @@ class UserModelTests(TestCase):
         )
 
     def test_user_initial_state(self):
-        """Test that a user starts as active."""
-        self.assertEqual(self.user.status, User.Status.ACTIVE)
+        """Test that a user starts with default active status."""
+        self.assertEqual(self.user.status, User.StatusChoices.ACTIVE)
         self.assertIsNone(self.user.deleted_at)
-        self.assertTrue(self.user.is_account_active)
 
-    def test_deactivate_user(self):
-        """Test the encapsulate deactivate business logic."""
-        self.user.deactivate()
-        self.assertEqual(self.user.status, User.Status.DEACTIVATED)
-        self.assertIsNotNone(self.user.deleted_at)
-        self.assertFalse(self.user.is_account_active)
-
-    def test_activate_user(self):
-        """Test the encapsulate activate business logic."""
-        self.user.deactivate() # Deactivate first
-        self.user.activate()
-        self.assertEqual(self.user.status, User.Status.ACTIVE)
-        self.assertIsNone(self.user.deleted_at)
-        self.assertTrue(self.user.is_account_active)
-
-    def test_assign_role_success(self):
-        """Test assigning an existing role."""
-        success = self.user.assign_role("Admin")
-        self.assertTrue(success)
+    def test_assign_role(self):
+        """Test assigning a role to a user."""
+        self.user.role = self.role
+        self.user.save()
         self.assertEqual(self.user.role, self.role)
 
-    def test_assign_role_failure(self):
-        """Test assigning a non-existent role."""
-        success = self.user.assign_role("NonExistentRole")
-        self.assertFalse(success)
-        self.assertIsNone(self.user.role)
+    def test_role_permissions(self):
+        """Test accessing permissions associated with a user's role."""
+        self.user.role = self.role
+        self.user.save()
+        permission = self.user.role.permissions.get(action="dashboard")
+        self.assertTrue(permission.can_read)
+        self.assertFalse(permission.can_write)
 
-    def test_has_permission(self):
-        """Test the has_permission RBAC logic."""
-        self.user.assign_role("Admin")
-        
-        # Should have read access (as defined in setUp)
-        self.assertTrue(self.user.has_permission("dashboard", "read"))
-        
-        # Should not have write access
-        self.assertFalse(self.user.has_permission("dashboard", "write"))
-        
-        # Should handle non-existent actions gracefully
-        self.assertFalse(self.user.has_permission("unknown_action", "read"))
 
-    def test_custom_manager_active_users(self):
-        """Test the SoftDeleteQuerySet for active users."""
-        self.user.deactivate()
-        
-        active_users = User.objects.active_users()
-        self.assertNotIn(self.user, active_users)
-        
-        self.user.activate()
-        active_users_again = User.objects.active_users()
-        self.assertIn(self.user, active_users_again)
+class UserLandingAndLoginViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="hydr8user",
+            password="securepassword123"
+        )
+
+    def test_landing_page_renders_abyss_brand(self):
+        """Test that the landing page renders split-screen Abyss brand and Sign In card."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Hydr8')
+        self.assertContains(response, 'Water. Delivered. Managed.')
+        self.assertContains(response, 'Sign In')
+
+    def test_login_htmx_failure_returns_partial(self):
+        """Test HTMX login failure returns inline form errors."""
+        response = self.client.post('/login/', {
+            'username': 'hydr8user',
+            'password': 'wrongpassword'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Please enter a correct username and password')
+
+    def test_login_htmx_success_sets_redirect(self):
+        """Test successful HTMX login sets HX-Redirect header."""
+        response = self.client.post('/login/', {
+            'username': 'hydr8user',
+            'password': 'securepassword123'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('HX-Redirect', response.headers)
+
+

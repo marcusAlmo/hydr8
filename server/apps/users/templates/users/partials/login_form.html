@@ -1,25 +1,47 @@
-<form hx-post="/login/" hx-target="this" hx-swap="outerHTML">
+<form hx-post="{% url 'users:login' %}" hx-target="this" hx-swap="outerHTML" class="space-y-4">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
-    <div class="error-message">
-        {{ form.non_field_errors.0 }}
+    <div class="p-4 bg-error-container border-l-4 border-error flex items-center gap-3 rounded-md mb-4">
+        <span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">error</span>
+        <p class="font-body-sm text-on-error-container font-medium text-sm">{{ form.non_field_errors.0 }}</p>
     </div>
     {% endif %}
 
-    <div class="form-group">
-        <label class="form-label" for="id_username">Username</label>
-        <input type="text" id="id_username" name="username" class="form-input" placeholder="Enter your username"
-            required>
+    <!-- Username Field -->
+    <div class="space-y-2">
+        <label class="block font-label-caps text-xs font-bold text-on-surface-variant uppercase tracking-wider" for="id_username">Username</label>
+        <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px]">person</span>
+            <input class="w-full pl-10 pr-4 py-3 bg-transparent border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg transition-all duration-200 outline-none font-body-md text-on-surface text-sm" id="id_username" name="username" placeholder="Enter your username" required type="text" value="{{ form.username.value|default:'' }}">
+        </div>
         {% if form.username.errors %}
-        <div class="field-error">{{ form.username.errors.0 }}</div>
+        <p class="text-xs text-error font-medium mt-1">{{ form.username.errors.0 }}</p>
         {% endif %}
     </div>
-    <div class="form-group">
-        <label class="form-label" for="id_password">Password</label>
-        <input type="password" id="id_password" name="password" class="form-input" placeholder="••••••••" required>
+
+    <!-- Password Field -->
+    <div class="space-y-2">
+        <label class="block font-label-caps text-xs font-bold text-on-surface-variant uppercase tracking-wider" for="id_password">Password</label>
+        <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px]">lock</span>
+            <input class="w-full pl-10 pr-4 py-3 bg-transparent border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg transition-all duration-200 outline-none font-body-md text-on-surface text-sm" id="id_password" name="password" placeholder="••••••••" required type="password">
+        </div>
         {% if form.password.errors %}
-        <div class="field-error">{{ form.password.errors.0 }}</div>
+        <p class="text-xs text-error font-medium mt-1">{{ form.password.errors.0 }}</p>
         {% endif %}
-    {% include 'components/buttons/primary.html' with text="Sign In" type="submit" htmx_indicator=True htmx_indicator_text="Signing in ..." attrs='style="width: 100%; margin-top: 1rem;"' %}
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col gap-3 pt-4">
+        <button class="w-full bg-primary hover:bg-primary/90 text-on-primary py-3 px-4 font-semibold text-sm rounded-lg transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2 cursor-pointer" type="submit">
+            <span>Sign In</span>
+            <span class="material-symbols-outlined text-[20px]">login</span>
+        </button>
+        
+        <button class="w-full bg-secondary-container hover:bg-secondary-container/80 text-on-secondary-container py-3 px-4 font-medium text-sm rounded-lg transition-all border border-transparent flex items-center justify-center gap-2 cursor-pointer" type="button">
+            <span class="material-symbols-outlined text-[20px]">dialpad</span>
+            <span>Sign In with PIN</span>
+        </button>
+    </div>
 </form>
