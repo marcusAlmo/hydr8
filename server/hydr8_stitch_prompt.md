@@ -1,5 +1,5 @@
-# Hydr8 — Stitch Design Prompt (v3 — Simplified Remittance Architecture)
-> Manual remittance-first. Edge AI insights. Light + Dark mode. One week delivery.
+# Hydr8 — Stitch Design Prompt (v4 — Rider Credit & Repayment)
+> Manual remittance-first. Rider-issued credits. Repayment tracking with commission. Edge AI insights. Light + Dark mode. One week delivery.
 
 ---
 
@@ -160,10 +160,12 @@ Compact table below AI Insights:
 │  Total Sales:      ₱  0.00  │  Credit Sales:     ₱  0.00          │
 │  Total Commission: ₱  0.00  │  Borrowed Items:   0                 │
 │  Total Expenses:   ₱  0.00  │  Net Profit:       ₱  0.00          │
-│  Tithes (10%):     ₱  0.00  │                                      │
+│  Tithes (10%):     ₱  0.00  │  Credits Extended: ₱  0.00 ▲ (amber)│
 └────────────────────────────────────────────────────────────────────┘
 ```
 This card is sticky/pinned at top while scrolling the form below.
+
+> "Credits Extended" is shown in **amber** in the summary card to signal it is a separate tracking number — NOT part of net profit. It represents money owed back to the business, not a deduction.
 
 ---
 
@@ -215,6 +217,58 @@ This card is sticky/pinned at top while scrolling the form below.
 ```
 
 Each expense row is editable inline. Deleting an expense triggers a summary card recalculation via HTMX.
+
+---
+
+#### Credits Extended Section (below Expenses, before Finalize)
+
+**Header:** "Credits Extended" with a `[+ Add Credit]` button (right-aligned). Section has a **rose/amber 3px left border card** to signal it is financially separate.
+
+```
+─── Credits Extended ─────────────────────── [+ Add Credit]
+┌────────────────────────────────────────────────────────────────┐
+│ Rider:     [Combobox — Driver users only            ]         │
+│ Recipient: [Combobox — free-text, autocomplete from customers] │
+│ Amount:    ₱[__________]                        [Delete]      │
+└────────────────────────────────────────────────────────────────┘
+│ Total Credits Extended:                              ₱ 0.00  │
+│ ⚠ These credits are NOT counted in sales or commission.       │
+```
+
+**Behavior:**
+- `[+ Add Credit]` appends a new credit row via HTMX partial append.
+- Rider combobox shows only `Driver` role users with `ACTIVE` status.
+- Recipient combobox is a free-text input with **autocomplete** backed by existing customer names (HTMX debounced `GET` for suggestions). The value does NOT need to be a registered customer.
+- Amount is a plain peso input.
+- Adding or deleting a credit row updates the `Total Credits Extended` display via HTMX — this does **NOT** recalculate Net Profit or any financial totals.
+- Editable only while remittance is `DRAFT`.
+- The warning label `⚠ These credits are NOT counted in sales or commission.` is always visible in the section footer.
+
+---
+
+#### Repayments Received Section (below Credits Extended, before Finalize)
+
+**Header:** "Repayments Received" with a `[+ Record Repayment]` button (right-aligned). Section has a **teal/emerald 3px left border card** to signal it IS part of the financial totals.
+
+```
+─── Repayments Received ──────────────────── [+ Record Repayment]
+┌────────────────────────────────────────────────────────────────┐
+│ Credit: [Dropdown — open credits: Rider • Recipient • ₱bal]  │
+│ Rider:  [auto-filled from selected credit]                   │
+│ Amount Repaid:  ₱[__________]                                │
+│ Commission Applied: ₱ [auto-computed, read-only]  [Delete]  │
+└────────────────────────────────────────────────────────────────┘
+│ Total Repaid This Session: ₱ 0.00  │ Commission: ₱ 0.00      │
+│ ℹ Repayments are added to today’s sales and commission.      │
+```
+
+**Behavior:**
+- `Credit` dropdown shows only **open (not fully repaid)** rider credits. Display format: `"[Rider Name] → [Recipient] (₱[outstanding balance])"`. Fetched via HTMX `GET` on click.
+- On credit selection: `Rider` field auto-fills (read-only), `Commission Applied` auto-computes as `Amount × commission_rate_snapshot` (live HTMX recalculation on amount change).
+- Adding or deleting a repayment row triggers a full HTMX summary card recalculation — Total Sales, Commission, and Net Profit all update.
+- `Commission Applied` is **read-only** — it is computed from the original credit's snapshotted rate, not the current rate matrix.
+- Validation: Amount Repaid cannot exceed the outstanding balance on the selected credit. Show inline error if exceeded.
+- Editable only while remittance is `DRAFT`.
 
 ---
 

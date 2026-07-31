@@ -1,5 +1,5 @@
-# Hydr8 — Domain-Driven Database Schema (v3 — Simplified Remittance Architecture)
-> Pivot from dispatch-centric to remittance-centric. Manual daily remittance entry. Gemma 2B edge AI. Light/Dark mode PWA.
+# Hydr8 — Domain-Driven Database Schema (v4 — Rider Credit & Repayment)
+> Pivot from dispatch-centric to remittance-centric. Manual daily remittance entry. Rider-issued credits with repayment tracking. Gemma 2B edge AI. Light/Dark mode PWA.
 
 ---
 
@@ -19,7 +19,7 @@ Unidirectional dependency flow (no circular imports):
 users → core → customers → remittance → analytics
 ```
 
-### Key Decision Record (v3 Clarifications)
+### Key Decision Record (v4 Clarifications)
 
 | Decision | Rationale |
 |---|---|
@@ -35,6 +35,9 @@ users → core → customers → remittance → analytics
 | AI chatbot is read-only | No write tools in this iteration |
 | Light/Dark mode via CSS custom properties | Alpine.js toggles `data-theme` on `<html>`, persisted in `localStorage` |
 | PIN stored on user model | Used for lockscreen timeout feature |
+| Rider Credits are **session-independent** | Credits are standalone records; only linked to a session when repaid |
+| Repayments **add to sales + commission** | Repaid amounts enter the remittance's financial totals; credits do not |
+| Commission rate snapshotted on credit record | Consistent with existing `commission_rate_snapshot` pattern; avoids normalization breaking changes |
 
 ---
 
@@ -278,12 +281,14 @@ This is the **core domain** in v3. It replaces the entire `dispatch` + session l
 | `created_by_id` | `UUID` | FK → `users_user.id`, PROTECT | Admin/Staff who created this remittance |
 | `finalized_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | Admin who finalized (NULL while DRAFT) |
 | `status` | `VARCHAR(20)` | NOT NULL, DEFAULT `DRAFT` | `DRAFT` or `FINALIZED` |
-| `total_sales` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all `qty_sold × unit_price_snapshot` across all riders |
+| `total_sales` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all `qty_sold × unit_price_snapshot` + Σ of repayments received |
 | `total_credit_sales` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all `qty_credited × unit_price_snapshot` |
-| `total_commission` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all rider commissions |
+| `total_commission` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all rider commissions + Σ of repayment commissions |
 | `total_expenses` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all linked expenses |
 | `total_borrowed_items` | `SMALLINT` | DEFAULT 0 | Σ of `borrowed_items` across all product lines |
 | `net_profit` | `DECIMAL(12,2)` | DEFAULT 0.00 | `total_sales − total_commission − total_expenses` |
+| `total_rider_credits` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of all `remittance_ridercredit.amount` repaid in this session — **display only, excluded from net_profit** |
+| `total_repayments_received` | `DECIMAL(12,2)` | DEFAULT 0.00 | Σ of `remittance_ridercreditrepayment.amount_repaid` — **included in total_sales** |
 | `tithe_rate_snapshot` | `DECIMAL(5,4)` | NULL | Copied from `core_systemconfig['tithe_rate']` at finalize |
 | `tithe_amount` | `DECIMAL(12,2)` | DEFAULT 0.00 | `net_profit × tithe_rate_snapshot` |
 | `offering_amount` | `DECIMAL(12,2)` | DEFAULT 0.00 | Manually entered at finalize |
@@ -302,17 +307,23 @@ This is the **core domain** in v3. It replaces the entire `dispatch` + session l
 
 **Financial display model:**
 ```
-─── Revenue ────────────────────────────────────────────
-Total Sales          ₱[total_sales]     (cash, qty_sold × price)
+─── Revenue ─────────────────────────────────────────────────────────
+Total Sales          ₱[total_sales]     (cash sales + repayments received)
 Credit Sales        +₱[total_credit_sales] (creates customer debt)
 
-─── Deductions ─────────────────────────────────────────
-Total Commissions   -₱[total_commission]
+─── Deductions ──────────────────────────────────────────────────────
+Total Commissions   -₱[total_commission]   (product lines + repayment commission)
 Total Expenses      -₱[total_expenses]
                      ────────────
 Net Profit           ₱[net_profit]    ← Bold, large, primary display
 
-─── Spiritual Obligations (amber card) ─────────────────
+─── Credits Extended (rose/amber card — SEPARATE, NOT in net_profit) ─
+Rider Credits This Session  ₱[total_rider_credits]
+Repayments Received         ₱[total_repayments_received]
+Note: Credits extended are NOT deducted from profit.
+      They represent amounts owed back to the business.
+
+─── Spiritual Obligations (amber card) ──────────────────────────────
 Tithes Due (10% of Net)  ₱[tithe_amount]   ☐ Tithes Paid
 Offering (manual)        ₱[offering_amount] ☐ Offering Paid
 ```
@@ -390,6 +401,70 @@ Offering (manual)        ₱[offering_amount] ☐ Offering Paid
 > Editable until the remittance is `FINALIZED`. Adding or editing an expense triggers a recalculation of `remittance_remittance.total_expenses` and `net_profit`.
 
 **Index:** `(remittance_id)`
+
+---
+
+### Table: `remittance_ridercredit` *(standalone — rider-issued credit, session-independent at creation)*
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `BIGINT` | PK, auto-increment | |
+| `rider_id` | `UUID` | FK → `users_user.id`, PROTECT | The rider who extended the credit (must have `Driver` role) |
+| `recipient_name` | `VARCHAR(255)` | NOT NULL | Free-text name of the credit recipient (backed by customer combobox for autocomplete) |
+| `customer_id` | `BIGINT` | FK → `customers_customer.id`, SET NULL, NULL | Optional link to a formal customer record for audit purposes |
+| `amount` | `DECIMAL(12,2)` | NOT NULL, MIN 0.01 | ₱ amount of credit extended |
+| `commission_rate_snapshot` | `DECIMAL(10,2)` | NOT NULL, DEFAULT 0.00 | Rider's active commission rate at time of credit entry — used for repayment commission calc |
+| `total_repaid` | `DECIMAL(12,2)` | DEFAULT 0.00 | Running total of all repayments made against this credit — for quick summary display |
+| `is_repaid` | `BOOLEAN` | DEFAULT FALSE | Set to TRUE when `total_repaid >= amount` |
+| `notes` | `TEXT` | NULL | Optional context (e.g. "5 purified gallons") |
+| `recorded_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | Staff who entered the credit |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+
+> [!IMPORTANT]
+> **Credits are session-independent at creation.** There is NO `remittance_id` FK on this table. A credit is an independent business obligation. It is only linked to a remittance session when a **repayment** is received in that session (via `remittance_ridercreditrepayment`). This keeps the credit ledger clean and queryable across any time window.
+>
+> **Credits are NOT counted in any remittance's financial totals.** They do not affect `total_sales`, `total_commission`, `net_profit`, or `tithes`. They are a **separate display section** in the remittance UI.
+
+**Business rules on save:**
+- `commission_rate_snapshot` is copied from `users_drivercommission` for the given rider at entry time. If no commission row exists, defaults to `0.00`.
+- `total_repaid` and `is_repaid` are updated atomically via `F()` expressions whenever a linked `remittance_ridercreditrepayment` is saved.
+
+**Indexes:**
+- `(rider_id)` — Filter credits by rider
+- `(is_repaid)` — Quickly find open credits for the repayment dropdown
+- `(created_at)` — Chronological credit history per customer lookup
+
+---
+
+### Table: `remittance_ridercreditrepayment` *(one row per repayment event — links credit to a session)*
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `BIGINT` | PK, auto-increment | |
+| `rider_credit_id` | `BIGINT` | FK → `remittance_ridercredit.id`, PROTECT | The original credit being repaid |
+| `remittance_id` | `BIGINT` | FK → `remittance_remittance.id`, CASCADE | The session in which repayment was collected |
+| `amount_repaid` | `DECIMAL(12,2)` | NOT NULL, MIN 0.01 | ₱ repaid in this event |
+| `commission_applied` | `DECIMAL(12,2)` | NOT NULL | `amount_repaid × rider_credit.commission_rate_snapshot` — computed on save |
+| `recorded_by_id` | `UUID` | FK → `users_user.id`, SET NULL, NULL | |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, auto | |
+
+**Business rules on save:**
+- `commission_applied` = `amount_repaid × rider_credit.commission_rate_snapshot` (read from parent credit, not from current commission matrix).
+- Atomic updates to the parent remittance:
+  - `remittance_remittance.total_sales += amount_repaid` (via `F()` expression)
+  - `remittance_remittance.total_commission += commission_applied` (via `F()` expression)
+  - `remittance_remittance.total_repayments_received += amount_repaid` (via `F()` expression)
+  - `net_profit` recalculated: `total_sales − total_commission − total_expenses`
+- Atomic updates to parent credit:
+  - `remittance_ridercredit.total_repaid += amount_repaid` (via `F()` expression)
+  - `remittance_ridercredit.is_repaid = True` if `total_repaid >= amount`
+- Validation: `amount_repaid` must not cause `total_repaid` to exceed `rider_credit.amount`.
+
+> [!IMPORTANT]
+> The `remittance_id` on this table is what **links a credit to a session** — but only at repayment time. The credit itself has no session FK. This is the correct model: the credit is a free-floating obligation, and the session is the event that resolves it (partially or fully).
+
+**Indexes:**
+- `(rider_credit_id)` — Load all repayments for one credit
+- `(remittance_id)` — Repayments received within a given session
 
 ---
 
@@ -506,6 +581,8 @@ erDiagram
         decimal total_commission
         decimal total_expenses
         decimal net_profit
+        decimal total_rider_credits
+        decimal total_repayments_received
         decimal tithe_amount
         decimal offering_amount
         bool tithes_paid
@@ -538,6 +615,23 @@ erDiagram
         varchar description
         decimal amount
     }
+    remittance_ridercredit {
+        bigint id PK
+        uuid rider_id FK
+        bigint customer_id FK
+        varchar recipient_name
+        decimal amount
+        decimal commission_rate_snapshot
+        decimal total_repaid
+        bool is_repaid
+    }
+    remittance_ridercreditrepayment {
+        bigint id PK
+        bigint rider_credit_id FK
+        bigint remittance_id FK
+        decimal amount_repaid
+        decimal commission_applied
+    }
     analytics_dailysnapshot {
         date snapshot_date
         decimal total_sales
@@ -554,8 +648,12 @@ erDiagram
     remittance_remittance ||--o{ remittance_remittancerider : "contains"
     remittance_remittance ||--o{ remittance_expense : "expenses"
     remittance_remittance ||--o{ customers_creditpayment : "payments received"
+    remittance_remittance ||--o{ remittance_ridercreditrepayment : "repayments received"
     remittance_remittancerider ||--o{ remittance_remittanceriderproductline : "product lines"
     users_user ||--o{ remittance_remittancerider : "is rider"
+    users_user ||--o{ remittance_ridercredit : "extends credit"
+    customers_customer ||--o{ remittance_ridercredit : "receives credit"
+    remittance_ridercredit ||--o{ remittance_ridercreditrepayment : "repaid by"
     remittance_remittanceriderproductline ||--o{ customers_creditline : "creates debt"
     customers_customer ||--o{ customers_creditline : "owes"
     customers_creditline ||--o{ customers_creditpayment : "paid by"
@@ -568,21 +666,25 @@ erDiagram
 ```
 users_role ←── users_user ──→ users_drivercommission ←── core_product
                   │                                             │
-                  ▼                                             │
-           remittance_remittance ◄─────────────────────────────┘
-          /        |         \
-         ▼         ▼          ▼
-remittance_    remittance_  remittance_
-remittancerider  expense   (totals rollup)
-      │
-      ▼
-remittance_remittanceriderproductline
-      │
+                  │◄────────────────────────────────────────────┘
+                  ▼
+           remittance_remittance ←──────────────────────────────────────────┐
+          /        |         \                                               │
+         ▼         ▼          ▼                                              │
+remittance_    remittance_  remittance_       remittance_ridercredit         │
+remittancerider  expense   (totals rollup)    (standalone — no session FK)  │
+      │                                              │                       │
+      ▼                                              ▼                       │
+remittance_remittanceriderproductline    remittance_ridercreditrepayment ───►┘
+      │                                    (links credit → session on repay)
       ▼
 customers_creditline ──→ customers_creditpayment
       │
       ▼
 customers_customer (debt_balance, borrowed_* denorm)
+
+users_user ──→ remittance_ridercredit ←── customers_customer
+                  (rider extends)           (recipient optional link)
 ```
 
 ---
@@ -669,8 +771,18 @@ def save_product_line(remittance_rider, product, qty_sold, qty_credited, borrowe
 
 
 def _recalculate_remittance_totals(remittance):
-    """Single source of truth for totals rollup. Call after any mutation."""
-    agg = RemittanceRiderProductLine.objects.filter(
+    """
+    Single source of truth for totals rollup. Call after any mutation.
+
+    IMPORTANT: Rider credits (remittance_ridercredit) are NOT included in
+    sales, commission, or net_profit. They are tracked separately via
+    total_rider_credits for display purposes only.
+
+    Repayments (remittance_ridercreditrepayment) ARE included — they add
+    to total_sales and total_commission, which flows into net_profit.
+    """
+    # Product line aggregates (cash sales + credits + borrowed)
+    line_agg = RemittanceRiderProductLine.objects.filter(
         remittance_rider__remittance=remittance
     ).aggregate(
         sales=Sum('subtotal_payable'),
@@ -678,21 +790,37 @@ def _recalculate_remittance_totals(remittance):
         commission=Sum('subtotal_commission'),
         borrowed=Sum('borrowed_items'),
     )
+
+    # Repayment aggregates — these ARE financial (add to sales + commission)
+    repayment_agg = RiderCreditRepayment.objects.filter(
+        remittance=remittance
+    ).aggregate(
+        repaid=Sum('amount_repaid'),
+        repayment_commission=Sum('commission_applied'),
+    )
+
     expense_total = Expense.objects.filter(
         remittance=remittance
     ).aggregate(total=Sum('amount'))['total'] or 0
 
-    total_sales = agg['sales'] or 0
-    total_commission = agg['commission'] or 0
+    product_sales = line_agg['sales'] or 0
+    repayments = repayment_agg['repaid'] or 0
+    product_commission = line_agg['commission'] or 0
+    repayment_commission = repayment_agg['repayment_commission'] or 0
+
+    total_sales = product_sales + repayments
+    total_commission = product_commission + repayment_commission
     net_profit = total_sales - total_commission - expense_total
 
     Remittance.objects.filter(pk=remittance.pk).update(
         total_sales=total_sales,
-        total_credit_sales=agg['credit'] or 0,
+        total_credit_sales=line_agg['credit'] or 0,
         total_commission=total_commission,
         total_expenses=expense_total,
-        total_borrowed_items=agg['borrowed'] or 0,
+        total_borrowed_items=line_agg['borrowed'] or 0,
+        total_repayments_received=repayments,
         net_profit=net_profit,
+        # total_rider_credits is updated separately by add_rider_credit() service
     )
 ```
 
@@ -744,6 +872,111 @@ def finalize_remittance(remittance, offering_amount, finalized_by):
         offering_amount=offering_amount,
         finalized_by=finalized_by,
         finalized_at=timezone.now(),
+    )
+```
+
+### Rider Credit: Add Credit & Record Repayment
+```python
+# apps/remittance/services.py
+from decimal import Decimal
+from django.db import transaction
+from django.db.models import F, Sum
+
+def add_rider_credit(rider, recipient_name, amount, recorded_by, customer=None):
+    """
+    Creates a standalone rider credit record. This is session-independent —
+    no remittance FK is set here. The credit will be linked to a session
+    only when a repayment is recorded against it.
+
+    The commission_rate_snapshot is copied from the rider's active
+    commission rate at time of entry (averaged across products if multi-product,
+    or the default rate if none set). This snapshot is immutable for repayment calc.
+
+    FINANCIAL EFFECT: None. This does NOT touch any remittance totals.
+    """
+    from apps.users.models import DriverCommission
+
+    # Snapshot the rider's commission rate (use the highest rate or a default)
+    # Adjust this logic per business rules if a specific product is associated.
+    rate_qs = DriverCommission.objects.filter(driver=rider)
+    commission_rate = rate_qs.order_by('-rate_per_unit').values_list(
+        'rate_per_unit', flat=True
+    ).first() or Decimal('0.00')
+
+    credit = RiderCredit.objects.create(
+        rider=rider,
+        recipient_name=recipient_name,
+        customer=customer,
+        amount=amount,
+        commission_rate_snapshot=commission_rate,
+        recorded_by=recorded_by,
+    )
+    return credit
+
+
+@transaction.atomic
+def record_repayment(rider_credit, remittance, amount_repaid, recorded_by):
+    """
+    Records a repayment event for a prior rider credit.
+    This is the moment the credit is linked to a session.
+
+    FINANCIAL EFFECT:
+    - total_sales += amount_repaid
+    - total_commission += commission_applied
+    - total_repayments_received += amount_repaid
+    - net_profit recalculated
+    - rider_credit.total_repaid += amount_repaid
+    - rider_credit.is_repaid = True if fully paid
+    """
+    remaining = rider_credit.amount - rider_credit.total_repaid
+    if amount_repaid > remaining:
+        raise ValueError(
+            f"Repayment of ₱{amount_repaid} exceeds outstanding balance "
+            f"of ₱{remaining} for this credit."
+        )
+
+    commission_applied = amount_repaid * rider_credit.commission_rate_snapshot
+
+    repayment = RiderCreditRepayment.objects.create(
+        rider_credit=rider_credit,
+        remittance=remittance,
+        amount_repaid=amount_repaid,
+        commission_applied=commission_applied,
+        recorded_by=recorded_by,
+    )
+
+    # Atomically update the parent credit's running total
+    new_total_repaid = rider_credit.total_repaid + amount_repaid
+    RiderCredit.objects.filter(pk=rider_credit.pk).update(
+        total_repaid=F('total_repaid') + amount_repaid,
+        is_repaid=(new_total_repaid >= rider_credit.amount),
+    )
+
+    # Propagate to remittance financials — repayments ARE in the P&L
+    Remittance.objects.filter(pk=remittance.pk).update(
+        total_sales=F('total_sales') + amount_repaid,
+        total_commission=F('total_commission') + commission_applied,
+        total_repayments_received=F('total_repayments_received') + amount_repaid,
+    )
+    # Recalculate net_profit after the F() updates flush
+    _recalculate_remittance_totals(remittance)
+
+    return repayment
+
+
+def update_remittance_rider_credits_display(remittance):
+    """
+    Updates the total_rider_credits display aggregate on the remittance.
+    Called when a credit is added or removed (editable only while DRAFT).
+    NOTE: This value is display-only and does NOT affect net_profit.
+    """
+    # Credits linked to this session via their repayments
+    total = RiderCreditRepayment.objects.filter(
+        remittance=remittance
+    ).aggregate(total=Sum('amount_repaid'))['total'] or Decimal('0.00')
+
+    Remittance.objects.filter(pk=remittance.pk).update(
+        total_rider_credits=total,
     )
 ```
 

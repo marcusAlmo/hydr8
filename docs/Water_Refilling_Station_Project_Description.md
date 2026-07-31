@@ -7,7 +7,7 @@ Hydr8 is an **internal daily operations management tool** for a single-branch wa
 The system is deliberately focused — it replaces a dispatcher's notebook and end-of-day calculator, not an enterprise ERP. Every screen was designed for speed, clarity, and minimal cognitive load.
 
 **Core daily loop:**
-1. Create today's remittance → 2. Add riders + products sold/credited → 3. Log expenses → 4. Finalize (PIN-protected) → 5. Track customer debts → 6. Review AI insights
+1. Create today's remittance → 2. Add riders + products sold/credited → 3. Log rider credits extended and any repayments received → 4. Log expenses → 5. Finalize (PIN-protected) → 6. Track customer debts → 7. Review AI insights
 
 **Technology:** Django + HTMX + Alpine.js + Tailwind CSS + PostgreSQL. PWA-capable. Gemma 2B running locally in the browser via WebGPU for private, offline-capable AI insights.
 
@@ -51,20 +51,30 @@ The primary operational module. Replaces the old dispatch session lifecycle.
 - Row highlight if spiritual obligations are unpaid.
 
 **Add Remittance (Daily, one per day):**
-- **Pinned Summary Card:** Total Sales, Credit Sales, Commission, Expenses, Net Profit, Tithes — live-updated as data is entered. Stays visible while scrolling.
+- **Pinned Summary Card:** Total Sales, Credit Sales, Commission, Expenses, Net Profit, Tithes, Credits Extended (amber) — live-updated as data is entered. Stays visible while scrolling.
 - **Rider Sections:** Add a rider → select rider (Driver role) → add product rows (product dropdown + qty sold stepper + qty credited stepper + borrowed items stepper). Each row auto-computes subtotals. Rider subtotals update. Summary card updates.
+- **Credits Extended Section:** Add credits a rider extended during their route. Enter the rider (combobox, Driver role), recipient name (free-text combobox with customer autocomplete), and amount (₱). Credits are **NOT** counted in sales, commission, or net profit. They are session-independent records displayed separately. Editable until finalized.
+- **Repayments Received Section:** Record when a customer repays a prior credit to a rider during today's route. Select from open credits, enter the amount repaid. The repayment **IS added to today's Total Sales**. Commission **IS applied** at the rate snapshotted when the original credit was created. Repayments update the summary card in real time.
 - **Expenses Section:** Add operational expenses (description + amount) below the rider section. Affects net profit and therefore tithes.
 - **Finalize:** PIN-protected. Locks all records. Sets `tithe_amount = net_profit × 10%`. Creates customer credit lines for all `qty_credited > 0` lines.
 
 **Financial Model:**
 ```
 Total Sales          (qty_sold × price across all riders)
+                   + Repayments Received (from prior rider credits — DOES add to sales)
 + Credit Sales       (qty_credited × price — creates customer debt)
 ─ Commissions        (qty_sold × commission rate per rider/product matrix)
+                   + Commission on Repayments (snapshotted rate from original credit)
 ─ Expenses           (manually entered)
 = Net Profit
 = Tithes (10% of Net Profit)
 + Offering (manual)
+
+[SEPARATE DISPLAY — NOT in financial totals]
+Credits Extended by Riders  (standalone, session-independent)
+  — Linked to a session only when repaid
+  — NOT deducted from sales or net profit
+  — Tracked per rider and recipient for the customer ledger
 ```
 
 ---
