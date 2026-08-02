@@ -1,0 +1,66 @@
+{% comment %}
+Asymmetric stats summary card adhering to Hydr8 Stitch design specification:
+- Top 2px accent border (accent color: primary, success, warning, danger)
+- Large Geist Mono figures (`data-mono`)
+- Optional HTMX auto-refresh polling (hx-trigger="every 30s")
+{% endcomment %}
+
+<div class="stats-card stats-border-{{ variant|default:'primary' }} {{ custom_classes }}"
+     {% if poll_url %}
+     hx-get="{{ poll_url }}"
+     hx-trigger="every {{ poll_interval|default:'30s' }}"
+     hx-swap="outerHTML"
+     {% endif %}>
+    
+    <div class="stats-card-header flex items-center justify-between mb-2">
+        <span class="stats-card-label text-xs font-semibold uppercase tracking-wider text-slate-400">
+            {{ label }}
+        </span>
+        {% if icon %}
+            <span class="stats-card-icon text-slate-400">{{ icon|safe }}</span>
+        {% endif %}
+    </div>
+
+    <div class="stats-card-body flex items-baseline justify-between">
+        <div class="stats-card-value font-mono text-2xl md:text-3xl font-bold tracking-tight text-white">
+            {{ value }}
+        </div>
+        {% if trend %}
+        <div class="stats-card-trend text-xs font-medium px-2 py-0.5 rounded-full {% if trend_up %}bg-emerald-500/15 text-emerald-400{% else %}bg-rose-500/15 text-rose-400{% endif %}">
+            {% if trend_up %}↑{% else %}↓{% endif %} {{ trend }}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if sublabel %}
+    <div class="stats-card-footer mt-2 text-xs text-slate-400">
+        {{ sublabel }}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .stats-card {
+        background: var(--surface-container, #0f172a);
+        border: 1px solid var(--outline-variant, rgba(226, 232, 240, 0.12));
+        border-radius: var(--rounded-lg, 0.5rem);
+        padding: 1.25rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Asymmetric Top Accent Border */
+    .stats-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+    }
+    .stats-border-primary::before { background: var(--primary, #0ea5e9); }
+    .stats-border-success::before { background: var(--tertiary, #10b981); }
+    .stats-border-warning::before { background: var(--secondary, #f59e0b); }
+    .stats-border-danger::before  { background: var(--error, #ef4444); }
+</style>

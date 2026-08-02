@@ -30,22 +30,9 @@
             --glass-blur: blur(16px);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+{% block title %}Hydr8 | Water. Delivered. Managed.{% endblock %}
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-            position: relative;
-        }
+{% block navbar %}{% endblock %}
 
         /* Dynamic Background Gradients */
         .ambient-glow {

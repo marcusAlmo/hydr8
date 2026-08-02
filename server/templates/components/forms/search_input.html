@@ -1,0 +1,44 @@
+<div class="search-input-wrapper {{ custom_classes }}" x-data="{ query: '{{ value|escapejs }}' }">
+    <div class="relative flex items-center">
+        <span class="search-icon absolute left-3 text-slate-400 pointer-events-none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+        </span>
+        <input type="search"
+               name="{{ name|default:'q' }}"
+               x-model="query"
+               value="{{ value }}"
+               placeholder="{{ placeholder|default:'Search...' }}"
+               class="search-input w-full pl-9 pr-9 py-2 bg-slate-900/80 border border-slate-700/80 rounded-md text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors"
+               {% if target %}hx-target="{{ target }}"{% endif %}
+               {% if url %}hx-get="{{ url }}"{% endif %}
+               hx-trigger="keyup changed delay:300ms, search"
+               {% if indicator %}hx-indicator="{{ indicator }}"{% else %}hx-indicator="#search-spinner-{{ name|default:'q' }}"{% endif %}
+               {% if attrs %}{{ attrs|safe }}{% endif %}>
+        
+        <!-- Loading spinner -->
+        <span id="search-spinner-{{ name|default:'q' }}" class="htmx-indicator absolute right-3">
+            <span class="loader-spinner-sm"></span>
+        </span>
+
+        <!-- Clear Search Button -->
+        <button type="button" 
+                x-show="query.length > 0"
+                @click="query = ''; $nextTick(() => $el.previousElementSibling.previousElementSibling.dispatchEvent(new Event('search')))"
+                class="absolute right-3 text-slate-400 hover:text-white text-xs font-bold"
+                aria-label="Clear search">
+            &times;
+        </button>
+    </div>
+</div>
+
+<style>
+    .htmx-indicator {
+        display: none;
+    }
+    .htmx-request .htmx-indicator,
+    .htmx-request.htmx-indicator {
+        display: inline-block;
+    }
+</style>

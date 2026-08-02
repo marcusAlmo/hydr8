@@ -2,7 +2,7 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import Role, Permission, User
+from .models import Role, Permission, User, DriverCommission
 
 @admin.register(Role)
 class RoleAdmin(ModelAdmin):
@@ -31,12 +31,12 @@ class PermissionAdmin(ModelAdmin):
     )
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin, ModelAdmin):
+class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
 
-    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'status', 'is_account_active')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'status')
     list_filter = ('role', 'status', 'is_superuser', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     
@@ -68,3 +68,10 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
             "classes": ["tab"],
         }),
     )
+
+@admin.register(DriverCommission)
+class DriverCommissionAdmin(ModelAdmin):
+    list_display = ('driver', 'product', 'rate_per_unit', 'updated_at')
+    list_filter = ('product',)
+    search_fields = ('driver__username', 'product__name')
+

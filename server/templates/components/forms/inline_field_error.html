@@ -1,0 +1,25 @@
+<div id="field-error-{{ field_name }}" class="inline-field-error" hx-swap-oob="outerHTML">
+    {% if errors %}
+    <ul class="error-list">
+        {% for error in errors %}
+        <li class="error-item">{{ error }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+
+<style>
+    .inline-field-error {
+        margin-top: 0.25rem;
+    }
+    .error-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .error-item {
+        font-size: 0.75rem;
+        color: var(--error, #ef4444);
+        font-weight: 500;
+    }
+</style>
