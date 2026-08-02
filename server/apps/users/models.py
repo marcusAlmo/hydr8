@@ -1,10 +1,13 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.hashers import make_password, check_password
 
 
 class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    description = models.CharField(max_length=255, default='', blank=True)
+    is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -53,8 +56,30 @@ class User(AbstractUser):
     class Meta:
         db_table = 'users_user'
 
+    def set_pin(self, raw_pin: str) -> None:
+        """Hashes the raw PIN and stores it in the pin field."""
+        if raw_pin:
+            self.pin = make_password(raw_pin)
+        else:
+            self.pin = None
+
+    def check_pin(self, raw_pin: str) -> bool:
+        """Verifies a raw PIN against the stored hash safely."""
+        if not self.pin or not raw_pin:
+            return False
+        try:
+            return check_password(str(raw_pin), self.pin)
+        except Exception:
+            return False
+
     def __str__(self):
-        return self.username
+        return self.name
+
+    @property
+    def name(self) -> str:
+        """Returns full name if available, otherwise falls back to username."""
+        full = f"{self.first_name} {self.last_name}".strip()
+        return full if full else self.username
 
 
 class DriverCommission(models.Model):

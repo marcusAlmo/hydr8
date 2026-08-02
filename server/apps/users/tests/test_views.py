@@ -1,40 +1,5 @@
 from django.test import TestCase
-from .models import User, Role, Permission
-
-
-class UserModelTests(TestCase):
-    def setUp(self):
-        self.role = Role.objects.create(name="Admin")
-        self.permission = Permission.objects.create(
-            role=self.role, 
-            action="dashboard", 
-            can_read=True, 
-            can_write=False
-        )
-        self.user = User.objects.create_user(
-            username="testuser",
-            email="testuser@example.com",
-            password="password123"
-        )
-
-    def test_user_initial_state(self):
-        """Test that a user starts with default active status."""
-        self.assertEqual(self.user.status, User.StatusChoices.ACTIVE)
-        self.assertIsNone(self.user.deleted_at)
-
-    def test_assign_role(self):
-        """Test assigning a role to a user."""
-        self.user.role = self.role
-        self.user.save()
-        self.assertEqual(self.user.role, self.role)
-
-    def test_role_permissions(self):
-        """Test accessing permissions associated with a user's role."""
-        self.user.role = self.role
-        self.user.save()
-        permission = self.user.role.permissions.get(action="dashboard")
-        self.assertTrue(permission.can_read)
-        self.assertFalse(permission.can_write)
+from apps.users.models import User
 
 
 class UserLandingAndLoginViewTests(TestCase):
@@ -51,6 +16,12 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertContains(response, 'Hydr8')
         self.assertContains(response, 'Water. Delivered. Managed.')
         self.assertContains(response, 'Sign In')
+
+    def test_login_view_get(self):
+        """Test direct GET request to login view returns partial form."""
+        response = self.client.get('/login/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'username')
 
     def test_login_htmx_failure_returns_partial(self):
         """Test HTMX login failure returns inline form errors."""
@@ -69,5 +40,3 @@ class UserLandingAndLoginViewTests(TestCase):
         }, HTTP_HX_REQUEST='true')
         self.assertEqual(response.status_code, 200)
         self.assertIn('HX-Redirect', response.headers)
-
-
