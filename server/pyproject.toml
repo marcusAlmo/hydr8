@@ -1,0 +1,19 @@
+[project]
+name = "hydr8"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.0.7",
+    "django-cors-headers>=4.9.0",
+    "django-environ>=0.14.0",
+    "django-htmx>=1.28.0",
+    "django-unfold>=0.101.0",
+    "djangorestframework>=3.17.1",
+    "psycopg2-binary>=2.9.12",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.15.2",
+    "django-stubs>=6.0.7",
+]

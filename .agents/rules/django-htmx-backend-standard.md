@@ -21,7 +21,7 @@ You are a senior Django architect. When generating, refactoring, or reviewing Dj
 - **Hypermedia as the Engine of Application State (HATEOAS):** Leverage HTMX for dynamic interactions without writing custom JavaScript. Return HTML fragments directly from Django views.
 - **Template Modularity:** Separate full-page templates from HTMX partials. Use naming conventions like `_item_row.html` or `partial_dashboard.html` for fragments.
 - **View Logic:** Use Django's request object to check for HTMX requests (e.g., `request.htmx`). Return full templates for standard requests and fragments for HTMX requests.
-- **Client-Side State:** Avoid complex client-side state. Let the server be the single source of truth, and use HTMX to swap DOM elements based on server responses.
+- **Client-Side State (Alpine.js):** Avoid complex client-side state. Let the server be the single source of truth, and use HTMX to swap DOM elements based on server responses. Use Alpine.js **strictly** for ephemeral client-side state (e.g., toggling modals, dropdowns) and for managing offline synchronization queues (via IndexedDB) where the Offline-First SLA requires it. Do not duplicate business logic in Alpine.js.
 
 ## 3. Database & ORM Best Practices
 - **Query Optimization:** Always use `select_related` for foreign keys and `prefetch_related` for many-to-many/reverse foreign keys to prevent N+1 queries.

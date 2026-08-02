@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Hydr8 | Water. Delivered. Managed.{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block main_class %}w-full min-h-screen p-0 m-0{% endblock %}
+
+{% block content %}
+<div class="min-h-screen w-full flex flex-col md:flex-row">
+    <!-- Left Panel (Abyss Theme) -->
+    <div class="hidden md:flex flex-col justify-center items-center w-1/2 abyss-bg bg-gradient-to-br from-[#06101E] via-[#0B192C] to-[#00273F] text-white relative overflow-hidden p-8 min-h-screen">
+        <!-- Atmospheric micro-interaction element -->
+        <div class="absolute inset-0 opacity-30 pointer-events-none">
+            <div class="absolute top-0 -left-1/4 w-3/4 h-3/4 bg-sky-500/30 rounded-full blur-[120px]"></div>
+            <div class="absolute bottom-0 -right-1/4 w-3/4 h-3/4 bg-emerald-500/20 rounded-full blur-[120px]"></div>
+        </div>
+
+        <div class="relative z-10 flex flex-col items-center text-center space-y-4 max-w-md px-6">
+            <div class="w-16 h-16 bg-sky-500/20 border border-sky-400/30 rounded-2xl flex items-center justify-center shadow-lg backdrop-blur-md mb-2">
+                <span class="material-symbols-outlined text-4xl text-sky-300">water_drop</span>
+            </div>
+            <h1 class="font-headline-lg text-6xl font-black tracking-tight text-white drop-shadow-md">
+                Hydr8
+            </h1>
+            <p class="font-body-md text-xs md:text-sm text-sky-200 font-semibold uppercase tracking-[0.3em] drop-shadow-sm">
+                Water. Delivered. Managed.
+            </p>
+            <div class="w-12 h-1 bg-gradient-to-r from-transparent via-sky-400/60 to-transparent rounded-full mt-2"></div>
+        </div>
+
+        <!-- Subtle Grid Pattern Overlay -->
+        <div class="absolute inset-0 opacity-[0.05]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
+    </div>
+
+    <!-- Right Panel (Login Surface) -->
+    <div class="flex-1 flex flex-col justify-center px-6 py-12 md:px-12 bg-surface-bright min-h-screen">
+        <!-- Mobile Logo (Visible only on mobile screens) -->
+        <div class="md:hidden flex flex-col items-center mb-10 text-center">
+            <h1 class="font-headline-lg text-4xl font-black text-primary">Hydr8</h1>
+            <p class="font-body-sm text-xs text-outline tracking-widest uppercase mt-1">Water. Delivered. Managed.</p>
+        </div>
+
+        <div class="mx-auto w-full max-w-[420px]">
+            <div class="auth-card-shimmer bg-surface-container-lowest p-8 border border-outline-variant shadow-sm rounded-lg">
+                <div class="mb-8 text-left">
+                    <h2 class="font-headline-md text-2xl font-bold text-on-surface">Sign In</h2>
+                    <p class="font-body-sm text-sm text-on-surface-variant mt-1">Access the hydration management dashboard</p>
+                </div>
+
+                {% include 'users/partials/login_form.html' %}
+
+                <div class="mt-8 pt-6 border-t border-outline-variant/30 text-center">
+                    <p class="font-body-sm text-xs text-on-surface-variant opacity-75">
+                        Internal Enterprise System. Unauthorized access is prohibited.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Footer / Support Info -->
+            <div class="mt-8 flex justify-center items-center gap-6 opacity-60 grayscale">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">verified_user</span>
+                    <span class="font-label-caps text-[11px] font-bold uppercase tracking-wider">SECURE PORTAL</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">sync</span>
+                    <span class="font-label-caps text-[11px] font-bold uppercase tracking-wider">REAL-TIME DATA</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

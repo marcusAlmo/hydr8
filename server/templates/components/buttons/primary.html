@@ -1,0 +1,35 @@
+{% if url %}
+<a href="{{ url }}" 
+   class="btn btn-primary {{ custom_classes }}"
+   {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
+   {% if hx_post %}hx-post="{{ hx_post }}"{% endif %}
+   {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
+   {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+   {% if hx_indicator %}hx-indicator="{{ hx_indicator }}"{% endif %}
+   {% if hx_confirm %}hx-confirm="{{ hx_confirm }}"{% endif %}
+   {% if attrs %}{{ attrs|safe }}{% endif %}>
+    {% if icon %}<span class="btn-icon">{{ icon|safe }}</span>{% endif %}
+    <span class="btn-label">{{ text }}</span>
+</a>
+{% else %}
+<button class="btn btn-primary {{ custom_classes }}" 
+        {% if type %}type="{{ type }}"{% else %}type="button"{% endif %}
+        {% if disabled %}disabled{% endif %}
+        {% if hx_get %}hx-get="{{ hx_get }}"{% endif %}
+        {% if hx_post %}hx-post="{{ hx_post }}"{% endif %}
+        {% if hx_put %}hx-put="{{ hx_put }}"{% endif %}
+        {% if hx_delete %}hx-delete="{{ hx_delete }}"{% endif %}
+        {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
+        {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+        {% if hx_trigger %}hx-trigger="{{ hx_trigger }}"{% endif %}
+        {% if hx_indicator %}hx-indicator="{{ hx_indicator }}"{% endif %}
+        {% if hx_confirm %}hx-confirm="{{ hx_confirm }}"{% endif %}
+        {% if onclick %}onclick="{{ onclick }}"{% endif %}
+        {% if attrs %}{{ attrs|safe }}{% endif %}>
+    {% if icon %}<span class="btn-icon">{{ icon|safe }}</span>{% endif %}
+    <span class="btn-label">{{ text }}</span>
+    {% if hx_indicator or show_indicator %}
+    <span class="htmx-indicator loader-spinner-sm ml-2"></span>
+    {% endif %}
+</button>
+{% endif %}

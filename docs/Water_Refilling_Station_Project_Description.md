@@ -1,94 +1,170 @@
-# Project Description: Comprehensive Water Refilling Station Management System
+# Project Description: Hydr8 — Water Refilling Station Operations & AI Management System
 
 ## 1. Executive Summary
-This project outlines the development of a highly scalable, hyper-localized SaaS platform tailored for the end-to-end operational management of water refilling stations. Designed to handle the unique logistical and connectivity constraints often found in provincial setups, the system utilizes a robust hypermedia-driven stack (Django, HTMX, PostgreSQL, Redis). The application seamlessly integrates public-facing marketing, complex dispatch logistics, Point-of-Sale (POS) operations, granular inventory control, and AI-driven analytics into a unified, high-performance platform.
 
-## 2. Technical Architecture & Foundation
-*   **Frontend:** HTMX with server-rendered HTML (delivers a highly responsive, app-like experience for the dashboard and POS without the heavy overhead of complex JavaScript frameworks, ensuring rapid load times even on intermittent connections).
-*   **Backend:** Django (provides a robust, secure, and rapidly scalable foundation to manage complex business domains, strict tenant isolation, and seamless AI module integration).
-*   **Database:** PostgreSQL (leverages advanced relational structures to ensure strict data integrity for complex inventory tracking, credit ledgers, and multi-tenant operations).
-*   **Caching & Broker:** Redis (powers high-performance session caching, real-time analytics queues, and reliable message brokering for asynchronous background tasks like dispatch summaries).
-*   **Design Philosophy:** The system is engineered to handle intermittent connectivity gracefully, ensuring POS and dispatch operations can persist and synchronize reliably.
+Hydr8 is an **internal daily operations management tool** for a single-branch water refilling and delivery business. It is purpose-built for the real frustrations of the business owner and counter staff: mental-math overload at end-of-day, unclear commission records, unpaid customer debts, and forgotten tithes.
+
+The system is deliberately focused — it replaces a dispatcher's notebook and end-of-day calculator, not an enterprise ERP. Every screen was designed for speed, clarity, and minimal cognitive load.
+
+**Core daily loop:**
+1. Create today's remittance → 2. Add riders + products sold/credited → 3. Log rider credits extended and any repayments received → 4. Log expenses → 5. Finalize (PIN-protected) → 6. Track customer debts → 7. Review AI insights
+
+**Technology:** Django + HTMX + Alpine.js + Tailwind CSS + PostgreSQL. PWA-capable. Gemma 2B running locally in the browser via WebGPU for private, offline-capable AI insights.
+
+---
+
+## 2. Technical Architecture
+
+| Layer | Technology | Rationale |
+|---|---|---|
+| **Backend** | Django + HTMX | Server-rendered HTML partials. No SPA overhead. Fast to build, easy to maintain. |
+| **Database** | PostgreSQL | Relational integrity for financial data. Atomic `F()` updates for debt tracking. pg_cron for nightly snapshots. |
+| **Frontend state** | Alpine.js | Ephemeral UI state only (theme toggle, modals, offline queue). Server is the source of truth. |
+| **Styling** | Tailwind CSS + CSS Custom Properties | Light + Dark mode via `data-theme` token system. Geist + Geist Mono typography. |
+| **AI Engine** | Gemma 2B via `@mlc-ai/web-llm` (WebGPU) | Edge-local inference. Prompts never leave the device. ~1.2 GB one-time download. Read-only tool calling. |
+| **Caching** | Redis | Session caching, HTMX response caching for high-frequency reads. |
+
+**Design Philosophy:** Hypermedia-first. The server renders everything. HTMX handles dynamic updates without writing a JavaScript framework. Alpine.js handles only what truly cannot be server-rendered (theme state, drawer open/close, modal visibility).
 
 ---
 
 ## 3. Core Modules & Feature Specifications
 
-### 3.1. Public Landing Portal
-A high-converting, enterprise-grade public interface featuring smooth, professional animations to attract franchise owners and direct consumers.
-*   **Home:** Value proposition, feature highlights, and animated product tours.
-*   **Pricing:** Tiered subscription plans for system users.
-*   **About Us:** Mission, localized focus, and development team background.
-*   **Contact Us:** Lead generation form and interactive branch map.
+### 3.1 Dashboard
 
-### 3.2. Command Center Dashboard
-The central hub for branch managers and admins, offering real-time visibility into daily operations.
-*   **Global Filters:** Branch selector, date shortcuts (Today, Yesterday, This Week, Last 7 Days, This Month), and custom date range pickers.
-*   **Recent Dispatch Data:** Live ticker of delivery riders, containers dispatched, and expected receivable amounts.
-*   **Order Queue:** Full queue history (requester name, quantity, payment status) with toggle filters for Pending, Rejected, and Success.
-*   **Performance Metrics:** Delivery rider leaderboards (deliveries made, containers dispatched). Includes a line chart tracking the hourly dispatch rate, with comparative overlays against yesterday (if Daily filter is active) or matching previous periods.
-*   **Ledger Previews:** Quick views of the Credit List (date, name, container count, amount) and Borrowed Containers tracking.
-*   **Inventory Warnings:** Alert panel showing low-stock items, current quantities, restock thresholds, and color-coded severity levels.
-*   **AI Insight Trigger:** Floating action button to launch an AI chat assistant for rapid operational queries and data interpretation.
+The central hub for the Admin and Staff. Readable in under 3 seconds.
 
-### 3.3. Dispatch & Logistics Management
-A robust engine for handling rider assignments and container lifecycles.
-*   **Consumer Request List:** Auto-generated queue numbers ordered by request time, with UI filters for quantity thresholds.
-*   **Drag-and-Drop Assignment:** Intuitive UI for dispatchers to drag pending requests directly to available delivery riders.
-*   **Bulk General Dispatch:** 
-    *   Assign bulk loads (e.g., 100 containers) to a truck. 
-    *   **Status Flow:** Pending (loading) -> Dispatched (departed) -> Completed.
-    *   **Reconciliation:** Before marking "Completed", riders input exact metrics: containers sold, credited amounts, borrowed containers, and total remitted cash to the handler.
-*   **Dispatch Summary Cards:** Top-level metrics for Total Deliveries, Pending Count, Dispatched Deliveries, Total Receivables, and Total Containers Sold.
-
-### 3.4. Point of Sale (POS) & Accounts Receivable
-Designed for rapid counter transactions and debt management.
-*   **Sales Interface:** Quick-search for water product types, quantity toggles, and instant subtotal calculation. Option to "Checkout as Credit."
-*   **Discount Engine:** Flexible application of custom discount amounts or percentages per transaction.
-*   **Repayment Module:** Dedicated view for settling debts. Searchable list of creditors categorized by Paid/Unpaid. Features multi-select capabilities to settle multiple credit lines in a single transaction.
-*   **Receipt Generation:** Trigger a PDF receipt modal that can be easily downloaded or saved directly as an image for easy sharing via messaging apps.
-
-### 3.5. Pricing & Product Settings
-*   **Product Management:** CRUD operations (with soft delete) for inventory products. Attributes include ID, Category, Name, Specifics (e.g., 500ml, 5 Gal), Price, and `is_discount_eligible`.
-*   **Pricing Intelligence:** Visual trend chart comparing current pricing against historical data.
-*   **Safe Price Adjustment:** Logic that ensures newly adjusted pricing only applies to *future* sales and dispatches, preventing ledger corruption or errors in currently active transactions.
-
-### 3.6. Consumer Database
-*   **Profile Management:** Add, edit, delete, and view consumer profiles.
-*   **Geospatial Data:** Optional fields for physical location, exact GPS coordinates, and calculated distance from the assigned branch to optimize dispatch routing.
-
-### 3.7. Branch & Organization Management
-*   **Branch CRUD:** Manage branch names, locations, contact numbers, emails, Facebook pages, and live employee counts.
-*   **Branding & Localization:** Edit company names and logos per branch. Integrated button to set the branch's GPS coordinates using the administrator's current device location.
-
-### 3.8. Employee & Access Management
-*   **Department Setup:** Add, edit, and delete departments (Name, Description).
-*   **Role-Based Access Control (RBAC):** Backend-driven permissions matrix (Read, Edit, Delete, Create). Default roles include Admin, Branch Manager, Delivery Driver, and Cleaner.
-*   **Employee Lifecycle:** Add/Edit/Delete staff profiles (Name, Contact, Address, Role, Employment Date, Optional Termination Date with a specific "Terminate" action).
-*   **Account Security:** Tools to reset usernames, passwords, and PINs, alongside options to temporarily lock or disable accounts.
-
-### 3.9. Inventory Control
-*   **Stock Operations:** Add new materials/products, update current quantities, or remove items.
-*   **Quality Assurance:** Optional tracking for expiry dates on consumable materials (e.g., seals, filters).
-
-### 10. Reports & Analytics
-A tabbed analytics interface where filters persist across navigation to ensure seamless data exploration.
-*   **Branch Performance:** Dropdown selector (Admin only) to compare KPIs across the network.
-*   **Sales Report:** Revenue breakdowns, discount impacts, and payment method distribution.
-*   **Consumer Analysis:** Buying patterns, highest-value customers, and debt concentration.
-*   **AI Insight Generation:** Deep-dive automated analysis on operational bottlenecks.
-*   **Audit/Action Log:** Immutable security ledger tracking Timestamp, Action, Actor, and Status.
-
-### 11. System Settings
-*   **User Preferences:** Profile updates and customizable lock-screen duration for idle terminals.
-*   **Billing:** View active subscription plans and next billing due dates.
-*   **Data Sovereignty:** Options to safely unsubscribe and request complete deletion of personal/tenant data.
+- **Today's Remittance Banner:** Context-aware — shows "No remittance yet" with CTA, or the current remittance status (Draft / Finalized) with a link to continue or view.
+- **Stats Cards (Asymmetric):** Today's Total Sales (large, primary), Unpaid Credits (amber), Outstanding Customer Debt (rose).
+- **AI Insights Panel:** 3–4 auto-generated insight chips powered by Gemma 2B edge inference. Shows rider performance, overdue customers, unpaid tithes. Model downloads in the background — system operates normally while initializing.
+- **Recent Remittances Table:** Last 5 remittances with quick-glance financial columns and tithes status.
 
 ---
 
-## 4. Service Level Agreement (SLA) & User Experience Guarantees
+### 3.2 Remittance
 
-To ensure continuous operations even in environments with unpredictable infrastructure, the system adheres to the following strict SLA criteria:
+The primary operational module. Replaces the old dispatch session lifecycle.
 
-*   **Offline-First & Intermittent Connectivity Resilience:** The platform is explicitly built to withstand network dropouts. Critical operations—specifically the Point-of-Sale (POS) and dispatch data entry—are engineered to cache data locally. The system will seamlessly and automatically upload the locally cached transactions to the cloud once an internet connection is re-established, ensuring zero data loss and uninterrupted operations.
-*   **Mobile and Tablet-First Interface:** All frontend architectures and UI components prioritize a mobile-first and tablet-first design paradigm. Ensuring a premium, intuitive experience on touch devices for on-the-go dispatchers and counter staff is the absolute priority, treating traditional desktop/computer environments as the secondary fallback option.
+**Remittance History:**
+- Full table of all remittances: date, totals, tithes status.
+- Inline `☑ Tithes Paid` / `☑ Offering Paid` toggles — update in place via HTMX.
+- Row highlight if spiritual obligations are unpaid.
+
+**Add Remittance (Daily, one per day):**
+- **Pinned Summary Card:** Total Sales, Credit Sales, Commission, Expenses, Net Profit, Tithes, Credits Extended (amber) — live-updated as data is entered. Stays visible while scrolling.
+- **Rider Sections:** Add a rider → select rider (Driver role) → add product rows (product dropdown + qty sold stepper + qty credited stepper + borrowed items stepper). Each row auto-computes subtotals. Rider subtotals update. Summary card updates.
+- **Credits Extended Section:** Add credits a rider extended during their route. Enter the rider (combobox, Driver role), recipient name (free-text combobox with customer autocomplete), and amount (₱). Credits are **NOT** counted in sales, commission, or net profit. They are session-independent records displayed separately. Editable until finalized.
+- **Repayments Received Section:** Record when a customer repays a prior credit to a rider during today's route. Select from open credits, enter the amount repaid. The repayment **IS added to today's Total Sales**. Commission **IS applied** at the rate snapshotted when the original credit was created. Repayments update the summary card in real time.
+- **Expenses Section:** Add operational expenses (description + amount) below the rider section. Affects net profit and therefore tithes.
+- **Finalize:** PIN-protected. Locks all records. Sets `tithe_amount = net_profit × 10%`. Creates customer credit lines for all `qty_credited > 0` lines.
+
+**Financial Model:**
+```
+Total Sales          (qty_sold × price across all riders)
+                   + Repayments Received (from prior rider credits — DOES add to sales)
++ Credit Sales       (qty_credited × price — creates customer debt)
+─ Commissions        (qty_sold × commission rate per rider/product matrix)
+                   + Commission on Repayments (snapshotted rate from original credit)
+─ Expenses           (manually entered)
+= Net Profit
+= Tithes (10% of Net Profit)
++ Offering (manual)
+
+[SEPARATE DISPLAY — NOT in financial totals]
+Credits Extended by Riders  (standalone, session-independent)
+  — Linked to a session only when repaid
+  — NOT deducted from sales or net profit
+  — Tracked per rider and recipient for the customer ledger
+```
+
+---
+
+### 3.3 Customers
+
+Debt and borrowed-container management.
+
+- **List View:** Name, Balance, Borrowed Item Count, Payable Amount, Days Since Last Unpaid Credit. Filter chips and live search.
+- **Record Payment:** Per-credit-line, per-container payment entry. Atomic debt reduction. Commission is NOT retroactive in this model (simplified from v2).
+- **Update Containers:** Stepper per container type (Round 8-Gal, Slim 8-Gal, Other). Notes field.
+- **Mobile:** Card layout. Debt amount prominent. Action buttons below each card.
+
+---
+
+### 3.4 Products & Pricing
+
+Standalone nav section for full catalog management.
+
+- **Products Tab:** CRUD (inline HTMX rows), price editing (save-on-blur), active/inactive toggle.
+- **Delivery Commissions Tab:** Full matrix view — Riders × Products × ₱ rate. Inline editable. "Set all" bulk column update.
+
+> Safe price adjustment: price changes apply only to future remittance entries. All saved lines use snapshot values, preserving financial audit integrity.
+
+---
+
+### 3.5 Employees & Users
+
+Standalone nav section for full staff management. Admin-only.
+
+- **Staff List:** Add/Edit/Deactivate employees. Roles: Admin, Staff, Driver.
+- **Access Management:** Admin-configurable per-role permission matrix for all modules (dashboard, remittance, customers, products, employees, settings).
+- **Security:** Change password, username, and PIN per employee. Lock account without deactivating.
+- **Commission Assignment:** Per-driver commission rate editor (filtered view of the commission matrix).
+
+---
+
+### 3.6 Settings
+
+System configuration and personal profile management.
+
+- **System Config:** Lockscreen timeout (idle minutes before PIN prompt), password policy toggle, tithe rate.
+- **Company:** Company name, contact number, email address (displayed in header/receipts).
+- **My Profile:** Self-service updates: name, email, username, password, PIN.
+- **AI Model:** Shows Gemma 2B model version, download status, and progress bar. Trigger or monitor background download. Download is ~1.2 GB stored in browser IndexedDB — device-local, one-time.
+
+---
+
+### 3.7 AI Chatbot (Edge — Read-Only)
+
+A floating chatbot powered by Gemma 2B running locally via WebGPU. **No prompts leave the device.**
+
+- **Architecture:** `@mlc-ai/web-llm` → JSON Mode tool selection → Django REST data enrichment → Gemma synthesizes response locally.
+- **Tools:** Remittance summary, rider performance, customer debts, tithe status.
+- **Background Download:** ~1.2 GB, one-time per device. System operates normally while downloading. Progress shown in Settings → AI Model.
+- **Memory Safety:** `engine.unload()` called on drawer close — 100% VRAM freed.
+- **Fallback:** Non-WebGPU browsers see a graceful message (Chrome 113+ or Edge 113+ required).
+
+---
+
+## 4. Light + Dark Mode
+
+The UI supports both Light and Dark themes, switchable via a sidebar toggle.
+
+- **Implementation:** CSS custom properties (HSL-calibrated tokens) on `:root` (light) and `[data-theme="dark"]`.
+- **Sidebar:** Always dark (`#0F172A`) regardless of theme — brand consistency.
+- **Persistence:** User preference stored in `localStorage`, applied by Alpine.js on page load.
+- **Typography:** `Geist` (body/headings) + `Geist Mono` (all monetary values, counts, timestamps).
+
+---
+
+## 5. Service Level Agreement (SLA)
+
+- **Core operations unaffected by AI model state.** Remittance entry, customer records, product management all function independently of whether Gemma is downloaded.
+- **Mobile-first UI.** All screens are responsive. Customers list collapses to cards. Remittance form remains usable on tablet. Sidebar collapses to icon-only on mobile.
+- **Data integrity.** Financial snapshots are immutable once saved. Totals propagate atomically using Django `F()` expressions — no race conditions.
+- **Access control.** Every view is gated by Django `PermissionRequiredMixin`. Sidebar items are rendered conditionally per the active user's role permissions.
+- **Audit trail.** All creation, finalization, and payment events include `created_by_id` / `recorded_by_id` for traceability.
+
+---
+
+## 6. What Is Out of Scope (v1)
+
+| Feature | Reason |
+|---|---|
+| Real-time dispatch tracking (Kanban, bulk loads) | Replaced by manual remittance model |
+| Session open/close lifecycle | No longer needed |
+| Multi-branch / multi-tenant | Single branch MVP |
+| SMS / push notifications | No carrier integration |
+| PDF export of remittance | Post-MVP (Phase 7) |
+| AI write tools (voice remittance) | Requires stronger guardrails — deferred |
+| Offline-first IndexedDB sync | Phase 2 connectivity SLA assessment |
+| Forgot password / email reset | No email service |

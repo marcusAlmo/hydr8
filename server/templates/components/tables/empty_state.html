@@ -1,0 +1,20 @@
+<div class="empty-state-container flex flex-col items-center justify-center p-8 text-center bg-slate-900/30 rounded-lg border border-dashed border-slate-800 my-4">
+    <div class="empty-state-icon text-slate-500 mb-3">
+        {% if icon %}
+            {{ icon|safe }}
+        {% else %}
+            <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+            </svg>
+        {% endif %}
+    </div>
+    <h4 class="empty-state-title text-base font-semibold text-slate-200 mb-1">
+        {{ title|default:"No records found" }}
+    </h4>
+    <p class="empty-state-message text-xs text-slate-400 max-w-sm mb-4">
+        {{ message|default:"There are no items matching your criteria at this time." }}
+    </p>
+    {% if action_url %}
+        {% include "components/buttons/primary.html" with text=action_text|default:"Add New" url=action_url hx_get=action_hx_get hx_target=action_hx_target %}
+    {% endif %}
+</div>

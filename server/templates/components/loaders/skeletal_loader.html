@@ -1,0 +1,38 @@
+{% comment %}
+Skeletal loader partial matching component dimensions with shimmering pulse animation
+Usage: {% include "components/loaders/skeletal_loader.html" with type="table" rows=5 %}
+{% endcomment %}
+
+<div class="skeletal-container {{ custom_classes }}">
+    {% if type == "table" %}
+        <div class="skeletal-table flex flex-col gap-3">
+            <div class="skeletal-box h-8 w-full bg-slate-800/60 rounded"></div>
+            {% for i in "12345"|slice:rows|default:"123" %}
+            <div class="skeletal-box h-12 w-full bg-slate-800/40 rounded"></div>
+            {% endfor %}
+        </div>
+    {% elif type == "card" %}
+        <div class="skeletal-card p-5 bg-slate-800/40 rounded-lg flex flex-col gap-3 border border-slate-800">
+            <div class="skeletal-box h-4 w-1/3 bg-slate-700/50 rounded"></div>
+            <div class="skeletal-box h-8 w-1/2 bg-slate-700/60 rounded"></div>
+            <div class="skeletal-box h-3 w-1/4 bg-slate-700/30 rounded"></div>
+        </div>
+    {% else %}
+        <div class="skeletal-box h-{{ height|default:'10' }} w-{{ width|default:'full' }} bg-slate-800/50 rounded"></div>
+    {% endif %}
+</div>
+
+<style>
+    .skeletal-box {
+        animation: shimmerPulse 1.5s infinite ease-in-out;
+        background: linear-gradient(90deg, 
+            rgba(30, 41, 59, 0.4) 0%, 
+            rgba(51, 65, 85, 0.6) 50%, 
+            rgba(30, 41, 59, 0.4) 100%);
+        background-size: 200% 100%;
+    }
+    @keyframes shimmerPulse {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+</style>

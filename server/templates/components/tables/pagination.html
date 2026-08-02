@@ -1,0 +1,53 @@
+{% if page_obj %}
+<div class="pagination-bar flex items-center justify-between py-3 px-4 bg-slate-900/50 border-t border-slate-800 text-xs text-slate-400">
+    <div class="pagination-info flex items-center gap-2">
+        <span>Showing <strong class="font-mono text-slate-200">{{ page_obj.start_index }}</strong> to <strong class="font-mono text-slate-200">{{ page_obj.end_index }}</strong> of <strong class="font-mono text-slate-200">{{ page_obj.paginator.count }}</strong> entries</span>
+    </div>
+
+    <div class="pagination-controls flex items-center gap-1.5">
+        {% if page_obj.has_previous %}
+        <button type="button"
+                hx-get="?page=1{% if query_params %}&{{ query_params }}{% endif %}"
+                {% if target %}hx-target="{{ target }}"{% endif %}
+                {% if swap %}hx-swap="{{ swap }}"{% endif %}
+                class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors"
+                title="First Page">
+            &laquo;
+        </button>
+        <button type="button"
+                hx-get="?page={{ page_obj.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}"
+                {% if target %}hx-target="{{ target }}"{% endif %}
+                {% if swap %}hx-swap="{{ swap }}"{% endif %}
+                class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors">
+            Previous
+        </button>
+        {% else %}
+        <span class="px-2.5 py-1 rounded bg-slate-900 text-slate-600 cursor-not-allowed">Previous</span>
+        {% endif %}
+
+        <span class="px-3 py-1 font-mono text-slate-300">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+        <button type="button"
+                hx-get="?page={{ page_obj.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}"
+                {% if target %}hx-target="{{ target }}"{% endif %}
+                {% if swap %}hx-swap="{{ swap }}"{% endif %}
+                class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors">
+            Next
+        </button>
+        <button type="button"
+                hx-get="?page={{ page_obj.paginator.num_pages }}{% if query_params %}&{{ query_params }}{% endif %}"
+                {% if target %}hx-target="{{ target }}"{% endif %}
+                {% if swap %}hx-swap="{{ swap }}"{% endif %}
+                class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors"
+                title="Last Page">
+            &raquo;
+        </button>
+        {% else %}
+        <span class="px-2.5 py-1 rounded bg-slate-900 text-slate-600 cursor-not-allowed">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

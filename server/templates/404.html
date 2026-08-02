@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Page Not Found | Hydr8 CRM{% endblock %}
+
+{% block main_class %}flex-center{% endblock %}
+
+{% block content %}
+<style>
+    .flex-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .error-card {
+        padding: 4rem;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+    
+    .error-card h1 {
+        font-size: 6rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, var(--accent-glow) 0%, var(--accent-glow-secondary) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .error-card h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .error-card p {
+        color: var(--text-secondary);
+        margin-bottom: 2.5rem;
+    }
+</style>
+
+<div class="glass-card error-card">
+    <h1>404</h1>
+    <h2>Page Not Found</h2>
+    <p>The system could not locate the requested resource. It may have been moved or deleted.</p>
+    
+    {% include 'components/buttons/primary.html' with text="Return Home" url="/" %}
+</div>
+{% endblock %}
