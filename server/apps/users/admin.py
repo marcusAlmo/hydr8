@@ -36,8 +36,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
 
-    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'status')
-    list_filter = ('role', 'status', 'is_superuser', 'is_staff')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'is_active')
+    list_filter = ('role', 'is_active', 'is_superuser', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     
     fieldsets = (
@@ -49,8 +49,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
             "fields": ("first_name", "last_name", "email"),
             "classes": ["tab"],
         }),
-        ("Role & Status", {
-            "fields": ("role", "status"),
+        ("Role & Deactivation", {
+            "fields": ("role", "deactivated_at"),
             "classes": ["tab"],
         }),
         ("Django Permissions", {

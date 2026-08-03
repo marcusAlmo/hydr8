@@ -4,13 +4,13 @@ from django.conf import settings
 
 class Remittance(models.Model):
     class StatusChoices(models.TextChoices):
-        DRAFT = 'DRAFT', 'Draft'
-        FINALIZED = 'FINALIZED', 'Finalized'
+        DRAFT = 'DRAFT'
+        FINALIZED = 'FINALIZED'
 
     date = models.DateField(unique=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='created_remittances')
     finalized_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='finalized_remittances')
-    status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.DRAFT)
+    status = models.CharField(max_length=20, choices=StatusChoices, default=StatusChoices.DRAFT)
     total_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total_credit_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)

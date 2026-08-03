@@ -126,3 +126,6 @@ CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# JWT Settings
+REFRESH_TOKEN_EXPIRY_DAYS = env.int('REFRESH_TOKEN_EXPIRY_DAYS', default=7)
