@@ -10,6 +10,14 @@ from django.contrib.auth.hashers import make_password, check_password
 
 from apps.core.models import Product
 
+class RoleQuerySet(models.QuerySet):
+    def active(self):
+        """Returns active roles ordered by their names in alphabetical order."""
+        return self.filter(deleted_at__isnull=True).order_by('name')
+
+    def default_roles(self):
+        """Returns default roles ordered by their names in alphabetical order."""
+        return self.filter(is_default=True).order_by('name')
 
 class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
