@@ -2,7 +2,7 @@ from django.contrib import admin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import Role, Permission, User, DriverCommission, UserRefreshToken
+from .models import Role, Permission, User, DriverCommission
 
 @admin.register(Role)
 class RoleAdmin(ModelAdmin):
@@ -107,24 +107,3 @@ class DriverCommissionAdmin(ModelAdmin):
         }),
     )
 
-@admin.register(UserRefreshToken)
-class UserRefreshTokenAdmin(ModelAdmin):
-    list_display = ('user', 'refresh_token', 'expires_at', 'revoked_at', 'replaced_with', 'created_at')
-    list_filter = ('revoked_at', 'expires_at')
-    search_fields = ('user__username', 'user__email', 'refresh_token')
-    readonly_fields = ('id', 'refresh_token', 'created_at', 'expires_at', 'revoked_at', 'replaced_with')
-    fieldsets = (
-        ("Token Information", {
-            "fields": (
-                "user",
-                "refresh_token",
-                ("expires_at", "revoked_at"),
-                "replaced_with",
-            ),
-            "classes": ["tab"],
-        }),
-        ("Audit Metadata", {
-            "fields": ("id", "created_at"),
-            "classes": ["tab"],
-        }),
-    )
