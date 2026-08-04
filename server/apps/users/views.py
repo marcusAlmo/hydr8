@@ -26,8 +26,9 @@ def login_view(request):
             auth_login(request, user)
             
             # If successful, we tell HTMX to redirect the browser to the dashboard
+            from django.urls import reverse
             response = HttpResponse()
-            response['HX-Redirect'] = '/dashboard/' # Adjust to actual dashboard URL
+            response['HX-Redirect'] = reverse('analytics:dashboard')
             return response
         else:
             # Login failed. Re-render the form with validation errors natively bound to it

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="dashboard" %}
+{% endblock %}
+
+{% block content %}
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-2">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Dashboard</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">Wednesday, Oct 25, 2023</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200">
+                <span class="material-symbols-outlined">smart_toy</span>
+            </button>
+            <button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Content Canvas -->
+    <div class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar">
+        <!-- Warning Banner -->
+        <section class="mb-8">
+            <div class="bg-[#D97706]/10 border border-[#D97706]/20 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-[#D97706]">warning</span>
+                    <div>
+                        <p class="font-headline-sm text-headline-sm text-[#D97706]">No remittance for today yet</p>
+                        <p class="font-body-sm text-body-sm text-[#D97706]/80">Operations are running but no financial data has been logged for this period.</p>
+                    </div>
+                </div>
+                <button class="px-6 py-2 bg-[#D97706] text-white font-bold rounded hover:bg-[#B45309] transition-colors shadow-sm flex items-center gap-2">
+                    <span class="material-symbols-outlined">add_circle</span>
+                    Create Today's Remittance
+                </button>
+            </div>
+        </section>
+
+        <!-- Asymmetric Stats Row -->
+        <section class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+            <!-- Large Stats Card -->
+            <div class="md:col-span-6 bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 border-t-primary flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default">
+                <div class="flex justify-between items-start">
+                    <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Today's Total Sales</span>
+                    <span class="material-symbols-outlined text-primary">analytics</span>
+                </div>
+                <div class="mt-4">
+                    <h3 class="font-data-mono text-4xl text-on-surface font-bold">₱12,458.50</h3>
+                    <p class="mt-2 font-body-sm text-body-sm text-tertiary flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">trending_up</span>
+                        +14.2% from yesterday
+                    </p>
+                </div>
+            </div>
+
+            <!-- Medium Card 1 -->
+            <div class="md:col-span-3 bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 border-t-[#D97706] flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default">
+                <div class="flex justify-between items-start">
+                    <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Unpaid Credits</span>
+                    <span class="material-symbols-outlined text-[#D97706]">receipt_long</span>
+                </div>
+                <div class="mt-4">
+                    <h3 class="font-data-mono text-2xl text-on-surface">₱4,200.00</h3>
+                    <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">12 pending collections</p>
+                </div>
+            </div>
+
+            <!-- Medium Card 2 -->
+            <div class="md:col-span-3 bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 border-t-error flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default">
+                <div class="flex justify-between items-start">
+                    <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Outstanding Debt</span>
+                    <span class="material-symbols-outlined text-error">dangerous</span>
+                </div>
+                <div class="mt-4">
+                    <h3 class="font-data-mono text-2xl text-on-surface">₱28,940.12</h3>
+                    <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">45-day overdue average</p>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Main Table Section -->
+            <div class="lg:col-span-2">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="font-headline-sm text-headline-sm">Recent Remittances</h4>
+                    <button class="text-primary font-bold text-body-sm hover:underline">View All History</button>
+                </div>
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container text-on-surface-variant font-label-caps text-label-caps uppercase border-b border-outline-variant/20">
+                                <th class="py-3 px-4">Date</th>
+                                <th class="py-3 px-4">Total Sales</th>
+                                <th class="py-3 px-4">Net Profit</th>
+                                <th class="py-3 px-4">Tithes</th>
+                                <th class="py-3 px-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="font-data-mono text-sm">
+                            <tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors border-l-4 border-l-[#D97706] group cursor-pointer">
+                                <td class="py-3 px-4">Oct 24, 2023</td>
+                                <td class="py-3 px-4">₱14,200.00</td>
+                                <td class="py-3 px-4 text-tertiary">₱3,450.00</td>
+                                <td class="py-3 px-4 text-error">₱345.00</td>
+                                <td class="py-3 px-4">
+                                    <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</button>
+                                </td>
+                            </tr>
+                            <tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors border-l-4 border-transparent group cursor-pointer">
+                                <td class="py-3 px-4">Oct 23, 2023</td>
+                                <td class="py-3 px-4">₱11,850.00</td>
+                                <td class="py-3 px-4 text-tertiary">₱2,900.00</td>
+                                <td class="py-3 px-4 text-tertiary-container">₱290.00</td>
+                                <td class="py-3 px-4">
+                                    <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</button>
+                                </td>
+                            </tr>
+                            <tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors border-l-4 border-l-[#D97706] group cursor-pointer">
+                                <td class="py-3 px-4">Oct 22, 2023</td>
+                                <td class="py-3 px-4">₱15,100.00</td>
+                                <td class="py-3 px-4 text-tertiary">₱4,100.00</td>
+                                <td class="py-3 px-4 text-error">₱410.00</td>
+                                <td class="py-3 px-4">
+                                    <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</button>
+                                </td>
+                            </tr>
+                            <tr class="hover:bg-surface-container-low transition-colors border-l-4 border-transparent group cursor-pointer">
+                                <td class="py-3 px-4">Oct 21, 2023</td>
+                                <td class="py-3 px-4">₱9,900.00</td>
+                                <td class="py-3 px-4 text-tertiary">₱1,800.00</td>
+                                <td class="py-3 px-4 text-tertiary-container">₱180.00</td>
+                                <td class="py-3 px-4">
+                                    <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- AI Insights Panel -->
+            <div class="lg:col-span-1">
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm h-full flex flex-col hover:shadow-md transition-shadow">
+                    <div class="ai-shimmer p-4 text-white flex items-center justify-between" style="background: linear-gradient(90deg, #006591, #35af80, #006591); background-size: 200% auto; animation: shimmer 4s linear infinite;">
+                        <style>
+                            @keyframes shimmer {
+                                to { background-position: 200% center; }
+                            }
+                        </style>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined">auto_awesome</span>
+                            <span class="font-headline-sm text-headline-sm">AI Insights</span>
+                        </div>
+                        <span class="text-[10px] bg-white/20 px-2 py-1 rounded-full uppercase font-bold tracking-tighter shadow-sm border border-white/10">Live</span>
+                    </div>
+                    <div class="p-5 flex-1 space-y-4">
+                        <div class="bg-primary-container/5 border border-primary-container/10 p-3 rounded hover:bg-primary-container/10 transition-colors">
+                            <div class="flex flex-wrap gap-2 mb-3">
+                                <span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-primary border border-primary/10">Rider Performance</span>
+                                <span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-primary border border-primary/10">Efficiency</span>
+                            </div>
+                            <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                                <strong class="font-bold">Rider Dela Cruz</strong> contributed <span class="text-primary font-bold">38%</span> of today's gross revenue. His route optimization has decreased fuel cost by 12%.
+                            </p>
+                        </div>
+
+                        <div class="bg-error/5 border border-error/10 p-3 rounded hover:bg-error/10 transition-colors">
+                            <div class="flex flex-wrap gap-2 mb-3">
+                                <span class="font-data-mono text-[11px] bg-error/10 px-2 py-1 rounded text-error border border-error/10">Inventory Alert</span>
+                            </div>
+                            <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                                Alkaline 5L stock is <span class="text-error font-bold">Critically Low</span>. Based on velocity, you will stock out by 2 PM tomorrow.
+                            </p>
+                        </div>
+
+                        <div class="bg-primary-container/5 border border-primary-container/10 p-3 rounded hover:bg-primary-container/10 transition-colors">
+                            <div class="flex flex-wrap gap-2 mb-3">
+                                <span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-on-secondary-fixed-variant border border-outline-variant/30">Trend Analysis</span>
+                            </div>
+                            <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                                Credit defaults have risen by <span class="text-error font-bold">5%</span> this week. Suggest tightening credit terms for new customers.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-surface-container-low border-t border-outline-variant/20">
+                        <button class="w-full py-2.5 bg-primary text-on-primary rounded font-bold flex items-center justify-center gap-2 hover:bg-surface-tint transition-all active:scale-[0.98] shadow-sm hover:shadow">
+                            <span class="material-symbols-outlined text-sm">chat_bubble</span>
+                            Ask Hydr8 AI
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global AI Chatbot FAB -->
+    <button class="fixed bottom-6 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 group z-[100]" id="chatbot-fab" onclick="alert('Hydr8 AI Assistant is ready to help you manage your water delivery logistics.')">
+        <span class="material-symbols-outlined text-3xl group-hover:rotate-12 transition-transform">smart_toy</span>
+        <div class="absolute -top-1 -right-1 w-4 h-4 bg-tertiary-container rounded-full border-2 border-background"></div>
+    </button>
+
+{% endblock %}

@@ -1,0 +1,379 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Hydr8 | Dashboard</title>
+<!-- Google Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Geist+Mono:wght@100..900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#89ceff",
+                        "surface-dim": "#cfdaf2",
+                        "tertiary": "#006c4a",
+                        "primary-fixed": "#c9e6ff",
+                        "on-secondary-container": "#54647a",
+                        "primary": "#006591",
+                        "on-tertiary-fixed-variant": "#005137",
+                        "secondary": "#505f76",
+                        "inverse-surface": "#263143",
+                        "surface-variant": "#d8e3fb",
+                        "primary-container": "#0ea5e9",
+                        "secondary-container": "#d0e1fb",
+                        "on-primary-fixed-variant": "#004c6e",
+                        "tertiary-fixed-dim": "#68dba9",
+                        "on-primary-container": "#003751",
+                        "surface-container": "#e7eeff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#0b1c30",
+                        "error": "#ba1a1a",
+                        "on-primary": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "background": "#f9f9ff",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-container": "#003c27",
+                        "tertiary-fixed": "#85f8c4",
+                        "surface-container-low": "#f0f3ff",
+                        "surface-bright": "#f9f9ff",
+                        "on-tertiary-fixed": "#002114",
+                        "on-error": "#ffffff",
+                        "tertiary-container": "#35af80",
+                        "on-error-container": "#93000a",
+                        "surface-container-high": "#dee8ff",
+                        "on-surface": "#111c2d",
+                        "surface-container-highest": "#d8e3fb",
+                        "surface": "#f9f9ff",
+                        "primary-fixed-dim": "#89ceff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "error-container": "#ffdad6",
+                        "outline": "#6e7881",
+                        "surface-tint": "#006591",
+                        "outline-variant": "#bec8d2",
+                        "on-primary-fixed": "#001e2f",
+                        "inverse-on-surface": "#ecf1ff",
+                        "on-background": "#111c2d",
+                        "on-secondary-fixed-variant": "#38485d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-page": "1.5rem",
+                        "gutter": "1rem",
+                        "stack-dense": "0.25rem",
+                        "stack-compact": "0.5rem",
+                        "container-max": "1440px"
+                    },
+                    "fontFamily": {
+                        "data-mono": ["Geist Mono"],
+                        "headline-sm": ["Geist"],
+                        "label-caps": ["Geist"],
+                        "body-sm": ["Geist"],
+                        "headline-md": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "body-md": ["Geist"]
+                    },
+                    "fontSize": {
+                        "data-mono": ["14px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                        "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                        "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "headline-lg": ["30px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .ai-shimmer {
+            background: linear-gradient(90deg, #006591, #35af80, #006591);
+            background-size: 200% auto;
+            animation: shimmer 4s linear infinite;
+        }
+        @keyframes shimmer {
+            to { background-position: 200% center; }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #bec8d2;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen flex">
+<!-- SideNavBar (The Abyss Sidebar) -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-inverse-surface flex flex-col p-4 shadow-md z-50">
+<div class="mb-8 px-2 flex items-center gap-3">
+<div class="w-8 h-8 bg-primary rounded flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined">water_drop</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary-fixed leading-tight">Hydr8</h1>
+<p class="text-[10px] text-on-secondary-fixed-variant uppercase tracking-widest font-bold">Water. Delivered. Managed.</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Dashboard Active -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-body-md text-body-md">Remittance</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-body-md text-body-md">Customers</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-body-md text-body-md">Products &amp; Pricing</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="font-body-md text-body-md">Employees &amp; Users</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+</nav>
+<div class="mt-auto pt-4 border-t border-on-secondary-fixed-variant/20 space-y-1">
+<button class="w-full flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200">
+<span class="material-symbols-outlined">light_mode</span>
+<span class="font-body-md text-body-md">Theme Toggle</span>
+</button>
+<button class="w-full flex items-center gap-3 px-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-body-md text-body-md">Profile</span>
+</button>
+</div>
+</aside>
+<!-- Main Workspace -->
+<main class="ml-[240px] flex-1 flex flex-col overflow-hidden relative">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-margin-page py-4 bg-background">
+<div class="flex items-center gap-2">
+<h2 class="font-headline-md text-headline-md font-black text-primary">Dashboard</h2>
+<div class="h-4 w-px bg-outline-variant mx-2"></div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Wednesday, Oct 25, 2023</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200">
+<span class="material-symbols-outlined">smart_toy</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+</button>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="flex-1 overflow-y-auto px-margin-page pb-12 custom-scrollbar">
+<!-- Warning Banner -->
+<section class="mb-8">
+<div class="bg-[#D97706]/10 border border-[#D97706]/20 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#D97706]">warning</span>
+<div>
+<p class="font-headline-sm text-headline-sm text-[#D97706]">No remittance for today yet</p>
+<p class="font-body-sm text-body-sm text-[#D97706]/80">Operations are running but no financial data has been logged for this period.</p>
+</div>
+</div>
+<button class="px-6 py-2 bg-[#D97706] text-white font-bold rounded hover:bg-[#B45309] transition-colors shadow-sm flex items-center gap-2">
+<span class="material-symbols-outlined">add_circle</span>
+                        Create Today's Remittance
+                    </button>
+</div>
+</section>
+<!-- Asymmetric Stats Row -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+<!-- Large Stats Card -->
+<div class="md:col-span-6 bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 border-t-primary flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Today's Total Sales</span>
+<span class="material-symbols-outlined text-primary">analytics</span>
+</div>
+<div class="mt-4">
+<h3 class="font-data-mono text-4xl text-on-surface font-bold">₱12,458.50</h3>
+<p class="mt-2 font-body-sm text-body-sm text-tertiary flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                            +14.2% from yesterday
+                        </p>
+</div>
+</div>
+<!-- Medium Card 1 -->
+<div class="md:col-span-3 bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 border-t-[#D97706] flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Unpaid Credits</span>
+<span class="material-symbols-outlined text-[#D97706]">receipt_long</span>
+</div>
+<div class="mt-4">
+<h3 class="font-data-mono text-2xl text-on-surface">₱4,200.00</h3>
+<p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">12 pending collections</p>
+</div>
+</div>
+<!-- Medium Card 2 -->
+<div class="md:col-span-3 bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 border-t-error flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Outstanding Debt</span>
+<span class="material-symbols-outlined text-error">dangerous</span>
+</div>
+<div class="mt-4">
+<h3 class="font-data-mono text-2xl text-on-surface">₱28,940.12</h3>
+<p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">45-day overdue average</p>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Main Table Section -->
+<div class="lg:col-span-2">
+<div class="flex items-center justify-between mb-4">
+<h4 class="font-headline-sm text-headline-sm">Recent Remittances</h4>
+<button class="text-primary font-bold text-body-sm hover:underline">View All History</button>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container text-on-surface-variant font-label-caps text-label-caps uppercase border-b border-outline-variant/20">
+<th class="py-3 px-4">Date</th>
+<th class="py-3 px-4">Total Sales</th>
+<th class="py-3 px-4">Net Profit</th>
+<th class="py-3 px-4">Tithes</th>
+<th class="py-3 px-4">Action</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-sm">
+<tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors border-l-4 border-l-[#D97706]">
+<td class="py-3 px-4">Oct 24, 2023</td>
+<td class="py-3 px-4">₱14,200.00</td>
+<td class="py-3 px-4 text-tertiary">₱3,450.00</td>
+<td class="py-3 px-4 text-error">₱345.00</td>
+<td class="py-3 px-4">
+<button class="text-primary hover:bg-primary/5 px-2 py-1 rounded">Details</button>
+</td>
+</tr>
+<tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors">
+<td class="py-3 px-4">Oct 23, 2023</td>
+<td class="py-3 px-4">₱11,850.00</td>
+<td class="py-3 px-4 text-tertiary">₱2,900.00</td>
+<td class="py-3 px-4 text-tertiary-container">₱290.00</td>
+<td class="py-3 px-4">
+<button class="text-primary hover:bg-primary/5 px-2 py-1 rounded">Details</button>
+</td>
+</tr>
+<tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors border-l-4 border-l-[#D97706]">
+<td class="py-3 px-4">Oct 22, 2023</td>
+<td class="py-3 px-4">₱15,100.00</td>
+<td class="py-3 px-4 text-tertiary">₱4,100.00</td>
+<td class="py-3 px-4 text-error">₱410.00</td>
+<td class="py-3 px-4">
+<button class="text-primary hover:bg-primary/5 px-2 py-1 rounded">Details</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-3 px-4">Oct 21, 2023</td>
+<td class="py-3 px-4">₱9,900.00</td>
+<td class="py-3 px-4 text-tertiary">₱1,800.00</td>
+<td class="py-3 px-4 text-tertiary-container">₱180.00</td>
+<td class="py-3 px-4">
+<button class="text-primary hover:bg-primary/5 px-2 py-1 rounded">Details</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- AI Insights Panel -->
+<div class="lg:col-span-1">
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm h-full flex flex-col">
+<div class="ai-shimmer p-4 text-white flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined">auto_awesome</span>
+<span class="font-headline-sm text-headline-sm">AI Insights</span>
+</div>
+<span class="text-[10px] bg-white/20 px-2 py-1 rounded-full uppercase font-bold tracking-tighter">Live</span>
+</div>
+<div class="p-5 flex-1 space-y-4">
+<div class="bg-primary-container/5 border border-primary-container/10 p-3 rounded">
+<div class="flex flex-wrap gap-2 mb-3">
+<span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-primary">Rider Performance</span>
+<span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-primary">Efficiency</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+<strong class="font-bold">Rider Dela Cruz</strong> contributed <span class="text-primary font-bold">38%</span> of today's gross revenue. His route optimization has decreased fuel cost by 12%.
+                                </p>
+</div>
+<div class="bg-primary-container/5 border border-primary-container/10 p-3 rounded">
+<div class="flex flex-wrap gap-2 mb-3">
+<span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-tertiary">Inventory Alert</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                                    Alkaline 5L stock is <span class="text-error font-bold">Critically Low</span>. Based on velocity, you will stock out by 2 PM tomorrow.
+                                </p>
+</div>
+<div class="bg-primary-container/5 border border-primary-container/10 p-3 rounded">
+<div class="flex flex-wrap gap-2 mb-3">
+<span class="font-data-mono text-[11px] bg-surface-container-high px-2 py-1 rounded text-on-secondary-fixed-variant">Trend Analysis</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                                    Credit defaults have risen by <span class="text-error font-bold">5%</span> this week. Suggest tightening credit terms for new customers.
+                                </p>
+</div>
+</div>
+<div class="p-4 bg-surface-container-low border-t border-outline-variant/20">
+<button class="w-full py-2.5 bg-primary text-on-primary rounded font-bold flex items-center justify-center gap-2 hover:bg-surface-tint transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined text-sm">chat_bubble</span>
+                                Ask Hydr8 AI
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Global AI Chatbot FAB -->
+<button class="fixed bottom-6 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 group z-[100]" id="chatbot-fab">
+<span class="material-symbols-outlined text-3xl group-hover:rotate-12 transition-transform">smart_toy</span>
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-tertiary-container rounded-full border-2 border-background"></div>
+</button>
+</main>
+<script>
+        // Simple micro-interaction for the FAB
+        const fab = document.getElementById('chatbot-fab');
+        fab.addEventListener('click', () => {
+            alert("Hydr8 AI Assistant is ready to help you manage your water delivery logistics. (UI Implementation Only)");
+        });
+
+        // Simulating a hover state update on the table rows for tracking scan
+        const tableRows = document.querySelectorAll('tbody tr');
+        tableRows.forEach(row => {
+            row.addEventListener('mouseenter', () => {
+                row.classList.add('bg-primary/5');
+            });
+            row.addEventListener('mouseleave', () => {
+                row.classList.remove('bg-primary/5');
+            });
+        });
+    </script>
+</body></html>

@@ -42,7 +42,7 @@ class CreditLine(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'customers_creditline'
+        db_table = 'customers_credit_line'
 
     def __str__(self):
         return f"{self.customer.name} - {self.product.name} ({self.qty_remaining} left)"
@@ -57,7 +57,7 @@ class CreditPayment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'customers_creditpayment'
+        db_table = 'customers_credit_payment'
         indexes = [
             models.Index(fields=['credit_line']),
             models.Index(fields=['remittance']),

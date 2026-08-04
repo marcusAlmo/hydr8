@@ -49,7 +49,7 @@ class RemittanceRider(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'remittance_remittancerider'
+        db_table = 'remittance_remittance_rider'
         unique_together = ('remittance', 'rider')
         indexes = [
             models.Index(fields=['remittance']),
@@ -75,7 +75,7 @@ class RemittanceRiderProductLine(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'remittance_remittanceriderproductline'
+        db_table = 'remittance_remittance_rider_productline'
         unique_together = ('remittance_rider', 'product')
         indexes = [
             models.Index(fields=['remittance_rider']),
@@ -117,7 +117,7 @@ class RiderCredit(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'remittance_ridercredit'
+        db_table = 'remittance_rider_credit'
         indexes = [
             models.Index(fields=['rider']),
             models.Index(fields=['is_repaid']),
@@ -137,7 +137,7 @@ class RiderCreditRepayment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'remittance_ridercreditrepayment'
+        db_table = 'remittance_rider_credit_repayment'
         indexes = [
             models.Index(fields=['rider_credit']),
             models.Index(fields=['remittance']),
