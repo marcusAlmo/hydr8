@@ -40,23 +40,3 @@ class SystemConfig(models.Model):
 
     def __str__(self):
         return f"{self.key}: {self.value}"
-
-
-class AuditLog(models.Model):
-    class Action(models.TextChoices):
-        CREATE = 'CREATE'
-        READ = 'READ'
-        UPDATE = 'UPDATE'
-        DELETE = 'DELETE'
-        LOGIN = 'LOGIN'
-        LOGOUT = 'LOGOUT'
-        OTHER = 'OTHER'
-
-    action = models.CharField(max_length=100, choices=Action)
-    details = models.TextField(null=True, blank=True)
-    initiated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'core_auditlog'
