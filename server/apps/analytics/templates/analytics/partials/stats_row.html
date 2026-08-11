@@ -1,0 +1,38 @@
+{% comment %}
+Asymmetric stats row — 6/3/3 grid of summary cards.
+Expects context:
+  - stats: list of { col_span, label, icon, icon_class, value, value_size,
+                     trend?, trend_direction?, subtitle?, border_class,
+                     breakdown? (list of { label, count }) }
+{% endcomment %}
+<section class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+    {% for stat in stats %}
+    <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 {{ stat.border_class }} flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default">
+        <div class="flex justify-between items-start">
+            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
+            <span class="material-symbols-outlined {{ stat.icon_class }}">{{ stat.icon }}</span>
+        </div>
+        <div class="mt-4">
+            <h3 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold">{{ stat.value }}</h3>
+            {% if stat.breakdown %}
+            <div class="mt-4 flex flex-wrap gap-3">
+                {% for item in stat.breakdown %}
+                <div class="flex items-center gap-2 bg-surface-container-high/60 border border-outline-variant/20 rounded px-3 py-1.5">
+                    <span class="material-symbols-outlined text-base {{ stat.icon_class }}">water_drop</span>
+                    <span class="font-body-sm text-body-sm text-on-surface-variant">{{ item.label }}</span>
+                    <span class="font-data-mono text-sm font-bold text-on-surface">{{ item.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% elif stat.trend %}
+            <p class="mt-2 font-body-sm text-body-sm text-tertiary flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">trending_{{ stat.trend_direction }}</span>
+                {{ stat.trend }}
+            </p>
+            {% elif stat.subtitle %}
+            <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</section>

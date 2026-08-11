@@ -33,7 +33,7 @@
         </a>
 
         <!-- Remittance -->
-        <a href="#" 
+        <a href="{% url 'remittance:history' %}"
            class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'remittance' or active_item == 'remittances' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Remittance">
@@ -42,7 +42,7 @@
         </a>
 
         <!-- Customers -->
-        <a href="#" 
+        <a href="{% url 'customers:list' %}"
            class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'customers' or active_item == 'customer' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Customers">

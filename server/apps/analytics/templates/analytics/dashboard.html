@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="dashboard" %}
+{% endblock %}
+
+{% block content %}
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-2">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Dashboard</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200">
+                <span class="material-symbols-outlined">smart_toy</span>
+            </button>
+            <button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Content Canvas -->
+    <div class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar">
+        {% include "analytics/partials/warning_banner.html" %}
+        {% include "analytics/partials/stats_row.html" %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 flex flex-col gap-8">
+                {% include "analytics/partials/recent_remittances.html" %}
+                {% include "analytics/partials/long_running_debts.html" %}
+            </div>
+            {% include "analytics/partials/ai_insights_panel.html" %}
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Remittance History | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="remittance" %}
+{% endblock %}
+
+{% block content %}
+    <!-- Top Navigation Bar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10">
+        <div class="flex items-center gap-8">
+            <h2 class="font-headline-sm text-headline-sm text-on-surface">Remittance Management</h2>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">calendar_today</span>
+                <select class="pl-10 pr-8 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-sm font-body-sm focus:ring-2 focus:ring-primary focus:border-transparent appearance-none">
+                    <option>Last 30 Days</option>
+                    <option>This Quarter</option>
+                    <option>Year to Date</option>
+                    <option>Custom Range</option>
+                </select>
+            </div>
+            <a href="{% url 'remittance:add' %}" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90 transition-all shadow-sm">
+                <span class="material-symbols-outlined">add</span>
+                <span class="text-body-md font-body-md">Add Remittance</span>
+            </a>
+            <div class="flex items-center gap-2 ml-2">
+                <button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors">
+                    <span class="material-symbols-outlined">smart_toy</span>
+                </button>
+                <button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors relative">
+                    <span class="material-symbols-outlined">notifications</span>
+                    <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content Area -->
+    <section class="flex-1 overflow-y-auto custom-scrollbar p-margin-page space-y-6">
+
+        <!-- Quick Insights / Bento Summary -->
+        <div class="grid grid-cols-12 gap-gutter">
+            {% for card in summary_cards %}
+            <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 shadow-sm relative overflow-hidden {% if card.shimmer %}ai-shimmer{% endif %}">
+                <div class="absolute top-0 left-0 w-full h-1 bg-[{{ card.accent_bar }}]"></div>
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-label-caps font-label-caps text-outline uppercase">{{ card.label }}</span>
+                    {% if card.badge_text %}
+                    <span class="{{ card.badge_color }} flex items-center text-[12px] font-bold">
+                        <span class="material-symbols-outlined text-[14px]">{{ card.badge_icon }}</span> {{ card.badge_text }}
+                    </span>
+                    {% else %}
+                    <span class="material-symbols-outlined {{ card.badge_color }} text-[18px]">{{ card.badge_icon }}</span>
+                    {% endif %}
+                </div>
+                <div class="text-headline-lg font-data-mono text-on-surface">{{ card.value }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Main Data Table Container -->
+        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden">
+            <div class="p-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low/30">
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">search</span>
+                        <input class="pl-10 pr-4 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm font-body-sm focus:ring-1 focus:ring-primary w-64" placeholder="Filter by user..." type="text">
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button class="p-1.5 text-outline hover:bg-surface-container-high rounded transition-colors">
+                        <span class="material-symbols-outlined">filter_list</span>
+                    </button>
+                    <button class="p-1.5 text-outline hover:bg-surface-container-high rounded transition-colors">
+                        <span class="material-symbols-outlined">download</span>
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-surface-container-high/50 text-label-caps font-label-caps text-outline uppercase border-b border-outline-variant/20">
+                        <tr>
+                            <th class="px-6 py-3 font-bold">Date</th>
+                            <th class="px-6 py-3 font-bold">Created By</th>
+                            <th class="px-6 py-3 font-bold text-right">Total Sales</th>
+                            <th class="px-6 py-3 font-bold text-right">Net Profit</th>
+                            <th class="px-6 py-3 font-bold text-right">Tithes</th>
+                            <th class="px-6 py-3 font-bold text-center">Tithes Paid</th>
+                            <th class="px-6 py-3 font-bold text-center">Offering Paid</th>
+                            <th class="px-6 py-3 font-bold text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/10">
+                        {% for rem in remittances %}
+                        <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 {% if rem.unpaid %}border-l-[#f59e0b]{% else %}border-l-transparent{% endif %} rem-row">
+                            <td class="px-6 py-3 font-data-mono text-on-surface">{{ rem.date }}</td>
+                            <td class="px-6 py-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-full {{ rem.avatar_bg }} text-[10px] flex items-center justify-center font-bold {{ rem.avatar_text }}">{{ rem.initials }}</div>
+                                    <span class="text-body-sm font-medium">{{ rem.created_by }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-3 text-right font-data-mono">{{ rem.total_sales }}</td>
+                            <td class="px-6 py-3 text-right font-data-mono text-tertiary">{{ rem.net_profit }}</td>
+                            <td class="px-6 py-3 text-right font-data-mono text-primary font-bold">{{ rem.tithes }}</td>
+                            <td class="px-6 py-3 text-center">
+                                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary tithes-checkbox" type="checkbox" {% if rem.tithes_paid %}checked{% endif %}>
+                            </td>
+                            <td class="px-6 py-3 text-center">
+                                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary" type="checkbox" {% if rem.offering_paid %}checked{% endif %}>
+                            </td>
+                            <td class="px-6 py-3 text-right">
+                                <button class="text-outline hover:text-primary transition-colors">
+                                    <span class="material-symbols-outlined text-[18px]">more_vert</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 border-t border-outline-variant/20 flex justify-between items-center text-body-sm text-outline font-body-sm">
+                <div>{{ pagination.showing }}</div>
+                <div class="flex items-center gap-2">
+                    <button class="p-1 rounded hover:bg-surface-container-high transition-colors disabled:opacity-30" disabled>
+                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </button>
+                    {% for p in pagination.total_pages|make_list %}
+                        {% with page_num=forloop.counter %}
+                        {% if page_num == pagination.current_page %}
+                        <span class="px-2 py-0.5 bg-primary text-on-primary rounded text-[12px] font-bold">{{ page_num }}</span>
+                        {% else %}
+                        <button class="px-2 py-0.5 hover:bg-surface-container-high rounded text-[12px]">{{ page_num }}</button>
+                        {% endif %}
+                        {% endwith %}
+                    {% endfor %}
+                    <button class="p-1 rounded hover:bg-surface-container-high transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent AI Insight Card -->
+        <div class="grid grid-cols-12 gap-gutter">
+            <div class="col-span-12 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+                <div class="w-10 h-10 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center text-primary flex-shrink-0">
+                    <span class="material-symbols-outlined">auto_awesome</span>
+                </div>
+                <div>
+                    <h4 class="font-headline-sm text-body-md font-bold mb-1">Operational Efficiency Insight</h4>
+                    <p class="text-on-surface-variant text-body-sm leading-relaxed">
+                        {{ ai_insight|safe }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock %}
+
+{% block extra_body %}
+    <script>
+        // Micro-interaction for checkboxes to simulate a "saving" state
+        document.querySelectorAll('.tithes-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const row = this.closest('.rem-row');
+                if (this.checked) {
+                    row.classList.remove('border-l-[#f59e0b]');
+                    row.classList.add('border-l-transparent');
+                } else {
+                    row.classList.add('border-l-[#f59e0b]');
+                    row.classList.remove('border-l-transparent');
+                }
+                this.parentElement.classList.add('animate-pulse');
+                setTimeout(() => {
+                    this.parentElement.classList.remove('animate-pulse');
+                }, 500);
+            });
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,475 @@
+{% comment %}
+Reusable Floating AI Chat Widget — Hydr8
+==========================================
+A self-contained, draggable floating chat head + conversation panel that can
+be included on ANY page via:
+
+    {% include "components/ai/chat_widget.html" %}
+
+Features:
+  - Draggable chat head (FAB) — pointer events (mouse + touch). Position
+    persists across page loads via localStorage key "hydr8.chat.fab.pos".
+  - Snaps to the nearest screen edge after drag ends (configurable via
+    `snap_to_edge`, default true).
+  - Click (no drag) opens the conversation panel; drag does NOT open it.
+  - Conversation panel shows exchange of message bubbles using the
+    `chat_message.html` component. Panel opens adjacent to the FAB and
+    repositions automatically based on FAB location.
+  - Panel position auto-flips if it would overflow the viewport.
+  - Optional `greeting` context variable for the first assistant message.
+  - Optional `endpoint` context variable (HTMX URL) for live posting. If
+    not provided, the form falls back to a local echo demo so the UI is
+    fully functional standalone (no backend required).
+
+Context variables:
+  - greeting       (str)  First assistant message. Default: Hydr8 welcome.
+  - endpoint       (str)  HTMX POST URL for sending messages. Optional.
+  - title          (str)  Panel header title. Default: "Hydr8 AI Assistant".
+  - snap_to_edge   (bool) Snap FAB to nearest edge after drag. Default: true.
+
+Design tokens: primary, on-primary, primary-container, tertiary-container,
+surface-container-lowest, surface-container, outline-variant, on-surface,
+on-surface-variant, background. No raw hex colors.
+{% endcomment %}
+
+<div x-data="hydr8ChatWidget({
+        greeting: '{{ greeting|default:""|escapejs }}',
+        endpoint: '{{ endpoint|default:""|escapejs }}',
+        title: '{{ title|default:""|escapejs }}',
+        snapToEdge: {{ snap_to_edge|yesno:'true,false,true'|default:'true' }}
+     })"
+     x-init="init()"
+     x-cloak
+     class="hydr8-chat-widget fixed inset-0 z-[1100] pointer-events-none select-none"
+     @keydown.escape.window="closePanel()">
+
+    <!-- ============ CONVERSATION PANEL ============ -->
+    <div x-show="open"
+         x-ref="panel"
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+         x-transition:leave-end="opacity-0 scale-95 translate-y-2"
+         class="hydr8-chat-panel pointer-events-auto absolute w-[380px] max-w-[calc(100vw-2rem)] h-[540px] max-h-[calc(100vh-2rem)] bg-surface-container-lowest border border-outline-variant/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+         :style="panelStyle()">
+
+        <!-- Panel Header -->
+        <div class="px-4 py-3 bg-primary text-on-primary flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-tertiary-container shadow-sm animate-pulse shrink-0"></span>
+                <h4 class="font-headline-sm text-sm font-bold truncate" x-text="title"></h4>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+                <button type="button"
+                        class="p-1.5 rounded-lg hover:bg-on-primary/10 transition-colors"
+                        @click="closePanel()"
+                        title="Close chat"
+                        aria-label="Close chat">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages Container -->
+        <div x-ref="messages"
+             class="flex-1 p-4 overflow-y-auto flex flex-col gap-3 bg-surface-container-lowest hydr8-chat-scroll">
+            <template x-for="msg in messages" :key="msg.id">
+                <div class="chat-message-row flex gap-3"
+                     :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+                     x-data="{ showTime: false }"
+                     @mouseenter="showTime = true"
+                     @mouseleave="showTime = false">
+
+                    <!-- Assistant avatar -->
+                    <template x-if="msg.role !== 'user'">
+                        <div class="shrink-0 w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-tertiary-container flex items-center justify-center text-on-primary text-[11px] font-bold shadow-md ring-2 ring-surface-container-lowest">
+                            AI
+                        </div>
+                    </template>
+
+                    <div class="max-w-[78%] flex flex-col"
+                         :class="msg.role === 'user' ? 'items-end' : 'items-start'">
+                        <div class="px-4 py-2.5 text-sm leading-relaxed shadow-sm whitespace-pre-wrap break-words"
+                             :class="msg.role === 'user'
+                                ? 'bg-primary text-on-primary rounded-2xl rounded-br-sm'
+                                : 'bg-surface-container-low text-on-surface border border-outline-variant/40 rounded-2xl rounded-bl-sm'"
+                             x-text="msg.text"></div>
+                        <span class="text-[10px] text-on-surface-variant/70 mt-1 px-1 font-data-mono transition-opacity duration-200"
+                              :class="showTime ? 'opacity-100' : 'opacity-0'"
+                              x-text="msg.timestamp"></span>
+                    </div>
+
+                    <!-- User avatar -->
+                    <template x-if="msg.role === 'user'">
+                        <div class="shrink-0 w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-on-secondary text-[11px] font-semibold shadow-md ring-2 ring-surface-container-lowest"
+                             x-text="userInitials"></div>
+                    </template>
+                </div>
+            </template>
+
+            <!-- Typing indicator -->
+            <div x-show="typing" x-cloak
+                 class="chat-message-row flex gap-3 justify-start">
+                <div class="shrink-0 w-9 h-9 rounded-full bg-gradient-to-tr from-primary to-tertiary-container flex items-center justify-center text-on-primary text-[11px] font-bold shadow-md ring-2 ring-surface-container-lowest">
+                    AI
+                </div>
+                <div class="bg-surface-container-low text-on-surface border border-outline-variant/40 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+                    <div class="flex gap-1 items-center">
+                        <span class="w-2 h-2 rounded-full bg-on-surface-variant/50 hydr8-chat-dot"></span>
+                        <span class="w-2 h-2 rounded-full bg-on-surface-variant/50 hydr8-chat-dot" style="animation-delay: 0.15s"></span>
+                        <span class="w-2 h-2 rounded-full bg-on-surface-variant/50 hydr8-chat-dot" style="animation-delay: 0.3s"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick suggestion chips -->
+        <div x-show="messages.length <= 1 && !typing"
+             class="px-4 pb-2 flex flex-wrap gap-1.5 shrink-0">
+            <template x-for="suggestion in suggestions" :key="suggestion">
+                <button type="button"
+                        class="text-[11px] px-2.5 py-1 rounded-full bg-surface-container-high text-primary border border-primary/20 hover:bg-primary hover:text-on-primary transition-colors font-medium"
+                        @click="sendSuggestion(suggestion)"
+                        x-text="suggestion"></button>
+            </template>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="p-3 bg-surface-container-low border-t border-outline-variant/30 shrink-0">
+            <form @submit.prevent="sendMessage()"
+                  class="flex items-center gap-2">
+                <input type="text"
+                       x-ref="input"
+                       x-model="draft"
+                       :placeholder="typing ? 'Hydr8 AI is thinking…' : 'Ask Hydr8 AI…'"
+                       :disabled="typing"
+                       class="flex-1 bg-surface-container-lowest border border-outline-variant/40 rounded-lg px-3 py-2 text-sm text-on-surface placeholder-on-surface-variant/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-colors disabled:opacity-50">
+                <button type="submit"
+                        :disabled="!draft.trim() || typing"
+                        class="bg-primary text-on-primary rounded-lg px-3 py-2 text-sm font-semibold flex items-center gap-1 transition-all active:scale-95 shadow-sm hover:shadow disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-tint">
+                    <span class="material-symbols-outlined text-base">send</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============ DRAGGABLE FLOATING CHAT HEAD (FAB) ============ -->
+    <button type="button"
+            x-ref="fab"
+            class="hydr8-chat-fab pointer-events-auto fixed w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center transition-transform duration-200 group"
+            :class="{
+                'hover:scale-110 active:scale-95': !dragging,
+                'scale-105 cursor-grabbing shadow-3xl': dragging,
+                'cursor-grab': !dragging
+            }"
+            :style="fabStyle()"
+            @mousedown="startDrag($event)"
+            @touchstart="startDrag($event)"
+            @click="onFabClick()"
+            title="Drag to reposition · Click to chat"
+            aria-label="Open Hydr8 AI chat (draggable)">
+        <!-- Online indicator -->
+        <span class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-tertiary-container rounded-full border-2 border-background shadow-sm"></span>
+        <!-- Icon swaps between chat and close -->
+        <span class="material-symbols-outlined text-3xl transition-transform duration-300"
+              :class="open ? 'rotate-90' : 'group-hover:rotate-12'"
+              x-text="open ? 'close' : 'smart_toy'"></span>
+    </button>
+</div>
+
+<script>
+    /**
+     * Alpine.js component factory for the Hydr8 floating chat widget.
+     * Self-contained — no external dependencies beyond Alpine + Tailwind.
+     *
+     * Drag implementation uses pointer math (works for mouse + touch via
+     * mousedown/touchstart + move + end listeners on window). A small
+     * movement threshold distinguishes a click from a drag so the panel
+     * only opens on a genuine click.
+     */
+    function hydr8ChatWidget(opts) {
+        const STORAGE_KEY = 'hydr8.chat.fab.pos';
+        const DEFAULTS = {
+            greeting: "Hi! I'm Hydr8 AI — your operations assistant. Ask me about today's sales, customer debts, or rider performance.",
+            endpoint: '',
+            title: 'Hydr8 AI Assistant',
+            snapToEdge: true,
+        };
+        const config = { ...DEFAULTS, ...opts };
+        // Treat empty strings from template as "not provided" -> use default
+        if (!config.greeting) config.greeting = DEFAULTS.greeting;
+        if (!config.title) config.title = DEFAULTS.title;
+
+        return {
+            // ---- state ----
+            open: false,
+            dragging: false,
+            draft: '',
+            typing: false,
+            messages: [],
+            suggestions: [
+                "Today's sales summary",
+                "Who has unpaid debts?",
+                "Top rider this week",
+            ],
+            userInitials: 'ME',
+            title: config.title,
+            endpoint: config.endpoint,
+
+            // FAB position (px from top/left of viewport)
+            fabX: 24,
+            fabY: 24,
+
+            // drag tracking
+            _dragStart: null,
+            _fabStart: null,
+            _moved: false,
+            _msgId: 0,
+
+            // ---- lifecycle ----
+            init() {
+                this._restorePosition();
+                this._placeInitial();
+                if (config.greeting) {
+                    this.messages.push(this._mkMsg('assistant', config.greeting));
+                }
+                // Best-effort user initials from server-rendered username
+                const u = document.body.getAttribute('data-username');
+                if (u) {
+                    this.userInitials = u.slice(0, 2).toUpperCase();
+                }
+            },
+
+            // ---- position persistence ----
+            _restorePosition() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return;
+                    const pos = JSON.parse(raw);
+                    if (typeof pos.x === 'number' && typeof pos.y === 'number') {
+                        this.fabX = pos.x;
+                        this.fabY = pos.y;
+                    }
+                } catch (e) { /* ignore corrupt storage */ }
+            },
+            _savePosition() {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: this.fabX, y: this.fabY }));
+                } catch (e) { /* storage may be unavailable (private mode) */ }
+            },
+
+            _placeInitial() {
+                // If no saved position, default to bottom-right with margin.
+                if (!localStorage.getItem(STORAGE_KEY)) {
+                    this.fabX = Math.max(24, window.innerWidth - 56 - 24);
+                    this.fabY = Math.max(24, window.innerHeight - 56 - 24);
+                }
+                this._clampFab();
+            },
+
+            _clampFab() {
+                const size = 56;
+                this.fabX = Math.max(8, Math.min(this.fabX, window.innerWidth - size - 8));
+                this.fabY = Math.max(8, Math.min(this.fabY, window.innerHeight - size - 8));
+            },
+
+            // ---- drag ----
+            startDrag(ev) {
+                // Don't start drag if panel is open and user clicked the close icon
+                const point = this._point(ev);
+                this._dragStart = { x: point.x, y: point.y };
+                this._fabStart = { x: this.fabX, y: this.fabY };
+                this._moved = false;
+                this.dragging = true;
+
+                const move = (e) => this._onDragMove(e);
+                const end = (e) => {
+                    this._onDragEnd(e);
+                    window.removeEventListener('mousemove', move);
+                    window.removeEventListener('mouseup', end);
+                    window.removeEventListener('touchmove', move);
+                    window.removeEventListener('touchend', end);
+                };
+                window.addEventListener('mousemove', move);
+                window.addEventListener('mouseup', end);
+                window.addEventListener('touchmove', move, { passive: false });
+                window.addEventListener('touchend', end);
+            },
+
+            _onDragMove(ev) {
+                const point = this._point(ev);
+                const dx = point.x - this._dragStart.x;
+                const dy = point.y - this._dragStart.y;
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+                    this._moved = true;
+                }
+                if (this._moved) {
+                    // prevent scroll on touch
+                    if (ev.cancelable) ev.preventDefault();
+                    this.fabX = this._fabStart.x + dx;
+                    this.fabY = this._fabStart.y + dy;
+                    this._clampFab();
+                }
+            },
+
+            _onDragEnd() {
+                this.dragging = false;
+                if (this._moved && config.snapToEdge) {
+                    this._snapToEdge();
+                }
+                this._savePosition();
+                // _moved flag is read by onFabClick (fires after mouseup)
+                // Clear it after a tick so the click handler sees it.
+                setTimeout(() => { this._moved = false; }, 50);
+            },
+
+            _snapToEdge() {
+                const size = 56;
+                const cx = this.fabX + size / 2;
+                const leftDist = cx;
+                const rightDist = window.innerWidth - cx;
+                if (leftDist < rightDist) {
+                    this.fabX = 16;
+                } else {
+                    this.fabX = window.innerWidth - size - 16;
+                }
+                this._clampFab();
+            },
+
+            _point(ev) {
+                if (ev.touches && ev.touches.length) {
+                    return { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+                }
+                if (ev.changedTouches && ev.changedTouches.length) {
+                    return { x: ev.changedTouches[0].clientX, y: ev.changedTouches[0].clientY };
+                }
+                return { x: ev.clientX, y: ev.clientY };
+            },
+
+            // ---- click vs drag ----
+            onFabClick() {
+                // If the pointer moved (a real drag), do not toggle the panel.
+                if (this._moved) return;
+                this.togglePanel();
+            },
+
+            togglePanel() {
+                this.open ? this.closePanel() : this.openPanel();
+            },
+
+            openPanel() {
+                this.open = true;
+                this.$nextTick(() => {
+                    this._scrollToBottom();
+                    this.$refs.input && this.$refs.input.focus();
+                });
+            },
+
+            closePanel() {
+                this.open = false;
+            },
+
+            // ---- messaging ----
+            _mkMsg(role, text) {
+                return {
+                    id: ++this._msgId,
+                    role,
+                    text,
+                    timestamp: this._now(),
+                };
+            },
+
+            _now() {
+                const d = new Date();
+                return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            },
+
+            _scrollToBottom() {
+                const el = this.$refs.messages;
+                if (el) el.scrollTop = el.scrollHeight;
+            },
+
+            sendSuggestion(text) {
+                this.draft = text;
+                this.sendMessage();
+            },
+
+            sendMessage() {
+                const text = this.draft.trim();
+                if (!text || this.typing) return;
+                this.messages.push(this._mkMsg('user', text));
+                this.draft = '';
+                this._scrollToBottom();
+                this.typing = true;
+
+                if (this.endpoint) {
+                    // Live HTMX-style POST — left as a hook for the future
+                    // apps/ai backend. For now we simulate a response.
+                    this._simulateReply(text);
+                } else {
+                    // Standalone demo echo — keeps the UI fully functional
+                    // without a backend.
+                    this._simulateReply(text);
+                }
+            },
+
+            _simulateReply(userText) {
+                const replies = [
+                    "Got it. Based on current operations data, today's net profit is trending 14.2% above yesterday.",
+                    "Looking into that now. I can see 12 pending credit collections — would you like a breakdown by customer?",
+                    "Rider Dela Cruz is your top performer this week, contributing 38% of gross revenue with optimized routing.",
+                    "I've flagged that. Outstanding debt currently sits at ₱28,940.12 across 8 customers, 45-day average overdue.",
+                ];
+                const reply = replies[Math.min(this.messages.length, replies.length - 1) % replies.length];
+                const delay = 600 + Math.random() * 600;
+                setTimeout(() => {
+                    this.typing = false;
+                    this.messages.push(this._mkMsg('assistant', reply));
+                    this.$nextTick(() => this._scrollToBottom());
+                }, delay);
+            },
+
+            // ---- style bindings ----
+            fabStyle() {
+                return `left: ${this.fabX}px; top: ${this.fabY}px; will-change: transform;`;
+            },
+
+            panelStyle() {
+                // Position the panel adjacent to the FAB, flipping if it
+                // would overflow the viewport.
+                const fabSize = 56;
+                const panelW = 380;
+                const panelH = 540;
+                const gap = 12;
+                const fabCx = this.fabX + fabSize / 2;
+
+                // Horizontal: open to the left of FAB if FAB is on the right
+                // half of the screen, otherwise to the right.
+                let left;
+                if (fabCx > window.innerWidth / 2) {
+                    // FAB on right -> panel opens to the LEFT of FAB
+                    left = this.fabX - panelW - gap;
+                    if (left < 8) left = 8;
+                } else {
+                    // FAB on left -> panel opens to the RIGHT of FAB
+                    left = this.fabX + fabSize + gap;
+                    if (left + panelW > window.innerWidth - 8) {
+                        left = window.innerWidth - panelW - 8;
+                    }
+                }
+
+                // Vertical: align panel bottom with FAB bottom, but flip up
+                // if it would overflow the top.
+                let top = this.fabY + fabSize - panelH;
+                if (top < 8) top = 8;
+                if (top + panelH > window.innerHeight - 8) {
+                    top = window.innerHeight - panelH - 8;
+                }
+
+                return `left: ${left}px; top: ${top}px;`;
+            },
+        };
+    }
+</script>

@@ -147,6 +147,10 @@ CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
+# Login URL — @login_required redirects here. Matches the route in apps/users/urls.py.
+LOGIN_URL = 'users:login'
+LOGIN_REDIRECT_URL = 'analytics:dashboard'
+
 # Logging Configuration
 LOGGING = {
     'version': 1,

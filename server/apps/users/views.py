@@ -71,6 +71,13 @@ def login_view(request):
             form = _form_with_non_field_error(form, str(exc))
             return render(request, 'users/partials/login_form.html', {'form': form})
 
+        # TEMP DEBUG: log submitted field shapes (never the raw password value).
+        submitted_pw = request.POST.get('password', '')
+        logger.warning(
+            "DEBUG login submit. username=%r pw_len=%r pw_first_char=%r",
+            username, len(submitted_pw), submitted_pw[:1],
+        )
+
         if form.is_valid():
             user = form.get_user()
             auth_login(request, user)
@@ -83,6 +90,10 @@ def login_view(request):
         else:
             # Login failed — record the attempt and re-render with errors.
             record_failed_login(ip=ip, username=username)
+            logger.warning(
+                "DEBUG login FAILED. form_errors=%r",
+                {k: [str(e) for e in v] for k, v in form.errors.items()},
+            )
             return render(request, 'users/partials/login_form.html', {'form': form})
 
     # GET: return a fresh form partial.

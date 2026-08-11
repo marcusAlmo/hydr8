@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Add Remittance | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="remittance" %}
+{% endblock %}
+
+{% block content %}
+    <!-- Top Nav Bar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background border-b border-outline-variant/30 z-10">
+        <div class="flex items-center gap-3">
+            <a href="{% url 'remittance:history' %}" class="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-high rounded-lg transition-all duration-200" title="Back to Remittance History" aria-label="Back to Remittance History">
+                <span class="material-symbols-outlined">arrow_back</span>
+            </a>
+            <h2 class="font-headline-sm text-headline-sm text-primary">Add New Remittance</h2>
+            <span class="text-on-surface-variant font-body-sm opacity-50 px-2">/</span>
+            <span class="text-on-surface-variant font-body-sm">{{ today_date }}</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200">
+                <span class="material-symbols-outlined">smart_toy</span>
+            </button>
+            <button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Slide-in Content Area -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar bg-surface-container-low/50 relative">
+        <div class="max-w-4xl mx-auto p-margin-page space-y-gutter pb-24">
+
+            <!-- Pinned Summary Card (Sticky Top) -->
+            <div class="sticky top-0 z-40 mb-6 transition-all duration-300">
+                <div class="bg-surface-container-lowest border-t-2 border-primary shadow-sm p-4 rounded-b-lg grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 w-full">
+                    <div class="flex flex-col">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
+                        <h3 class="font-data-mono text-[20px] text-primary">{{ summary.total_sales }}</h3>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Remittance</p>
+                        <h3 class="font-data-mono text-[20px] text-tertiary">{{ summary.net_remittance }}</h3>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Tithes (10%)</p>
+                        <h3 class="font-data-mono text-[20px] text-secondary">{{ summary.tithes }}</h3>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Expenses</p>
+                        <h3 class="font-data-mono text-[20px] text-error">{{ summary.total_expenses }}</h3>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commission</p>
+                        <h3 class="font-data-mono text-[20px] text-primary">{{ summary.total_commission }}</h3>
+                    </div>
+                    <div class="flex flex-col">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Manual Offering</p>
+                        <h3 class="font-data-mono text-[20px] text-primary">{{ summary.manual_offering }}</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rider Section (Expandable) -->
+            <section class="bg-surface-container-lowest border border-outline-variant/20 rounded-lg p-6 space-y-4">
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between gap-4 p-3 bg-surface-container-low/50 rounded-lg border border-outline-variant/20">
+                        <div class="flex items-center gap-4 flex-1">
+                            <span class="material-symbols-outlined text-primary">electric_rickshaw</span>
+                            <div class="w-full max-w-sm">
+                                <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">Rider Selection</label>
+                                <select class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded text-body-md py-1.5 px-3 focus:ring-2 focus:ring-primary appearance-none cursor-pointer">
+                                    <option>Select Assigned Rider...</option>
+                                    {% for rider in riders %}
+                                        <option {% if rider.selected %}selected{% endif %}>{{ rider.name }} - {{ rider.vehicle }} [{{ rider.plate }}]</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 border-l border-outline-variant/30 pl-4">
+                            <div class="flex flex-col items-end">
+                                <span class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase">Rider List</span>
+                                <span class="font-data-mono text-body-sm text-primary">{{ rider_position }}</span>
+                            </div>
+                            <div class="flex gap-1">
+                                <button class="p-1 hover:bg-surface-container-high rounded transition-colors text-on-surface-variant">
+                                    <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                                </button>
+                                <button class="p-1 hover:bg-surface-container-high rounded transition-colors text-on-surface-variant">
+                                    <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="bg-surface-container/50 border-b border-outline-variant/30">
+                                <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant">PRODUCT</th>
+                                <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant">SOLD</th>
+                                <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant">CREDITED</th>
+                                <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant">BORROWED</th>
+                                <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">SUBTOTAL</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10">
+                            {% for line in product_lines %}
+                            <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                <td class="py-4 px-4 font-body-md">{{ line.product }}</td>
+                                <td class="py-4 px-4">
+                                    <div class="flex items-center bg-surface-container-low rounded border border-outline-variant/20 w-fit">
+                                        <button class="px-2 py-1 text-on-surface-variant stepper-btn">-</button>
+                                        <input class="w-12 bg-transparent border-none text-center font-data-mono text-data-mono focus:ring-0" type="text" value="{{ line.sold }}">
+                                        <button class="px-2 py-1 text-on-surface-variant stepper-btn">+</button>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-4">
+                                    <input class="w-16 bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1 font-data-mono text-data-mono text-center focus:ring-2 focus:ring-primary" type="text" value="{{ line.credited }}">
+                                </td>
+                                <td class="py-4 px-4">
+                                    <input class="w-16 bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1 font-data-mono text-data-mono text-center focus:ring-2 focus:ring-primary" type="text" value="{{ line.borrowed }}">
+                                </td>
+                                <td class="py-4 px-4 text-right font-data-mono text-primary">{{ line.subtotal }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Expenses Section -->
+            <section class="bg-surface-container-lowest border border-outline-variant/20 rounded-lg overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-surface-container-low/50 border-b border-outline-variant/10">
+                        <tr><th class="py-2 px-6 bg-surface-container-high font-label-caps text-primary" colspan="3">Rider Expenses</th></tr>
+                        <tr>
+                            <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant">DESCRIPTION</th>
+                            <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant">AMOUNT</th>
+                            <th class="py-3 px-6 text-right"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/10">
+                        {% for expense in expenses %}
+                        <tr>
+                            <td class="py-3 px-6">
+                                <input class="w-full bg-transparent border-none font-body-md focus:ring-0 p-0" type="text" value="{{ expense.description }}">
+                            </td>
+                            <td class="py-3 px-6">
+                                <input class="bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1 font-data-mono text-data-mono focus:ring-2 focus:ring-primary w-24" type="text" value="{{ expense.amount }}">
+                            </td>
+                            <td class="py-3 px-6 text-right">
+                                <button class="text-on-surface-variant hover:text-error transition-colors">
+                                    <span class="material-symbols-outlined text-[20px]">delete</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- Spiritual Obligations Card (Bottom) -->
+            <div class="bg-surface-container-lowest border-l-[6px] border-[#FFBF00] shadow-sm p-6 rounded-r-lg grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-[#FFBF00]">church</span>
+                        <h4 class="font-headline-sm text-headline-sm">Spiritual Obligations</h4>
+                    </div>
+                    <p class="text-on-surface-variant text-body-sm italic">"Honour the Lord with thy substance, and with the firstfruits of all thine increase." — Proverbs 3:9</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">TITHE (CALCULATED 10%)</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 font-data-mono text-data-mono">₱</span>
+                            <input class="w-full bg-surface-container-low border-none rounded px-8 py-3 font-data-mono text-data-mono text-on-surface/60 cursor-not-allowed" readonly type="text" value="{{ tithe_amount }}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">MANUAL OFFERING</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-primary font-data-mono text-data-mono">₱</span>
+                            <input class="w-full bg-surface-container border-2 border-primary/20 rounded px-8 py-3 font-data-mono text-data-mono focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="0.00" type="text" value="{{ offering_amount }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Buttons -->
+            <div class="flex justify-between items-center gap-4 pt-6 border-t border-outline-variant/30">
+                <a href="{% url 'remittance:history' %}" class="px-6 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low hover:text-error hover:border-error/40 transition-all flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[20px]">cancel</span>
+                    Cancel
+                </a>
+                <div class="flex items-center gap-4">
+                    <button class="px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors">
+                        Save as Draft
+                    </button>
+                    <button class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95">
+                        <span class="material-symbols-outlined text-[20px]">report_problem</span>
+                        Finalize Remittance
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_body %}
+    <script>
+        // Numeric stepper interactivity
+        document.querySelectorAll('.stepper-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const input = e.target.parentElement?.querySelector('input');
+                if (!input) return;
+                let val = parseInt(input.value) || 0;
+                if (e.target.innerText === '+') val++;
+                if (e.target.innerText === '-') val = Math.max(0, val - 1);
+                input.value = val;
+            });
+        });
+
+        // Sticky header transition effect
+        const mainArea = document.querySelector('main > div');
+        const summaryCard = document.querySelector('.sticky');
+        if (mainArea && summaryCard) {
+            mainArea.addEventListener('scroll', () => {
+                if (mainArea.scrollTop > 20) {
+                    summaryCard.classList.add('px-4', 'pt-2');
+                    summaryCard.firstElementChild.classList.add('shadow-lg', 'scale-[0.98]');
+                } else {
+                    summaryCard.classList.remove('px-4', 'pt-2');
+                    summaryCard.firstElementChild.classList.remove('shadow-lg', 'scale-[0.98]');
+                }
+            });
+        }
+    </script>
+{% endblock %}

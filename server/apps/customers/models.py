@@ -3,6 +3,20 @@ from django.conf import settings
 
 
 class Customer(models.Model):
+    """A water refilling station customer (household, sari-sari, business).
+
+    Status lifecycle:
+        ACTIVE → FLAGGED → BLACKLISTED
+            ↑___________|
+        (anomaly detection promotes to FLAGGED; manual ops can
+        BLACKLIST. Reset to ACTIVE requires explicit intervention.)
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        FLAGGED = 'flagged', 'Flagged (Anomalous)'
+        BLACKLISTED = 'blacklisted', 'Blacklisted'
+
     name = models.CharField(max_length=255)
     address = models.TextField(null=True, blank=True)
     contact_number = models.CharField(max_length=20, null=True, blank=True)
@@ -12,6 +26,22 @@ class Customer(models.Model):
     borrowed_other = models.SmallIntegerField(default=0)
     last_credit_at = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
+
+    # --- Anomaly / blacklist tracking ---
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+    flagged_reason = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text='Human-readable reason set when status becomes FLAGGED/BLACKLISTED.',
+    )
+    flagged_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -21,10 +51,16 @@ class Customer(models.Model):
         indexes = [
             models.Index(fields=['debt_balance']),
             models.Index(fields=['last_credit_at']),
+            models.Index(fields=['status']),
         ]
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_anomalous(self) -> bool:
+        """True if the customer is flagged or blacklisted."""
+        return self.status in (self.Status.FLAGGED, self.Status.BLACKLISTED)
 
 
 class CreditLine(models.Model):

@@ -98,7 +98,7 @@
     
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen flex">
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen flex flex-row">
     <!-- Dynamic Ambient Backgrounds -->
     <div class="ambient-glow"></div>
     <div class="ambient-glow-alt"></div>
@@ -116,6 +116,9 @@
     <div id="drawer-root"></div>
     <div id="ai-chat-root"></div>
     {% include "components/toasts/toast_container.html" %}
+
+    <!-- Global Floating AI Chat Widget (draggable, reusable on every page) -->
+    {% include "components/ai/chat_widget.html" %}
 
     <!-- HTMX Base -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>

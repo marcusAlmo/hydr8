@@ -1,0 +1,41 @@
+{% comment %}
+AI Insights panel — shimmer-header card with tagged insight cards.
+Expects context:
+  - ai_insights: list of { card_class, tags: [{ label, class }], html }
+{% endcomment %}
+<div class="lg:col-span-1">
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm h-full flex flex-col hover:shadow-md transition-shadow">
+        <div class="ai-shimmer p-4 text-white flex items-center justify-between" style="background: linear-gradient(90deg, #006591, #35af80, #006591); background-size: 200% auto; animation: shimmer 4s linear infinite;">
+            <style>
+                @keyframes shimmer {
+                    to { background-position: 200% center; }
+                }
+            </style>
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined">auto_awesome</span>
+                <span class="font-headline-sm text-headline-sm">AI Insights</span>
+            </div>
+            <span class="text-[10px] bg-white/20 px-2 py-1 rounded-full uppercase font-bold tracking-tighter shadow-sm border border-white/10">Live</span>
+        </div>
+        <div class="p-5 flex-1 space-y-4">
+            {% for insight in ai_insights %}
+            <div class="{{ insight.card_class }} p-3 rounded transition-colors">
+                <div class="flex flex-wrap gap-2 mb-3">
+                    {% for tag in insight.tags %}
+                    <span class="font-data-mono text-[11px] px-2 py-1 rounded {{ tag.class }}">{{ tag.label }}</span>
+                    {% endfor %}
+                </div>
+                <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                    {{ insight.html|safe }}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="p-4 bg-surface-container-low border-t border-outline-variant/20">
+            <button class="w-full py-2.5 bg-primary text-on-primary rounded font-bold flex items-center justify-center gap-2 hover:bg-surface-tint transition-all active:scale-[0.98] shadow-sm hover:shadow">
+                <span class="material-symbols-outlined text-sm">chat_bubble</span>
+                Ask Hydr8 AI
+            </button>
+        </div>
+    </div>
+</div>
