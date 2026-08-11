@@ -1,0 +1,125 @@
+{% comment %}
+Roles & Permissions tab — three role cards with a permission matrix each.
+Expects context:
+  - modules: list of module name strings (matrix rows)
+  - roles: list of { key, name, description, user_count, icon, accent,
+                     border_class, icon_bg, icon_class, permissions }
+    where permissions is a list of { module, read, write, update, delete }
+{% endcomment %}
+<div class="flex flex-col gap-6">
+
+    <!-- Section header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">Role Configuration</h3>
+            <p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                Define what each role can read, write, update, and delete across modules.
+            </p>
+        </div>
+        <button disabled title="Roles are predefined and cannot be extended" class="bg-surface-container-high text-on-surface-variant/50 px-4 py-2 rounded-lg font-body-md font-medium flex items-center gap-2 shadow-sm whitespace-nowrap cursor-not-allowed">
+            <span class="material-symbols-outlined text-[18px]">add_circle</span>
+            New Role
+        </button>
+    </div>
+
+    <!-- Role cards grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        {% for role in roles %}
+        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm border-t-2 {{ role.border_class }} overflow-hidden flex flex-col hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+
+            <!-- Card header -->
+            <div class="p-5 border-b border-outline-variant/20">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg {{ role.icon_bg }} flex items-center justify-center">
+                            <span class="material-symbols-outlined {{ role.icon_class }}">{{ role.icon }}</span>
+                        </div>
+                        <div>
+                            <h4 class="font-headline-sm text-headline-sm font-bold text-on-surface">{{ role.name }}</h4>
+                            <p class="font-data-mono text-[11px] text-on-surface-variant">{{ role.user_count }} user{{ role.user_count|pluralize }}</p>
+                        </div>
+                    </div>
+                </div>
+                <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">{{ role.description }}</p>
+            </div>
+
+            <!-- Permission matrix -->
+            <div class="flex-1 overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                            <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Module</th>
+                            <th class="px-2 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-center" title="Read">R</th>
+                            <th class="px-2 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-center" title="Write">W</th>
+                            <th class="px-2 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-center" title="Update">U</th>
+                            <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-center" title="Delete">D</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/10">
+                        {% for perm in role.permissions %}
+                        <tr class="hover:bg-surface-container-low/50 transition-colors">
+                            <td class="px-4 py-2.5 font-body-sm text-body-sm text-on-surface whitespace-nowrap">{{ perm.module }}</td>
+                            <td class="px-2 py-2.5 text-center">
+                                {% if perm.read %}
+                                <span class="material-symbols-outlined text-tertiary text-[16px] align-middle">check</span>
+                                {% else %}
+                                <span class="material-symbols-outlined text-outline-variant/40 text-[16px] align-middle">remove</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-2 py-2.5 text-center">
+                                {% if perm.write %}
+                                <span class="material-symbols-outlined text-tertiary text-[16px] align-middle">check</span>
+                                {% else %}
+                                <span class="material-symbols-outlined text-outline-variant/40 text-[16px] align-middle">remove</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-2 py-2.5 text-center">
+                                {% if perm.update %}
+                                <span class="material-symbols-outlined text-tertiary text-[16px] align-middle">check</span>
+                                {% else %}
+                                <span class="material-symbols-outlined text-outline-variant/40 text-[16px] align-middle">remove</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2.5 text-center">
+                                {% if perm.delete %}
+                                <span class="material-symbols-outlined text-tertiary text-[16px] align-middle">check</span>
+                                {% else %}
+                                <span class="material-symbols-outlined text-outline-variant/40 text-[16px] align-middle">remove</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Card footer -->
+            <div class="p-4 border-t border-outline-variant/20 bg-surface-container-low/30 flex items-center justify-between">
+                <button class="font-body-sm text-body-sm text-primary font-medium hover:underline transition-all flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px]">edit</span>
+                    Edit Permissions
+                </button>
+                <button class="font-body-sm text-body-sm text-on-surface-variant hover:text-on-surface transition-all flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px]">group</span>
+                    View Users
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Legend -->
+    <div class="flex items-center gap-6 px-4 py-3 bg-surface-container-low/50 rounded-lg border border-outline-variant/20">
+        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase text-[10px]">Legend:</span>
+        <span class="flex items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant">
+            <span class="material-symbols-outlined text-tertiary text-[16px]">check</span>
+            Granted
+        </span>
+        <span class="flex items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant">
+            <span class="material-symbols-outlined text-outline-variant/40 text-[16px]">remove</span>
+            Not Granted
+        </span>
+        <span class="ml-auto font-data-mono text-[11px] text-on-surface-variant">R = Read · W = Write · U = Update · D = Delete</span>
+    </div>
+</div>

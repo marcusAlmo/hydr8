@@ -1,0 +1,565 @@
+{% comment %}
+Product Inventory table — Products & Pricing page.
+
+Edit-then-confirm flow:
+  - All fields (name, variation, price) are read-only by default.
+  - The user clicks "Edit" → ``editing`` flips to true and non-default
+    product fields become editable (the button switches to "Save Changes"
+    + "Cancel").  All per-product state lives on the root Alpine scope
+    (no nested x-data) so ``:readonly="!editing"`` is fully reactive.
+  - The user edits one or more fields; dirty values are tracked centrally
+    in ``changedNames``, ``changedVariations``, and ``changedPrices``
+    (keyed by product key).
+  - Clicking "Save Changes" opens the PIN modal.  The PIN is verified via
+    POST to ``{% url 'products:verify_pin' %}``.  On success the edits are
+    committed (originals snap to the new value) and the table returns to
+    read-only.
+  - "Cancel" exits edit mode and reverts all inputs to their originals.
+  - The Active toggle is disabled unless edit mode is active.
+
+Default products (``is_default=True``):
+  - All fields are permanently locked (read-only, never editable).
+  - No delete button — default products cannot be removed.
+  - A lock icon signals the protected status.
+
+Non-default products (``is_default=False``):
+  - Fields are read-only until "Edit" is clicked, then editable.
+  - In edit mode, a Delete button marks the row with a strikethrough
+    (pending deletion).  The actual deletion is committed when "Save
+    Changes" is clicked and the PIN is verified.  Clicking the (now
+    "undo") button again reverts the pending deletion.
+  - When not in edit mode, an Activate or Deactivate button is shown
+    instead (based on the product's current active status).
+
+Expects context:
+  - products: list of { key, name, variation, unit_price, is_active,
+                        is_default, row_class, name_class, action_activate }
+  - active_count, default_count, total_count
+  - ai_insight: { product_name, delta_pct, adjustment, impact, body }
+{% endcomment %}
+<div class="flex flex-col gap-6"
+     x-data="productInventory({
+        verifyUrl: '{% url 'products:verify_pin' %}',
+        csrfToken: '{{ csrf_token }}',
+        products: {{ products_json }}
+     })">
+
+    <!-- Section header + Add Product -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h3 class="font-headline-md text-headline-md text-on-surface">Product Inventory</h3>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">
+                Manage your water products and packaging variations.
+                <span class="font-data-mono text-on-surface">{{ active_count }} active</span>
+                of <span class="font-data-mono text-on-surface">{{ total_count }}</span> total
+                &middot; <span class="font-data-mono text-on-surface">{{ default_count }}</span> default-locked
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Edit / Save Changes toggle -->
+            <button x-show="!editing"
+                    @click="startEdit()"
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all shadow-sm bg-surface-container-low text-on-surface-variant hover:bg-surface-container border border-outline-variant/30"
+                    title="Edit product prices">
+                <span class="material-symbols-outlined">edit</span>
+                <span>Edit</span>
+            </button>
+            <div x-show="editing" x-cloak class="flex items-center gap-2">
+                <button @click="cancelEdit()"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all text-on-surface-variant hover:bg-surface-container"
+                        title="Cancel edit">
+                    <span class="material-symbols-outlined">close</span>
+                    <span>Cancel</span>
+                </button>
+                <button @click="saveChanges()"
+                        class="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-lg font-bold hover:brightness-110 transition-all shadow-sm"
+                        :disabled="!hasChanges()"
+                        :class="!hasChanges() ? 'opacity-50 cursor-not-allowed' : ''"
+                        title="Save changes (PIN required)">
+                    <span class="material-symbols-outlined">save</span>
+                    <span>Save Changes</span>
+                </button>
+            </div>
+            <button x-show="!editing"
+                    class="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-lg font-bold hover:brightness-110 transition-all shadow-sm">
+                <span class="material-symbols-outlined">add</span>
+                Add Product
+            </button>
+        </div>
+    </div>
+
+    <!-- Product Table Card -->
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                        <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Name</th>
+                        <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Variation</th>
+                        <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Price (Unit)</th>
+                        <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center">Active</th>
+                        <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/20">
+                    {% for product in products %}
+                    <tr x-show="!committedDeletes['{{ product.key }}']"
+                        class="hover:bg-surface-container-low transition-colors group {{ product.row_class }}"
+                        :class="pendingDeletes['{{ product.key }}'] ? 'opacity-50 line-through bg-error-container/10' : ''">
+                        <!-- Name + default lock badge -->
+                        <td class="p-4 font-body-md text-body-md font-bold {{ product.name_class }}">
+                            <div class="flex items-center gap-2">
+                                {% if product.is_default %}
+                                <span>{{ product.name }}</span>
+                                {% else %}
+                                <input type="text"
+                                       x-model="currentNames['{{ product.key }}']"
+                                       :readonly="!editing"
+                                       @input="changedNames['{{ product.key }}'] = (currentNames['{{ product.key }}'] !== originalNames['{{ product.key }}']) ? currentNames['{{ product.key }}'] : null"
+                                       :class="!editing
+                                           ? 'bg-transparent border-none p-0 font-body-md text-body-md font-bold {{ product.name_class }} cursor-not-allowed outline-none'
+                                           : (changedNames['{{ product.key }}'] !== null && changedNames['{{ product.key }}'] !== undefined
+                                              ? 'editable-underline-dirty bg-transparent p-0 font-body-md text-body-md font-bold {{ product.name_class }}'
+                                              : 'editable-underline bg-transparent p-0 font-body-md text-body-md font-bold {{ product.name_class }}')"
+                                       aria-label="Product name">
+                                {% endif %}
+                                {% if product.is_default %}
+                                <span class="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wider font-label-caps text-on-surface-variant bg-surface-container rounded px-1.5 py-0.5" title="Default product — cannot be edited or deleted">
+                                    <span class="material-symbols-outlined text-[12px]">lock</span>
+                                    Default
+                                </span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <!-- Variation -->
+                        <td class="p-4 font-body-md text-body-md text-on-surface-variant">
+                            {% if product.is_default %}
+                            <span>{{ product.variation }}</span>
+                            {% else %}
+                            <input type="text"
+                                   x-model="currentVariations['{{ product.key }}']"
+                                   :readonly="!editing"
+                                   @input="changedVariations['{{ product.key }}'] = (currentVariations['{{ product.key }}'] !== originalVariations['{{ product.key }}']) ? currentVariations['{{ product.key }}'] : null"
+                                   :class="!editing
+                                       ? 'bg-transparent border-none p-0 font-body-md text-body-md text-on-surface-variant cursor-not-allowed outline-none'
+                                       : (changedVariations['{{ product.key }}'] !== null && changedVariations['{{ product.key }}'] !== undefined
+                                          ? 'editable-underline-dirty bg-transparent p-0 font-body-md text-body-md text-on-surface-variant'
+                                          : 'editable-underline bg-transparent p-0 font-body-md text-body-md text-on-surface-variant')"
+                                   aria-label="Product variation">
+                            {% endif %}
+                        </td>
+                        <!-- Price -->
+                        <td class="p-4">
+                            <div class="flex items-center gap-1.5">
+                                <div class="flex items-center gap-1 px-0 py-0 w-fit"
+                                     :class="changedPrices['{{ product.key }}'] !== null && changedPrices['{{ product.key }}'] !== undefined
+                                        ? 'editable-underline-dirty'
+                                        : (editing ? 'editable-underline' : '')">
+                                    <span class="font-data-mono text-data-mono text-on-surface-variant">₱</span>
+                                    <input
+                                        type="text"
+                                        {% if product.is_default %}
+                                        readonly
+                                        class="bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface-variant cursor-not-allowed outline-none"
+                                        {% else %}
+                                        x-model="currentPrices['{{ product.key }}']"
+                                        :readonly="!editing"
+                                        @input="changedPrices['{{ product.key }}'] = (currentPrices['{{ product.key }}'] !== originalPrices['{{ product.key }}']) ? currentPrices['{{ product.key }}'] : null"
+                                        :class="!editing
+                                            ? 'bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface-variant cursor-not-allowed outline-none'
+                                            : 'bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface outline-none'"
+                                        {% endif %}
+                                        aria-label="Unit price for {{ product.name }}">
+                                </div>
+                            </div>
+                        </td>
+                        <!-- Active toggle -->
+                        <td class="p-4 text-center">
+                            <label class="relative inline-flex items-center {% if product.is_default %}cursor-not-allowed opacity-50{% elif not product.is_active %}opacity-50{% else %}cursor-pointer{% endif %}"
+                                   :class="!editing && !{{ product.is_default|lower }} ? 'cursor-not-allowed' : ''"
+                                   :title="!editing && !{{ product.is_default|lower }} ? 'Click Edit to toggle active status' : ''">
+                                <input type="checkbox" class="sr-only peer" {% if product.is_active %}checked{% endif %}
+                                       {% if product.is_default %}disabled{% else %}:disabled="!editing"{% endif %}>
+                                <div class="w-9 h-5 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </td>
+                        <!-- Actions -->
+                        <td class="p-4 text-right">
+                            <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                {% if product.is_default %}
+                                <!-- Default products: no edit, no delete — only a disabled lock indicator -->
+                                <span class="p-1.5 rounded-lg text-on-surface-variant/40 cursor-not-allowed" title="Default product — editing locked">
+                                    <span class="material-symbols-outlined text-[20px]">lock</span>
+                                </span>
+                                {% else %}
+                                <!-- Delete button: shown only in edit mode -->
+                                <button @click="toggleDelete('{{ product.key }}')"
+                                        x-show="editing"
+                                        x-cloak
+                                        class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
+                                        :class="pendingDeletes['{{ product.key }}'] ? 'bg-error-container ring-1 ring-error/30' : ''"
+                                        :title="pendingDeletes['{{ product.key }}'] ? 'Undo pending deletion' : 'Mark for deletion'">
+                                    <span class="material-symbols-outlined text-[20px]"
+                                          x-text="pendingDeletes['{{ product.key }}'] ? 'undo' : 'delete'"></span>
+                                </button>
+                                <!-- Activate/Deactivate: shown when not editing -->
+                                {% if product.action_activate %}
+                                <button x-show="!editing"
+                                        class="p-1.5 rounded-lg hover:bg-tertiary-container text-tertiary transition-colors"
+                                        title="Activate product">
+                                    <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                                </button>
+                                {% else %}
+                                <button x-show="!editing"
+                                        class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
+                                        title="Deactivate">
+                                    <span class="material-symbols-outlined text-[20px]">block</span>
+                                </button>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="py-12 px-6 text-center text-on-surface-variant font-body-sm">
+                            <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">inventory_2</span>
+                            No products configured yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- AI Pricing Insight -->
+    <div class="bg-surface-container-low rounded-xl border border-outline-variant/30 overflow-hidden relative">
+        <div class="ai-shimmer absolute top-0 left-0 w-full h-1"></div>
+        <div class="p-6">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+                <h4 class="font-headline-sm text-headline-sm text-primary">AI Pricing Insight</h4>
+            </div>
+            <p class="font-body-md text-body-md text-on-surface mb-4">
+                Based on current market demand in the {{ ai_insight.region }} region, your
+                <strong>{{ ai_insight.product_name }}</strong> is priced {{ ai_insight.delta_pct }} below the regional
+                average. A minor adjustment of <span class="text-tertiary font-bold">{{ ai_insight.adjustment }} per unit</span>
+                could yield an estimated <span class="text-tertiary font-bold">{{ ai_insight.impact }} increase</span> in
+                monthly recurring revenue without affecting churn rates.
+            </p>
+            <button class="text-primary font-bold flex items-center gap-1 hover:underline">
+                Apply suggested prices
+                <span class="material-symbols-outlined text-sm">trending_up</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- PIN Verification Modal -->
+    <div x-show="showPinModal"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+         @keydown.escape.window="closePinModal()">
+        <div x-show="showPinModal"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 border border-outline-variant/30">
+            <!-- Header -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-on-secondary-container">save</span>
+                </div>
+                <div>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">Confirm Price Changes</h3>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant">Enter your PIN to save your changes.</p>
+                </div>
+            </div>
+            <!-- PIN input -->
+            <form @submit.prevent="submitPin()">
+                <div class="mb-4">
+                    <input
+                        type="password"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="6"
+                        x-model="pinInput"
+                        x-ref="pinField"
+                        placeholder="••••"
+                        class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        :class="pinError ? 'border-error ring-2 ring-error/30' : ''"
+                        autocomplete="off">
+                    <p x-show="pinError" x-text="pinError"
+                       class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1">
+                    </p>
+                    <p x-show="pinVerifying" class="mt-2 font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        Verifying…
+                    </p>
+                </div>
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button type="button" @click="closePinModal()"
+                            class="flex-1 px-4 py-2.5 rounded-lg font-bold text-on-surface-variant hover:bg-surface-container transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            :disabled="pinVerifying || pinInput.length < 4"
+                            class="flex-1 bg-primary text-on-primary px-4 py-2.5 rounded-lg font-bold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">save</span>
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toasts are rendered into the global #toast-container (top-right)
+         via the showToast() helper, which reuses the shared .toast styles
+         from components/toasts/toast.html. -->
+
+</div>
+
+<script>
+/**
+ * productInventory — Alpine.js component for the product table.
+ *
+ * All per-product state (current/original name, variation, price) lives on
+ * this single root scope in dictionaries keyed by product key.  There are
+ * NO nested x-data scopes on individual cells — this ensures ``editing``
+ * is fully reactive for every ``:readonly`` binding.
+ *
+ * Edit-then-confirm flow:
+ *   - ``editing`` is false by default → all fields are read-only and the
+ *     Active toggle is disabled.
+ *   - Clicking "Edit" flips ``editing`` to true → non-default fields become
+ *     editable.  Each dirty input pushes its new value into the relevant
+ *     ``changed*`` object (keyed by product key; null means reverted).
+ *   - Clicking "Save Changes" opens the PIN modal.  The PIN is POSTed to
+ *     ``verifyUrl`` (the products:verify_pin endpoint).  On success the
+ *     dirty values are committed (originals snap to the new value),
+ *     ``editing`` flips back to false, and a toast confirms.
+ *   - "Cancel" exits edit mode and reverts all inputs to their originals.
+ *
+ * Default products (``is_default=True``) are never editable.
+ */
+function productInventory(cfg) {
+    // Build per-product dictionaries from the serialised product list so
+    // every editable input binds to root-scope state (no nested x-data).
+    const originalNames = {};
+    const originalVariations = {};
+    const originalPrices = {};
+    const currentNames = {};
+    const currentVariations = {};
+    const currentPrices = {};
+    for (const p of cfg.products) {
+        originalNames[p.key] = p.name;
+        originalVariations[p.key] = p.variation;
+        originalPrices[p.key] = p.unit_price;
+        currentNames[p.key] = p.name;
+        currentVariations[p.key] = p.variation;
+        currentPrices[p.key] = p.unit_price;
+    }
+    return {
+        verifyUrl: cfg.verifyUrl,
+        csrfToken: cfg.csrfToken,
+        editing: false,
+        // Per-product current values (bound via x-model)
+        currentNames,
+        currentVariations,
+        currentPrices,
+        // Per-product original values (for dirty checking)
+        originalNames,
+        originalVariations,
+        originalPrices,
+        // key -> new value (null/undefined when reverted to original)
+        changedPrices: {},
+        changedNames: {},
+        changedVariations: {},
+        // key -> true when marked for deletion (pending save)
+        pendingDeletes: {},
+        // key -> true after PIN-verified commit (rows hidden via x-show)
+        committedDeletes: {},
+        // PIN modal state
+        showPinModal: false,
+        pinInput: '',
+        pinError: '',
+        pinVerifying: false,
+        // Toast (rendered into the global #toast-container)
+        toastTimeout: null,
+
+        // --- Edit flow ---
+        startEdit() {
+            this.editing = true;
+            this.changedPrices = {};
+            this.changedNames = {};
+            this.changedVariations = {};
+        },
+
+        hasChanges() {
+            const hasPrice = Object.values(this.changedPrices).filter(v => v !== null && v !== undefined).length > 0;
+            const hasName = Object.values(this.changedNames).filter(v => v !== null && v !== undefined).length > 0;
+            const hasVar = Object.values(this.changedVariations).filter(v => v !== null && v !== undefined).length > 0;
+            const hasDel = Object.values(this.pendingDeletes).filter(v => v).length > 0;
+            return hasPrice || hasName || hasVar || hasDel;
+        },
+
+        toggleDelete(key) {
+            // Mark/unmark a product for deletion.  Entering edit mode
+            // ensures the Save Changes / Cancel buttons are visible so
+            // the user can confirm or revert the pending deletion.
+            if (!this.editing) {
+                this.editing = true;
+            }
+            this.pendingDeletes[key] = !this.pendingDeletes[key];
+        },
+
+        cancelEdit() {
+            this.editing = false;
+            this.changedPrices = {};
+            this.changedNames = {};
+            this.changedVariations = {};
+            this.pendingDeletes = {};
+            // Revert all current values back to originals
+            for (const key of Object.keys(this.originalNames)) {
+                this.currentNames[key] = this.originalNames[key];
+                this.currentVariations[key] = this.originalVariations[key];
+                this.currentPrices[key] = this.originalPrices[key];
+            }
+            this.showToast('Edit cancelled.');
+        },
+
+        saveChanges() {
+            if (!this.hasChanges()) {
+                this.editing = false;
+                this.showToast('No changes to save.');
+                return;
+            }
+            this.openPinModal();
+        },
+
+        // --- PIN modal ---
+        openPinModal() {
+            this.showPinModal = true;
+            this.pinInput = '';
+            this.pinError = '';
+            this.$nextTick(() => {
+                if (this.$refs.pinField) this.$refs.pinField.focus();
+            });
+        },
+
+        closePinModal() {
+            this.showPinModal = false;
+            this.pinInput = '';
+            this.pinError = '';
+            this.pinVerifying = false;
+        },
+
+        async submitPin() {
+            if (this.pinInput.length < 4) {
+                this.pinError = 'PIN must be at least 4 digits.';
+                return;
+            }
+            this.pinVerifying = true;
+            this.pinError = '';
+            try {
+                const resp = await fetch(this.verifyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken,
+                    },
+                    body: JSON.stringify({ pin: this.pinInput }),
+                });
+                const data = await resp.json();
+                if (data.verified) {
+                    const dirtyPrices = Object.entries(this.changedPrices)
+                        .filter(([_, v]) => v !== null && v !== undefined);
+                    const dirtyNames = Object.entries(this.changedNames)
+                        .filter(([_, v]) => v !== null && v !== undefined);
+                    const dirtyVars = Object.entries(this.changedVariations)
+                        .filter(([_, v]) => v !== null && v !== undefined);
+                    const pending = Object.entries(this.pendingDeletes)
+                        .filter(([_, v]) => v);
+                    // Commit: snap originals to the current (edited) values so
+                    // the inputs show the new value after exiting edit mode.
+                    // (Mock: client-side only — replace with a real save
+                    // endpoint when backend lands.)
+                    dirtyPrices.forEach(([key]) => { this.originalPrices[key] = this.currentPrices[key]; });
+                    dirtyNames.forEach(([key]) => { this.originalNames[key] = this.currentNames[key]; });
+                    dirtyVars.forEach(([key]) => { this.originalVariations[key] = this.currentVariations[key]; });
+                    // Mark deleted rows as committed (hidden via x-show).
+                    pending.forEach(([key]) => { this.committedDeletes[key] = true; });
+                    const fieldCount = dirtyPrices.length + dirtyNames.length + dirtyVars.length;
+                    const deleteCount = pending.length;
+                    this.changedPrices = {};
+                    this.changedNames = {};
+                    this.changedVariations = {};
+                    this.pendingDeletes = {};
+                    this.editing = false;
+                    this.closePinModal();
+                    const parts = [];
+                    if (fieldCount > 0) parts.push(`Saved ${fieldCount} change${fieldCount > 1 ? 's' : ''}`);
+                    if (deleteCount > 0) parts.push(`Deleted ${deleteCount} product${deleteCount > 1 ? 's' : ''}`);
+                    this.showToast(parts.join(' · ') + '.');
+                } else {
+                    this.pinError = data.error || 'Incorrect PIN. Please try again.';
+                }
+            } catch (e) {
+                this.pinError = 'Verification failed. Please try again.';
+            } finally {
+                this.pinVerifying = false;
+            }
+        },
+
+        // --- Toast ---
+        // Renders a toast into the global ``#toast-container`` (top-right
+        // corner) reusing the shared ``.toast`` / ``.toast-success`` styles
+        // from ``components/toasts/toast.html``.  Auto-dismisses after 3s
+        // with the same Alpine transition as the server-rendered toasts.
+        showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const id = 'toast-' + Date.now();
+            const el = document.createElement('div');
+            el.id = id;
+            el.className = `toast toast-${type}`;
+            el.setAttribute('role', 'alert');
+            el.setAttribute('x-data', '{ show: true }');
+            el.setAttribute('x-show', 'show');
+            el.setAttribute('x-init', `setTimeout(() => show = false, 3000)`);
+            el.setAttribute('x-transition:enter', 'transition ease-out duration-300 transform');
+            el.setAttribute('x-transition:enter-start', 'opacity-0 -translate-y-4 translate-x-8');
+            el.setAttribute('x-transition:enter-end', 'opacity-100 translate-y-0 translate-x-0');
+            el.setAttribute('x-transition:leave', 'transition ease-in duration-200 transform');
+            el.setAttribute('x-transition:leave-start', 'opacity-100 translate-y-0 translate-x-0');
+            el.setAttribute('x-transition:leave-end', 'opacity-0 -translate-y-4 translate-x-8');
+            el.innerHTML = `
+                <div class="toast-indicator-strip"></div>
+                <div class="toast-body">
+                    <span class="toast-message">${message}</span>
+                </div>
+                <button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>
+            `;
+            container.appendChild(el);
+            // Initialise Alpine on the newly-inserted node so x-show /
+            // transitions work without a full page reload.
+            if (window.Alpine) {
+                window.Alpine.initTree(el);
+            }
+            // Fallback removal in case Alpine is unavailable.
+            if (this.toastTimeout) clearTimeout(this.toastTimeout);
+            this.toastTimeout = setTimeout(() => { el.remove(); }, 3200);
+        },
+    };
+}
+</script>

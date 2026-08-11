@@ -517,6 +517,18 @@ Never declare a task "done" just because you wrote the code. Before handing off,
 - Add or update a test for every new validation rule, exception path, or permission branch before declaring the fix complete
 - Treat any failing test as a blocker; do not hand off until the affected test suite passes
 
+### 3a. Browser Preview Policy (`no-auto-browser-preview`)
+**NEVER open a browser preview automatically after making code changes.** The user
+keeps a dedicated browser open at all times and auto-opening previews creates
+workspace clutter. Specifically:
+- Do NOT call `browser_preview` after edits, fixes, or feature implementations.
+- Do NOT call `browser_preview` as a "verification" step — use the Django test
+  client, `manage.py check`, or curl instead.
+- Only open a browser preview if the user **explicitly** asks you to (e.g.,
+  "open the browser", "show me the page", "let me see it").
+- If you need to verify rendering, use `uv run python manage.py shell` with the
+  test client, or `curl` against the dev server — never a browser preview.
+
 ### 4. Parallel Execution (`subagent-driven-development`)
 If the Architect's plan involves a large scope (e.g., both Django backend and templates), you may optionally spawn subagents to work on the templates and backend concurrently to speed up delivery.
 

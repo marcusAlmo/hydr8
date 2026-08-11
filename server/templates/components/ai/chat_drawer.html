@@ -14,40 +14,57 @@ Targeted by #ai-chat-root with HTMX streaming response support
     <!-- AI Drawer Header -->
     <div class="ai-chat-header px-4 py-3 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between">
         <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="w-2.5 h-2.5 rounded-full bg-[#D97706] animate-pulse"></span>
             <h4 class="text-sm font-semibold text-slate-100 font-display">Gemma AI Operations Assistant</h4>
+            <span class="text-[9px] bg-[#D97706]/20 text-[#FCD34D] px-1.5 py-0.5 rounded-full uppercase font-bold tracking-tight border border-[#D97706]/30">Coming Soon</span>
         </div>
-        <button type="button" 
+        <button type="button"
                 class="text-slate-400 hover:text-white text-lg leading-none p-1"
                 @click="open = false; setTimeout(() => document.getElementById('ai-chat-drawer')?.remove(), 250)">
             &times;
         </button>
     </div>
 
+    <!-- Coming Soon conversation body wrapper -->
+    <div class="relative flex-1 flex flex-col overflow-hidden">
+
+        <!-- Coming Soon overlay -->
+        <div class="absolute inset-0 z-20 bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+            <div class="bg-slate-800 border border-slate-600/50 rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center max-w-[18rem]">
+                <span class="material-symbols-outlined text-[#D97706] text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">construction</span>
+                <p class="font-headline-sm text-headline-sm text-slate-100 font-bold mb-2">Coming Soon</p>
+                <p class="font-body-sm text-body-sm text-slate-300 leading-relaxed">
+                    Hydr8 AI is still being trained on your operations data. Chat features will be available soon.
+                </p>
+            </div>
+        </div>
+
     <!-- Messages Container -->
     <div id="ai-messages-container" class="ai-chat-body flex-1 p-4 overflow-y-auto flex flex-col gap-3">
-        {% include "components/ai/chat_message.html" with role="assistant" message="Hello! I am your edge AI operations assistant. Ask me about today's remittance, outstanding customer debts, or rider performance." timestamp="Now" %}
+        {% include "components/ai/chat_message.html" with role="assistant" message="Hi! I'm Hydr8's edge AI operations assistant. I'm still being trained on your operations data and will be available soon. Once enabled, I'll help you query today's remittance, outstanding customer debts, and rider performance — all locally in your browser." timestamp="Now" %}
     </div>
 
-    <!-- AI Chat Input Bar -->
+    <!-- AI Chat Input Bar — disabled while Coming Soon -->
     <div class="ai-chat-footer p-3 bg-slate-800/40 border-t border-slate-700/60">
         <form hx-post="{% url 'ai:chat_message' %}"
               hx-target="#ai-messages-container"
               hx-swap="beforeend"
               hx-indicator="#ai-typing-indicator"
               @htmx:after-request="this.reset(); document.getElementById('ai-messages-container').scrollTop = document.getElementById('ai-messages-container').scrollHeight"
-              class="flex items-center gap-2">
+              class="flex items-center gap-2 opacity-50 pointer-events-none">
             {% csrf_token %}
-            <input type="text" 
-                   name="prompt" 
+            <input type="text"
+                   name="prompt"
                    required
-                   placeholder="Ask Gemma AI..."
-                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500">
-            <button type="submit" 
-                    class="bg-sky-600 hover:bg-sky-500 text-white rounded-lg px-3 py-2 text-xs font-semibold flex items-center gap-1 transition-colors">
+                   disabled
+                   placeholder="Coming soon..."
+                   class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 cursor-not-allowed">
+            <button type="submit" disabled
+                    class="bg-slate-600 text-slate-300 rounded-lg px-3 py-2 text-xs font-semibold flex items-center gap-1 cursor-not-allowed">
                 <span>Send</span>
                 <span id="ai-typing-indicator" class="htmx-indicator loader-spinner-sm"></span>
             </button>
         </form>
+    </div>
     </div>
 </div>

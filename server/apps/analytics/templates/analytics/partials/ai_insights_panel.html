@@ -15,9 +15,19 @@ Expects context:
                 <span class="material-symbols-outlined">auto_awesome</span>
                 <span class="font-headline-sm text-headline-sm">AI Insights</span>
             </div>
-            <span class="text-[10px] bg-white/20 px-2 py-1 rounded-full uppercase font-bold tracking-tighter shadow-sm border border-white/10">Live</span>
+            <span class="text-[10px] bg-white/20 px-2 py-1 rounded-full uppercase font-bold tracking-tighter shadow-sm border border-white/10">Coming Soon</span>
         </div>
-        <div class="p-5 flex-1 space-y-4">
+        <div class="p-5 flex-1 space-y-4 relative">
+            {# Coming Soon overlay — keeps the mock insight design visible underneath #}
+            <div class="absolute inset-0 bg-surface/70 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6 z-10 pointer-events-none">
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center max-w-[18rem] pointer-events-auto">
+                    <span class="material-symbols-outlined text-primary text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">construction</span>
+                    <p class="font-headline-sm text-headline-sm text-on-surface font-bold mb-2">Coming Soon</p>
+                    <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                        AI-powered insights are being trained on your operations data. The cards behind this preview are mockups.
+                    </p>
+                </div>
+            </div>
             {% for insight in ai_insights %}
             <div class="{{ insight.card_class }} p-3 rounded transition-colors">
                 <div class="flex flex-wrap gap-2 mb-3">
@@ -32,9 +42,9 @@ Expects context:
             {% endfor %}
         </div>
         <div class="p-4 bg-surface-container-low border-t border-outline-variant/20">
-            <button class="w-full py-2.5 bg-primary text-on-primary rounded font-bold flex items-center justify-center gap-2 hover:bg-surface-tint transition-all active:scale-[0.98] shadow-sm hover:shadow">
-                <span class="material-symbols-outlined text-sm">chat_bubble</span>
-                Ask Hydr8 AI
+            <button disabled class="w-full py-2.5 bg-surface-tint text-on-surface-variant rounded font-bold flex items-center justify-center gap-2 cursor-not-allowed opacity-70">
+                <span class="material-symbols-outlined text-sm">schedule</span>
+                Ask Hydr8 AI — Coming Soon
             </button>
         </div>
     </div>

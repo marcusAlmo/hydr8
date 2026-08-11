@@ -25,9 +25,67 @@
         </div>
     </header>
 
-    <!-- Content Canvas -->
-    <div class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar">
-        {% include "customers/partials/stats_row.html" %}
-        {% include "customers/partials/customer_table.html" %}
+    <!-- Content Canvas with tabbed sections -->
+    <div
+        class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar"
+        x-data="{ activeTab: 'summary' }"
+    >
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md mb-6">Manage customer accounts, track outstanding debts, and view top performers.</p>
+
+        <!-- Tab Navigation -->
+        <nav class="flex items-center gap-1 mb-3 border-b border-outline-variant/20" role="tablist">
+            <button
+                role="tab"
+                @click="activeTab = 'summary'"
+                :class="activeTab === 'summary' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">summarize</span>
+                Summary
+            </button>
+            <button
+                role="tab"
+                @click="activeTab = 'debt'"
+                :class="activeTab === 'debt' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">payments</span>
+                Debt Management
+                <span class="font-data-mono text-[10px] bg-error/10 text-error px-1.5 py-0.5 rounded-full">48</span>
+            </button>
+            <button
+                role="tab"
+                @click="activeTab = 'ranking'"
+                :class="activeTab === 'ranking' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">leaderboard</span>
+                Ranking
+            </button>
+        </nav>
+
+        <!-- Tab Description -->
+        <p class="text-on-surface-variant font-body-sm text-body-sm mb-6">
+            <span x-show="activeTab === 'summary'">Overview of key customer metrics and the full customer directory.</span>
+            <span x-show="activeTab === 'debt'" x-cloak>Track and resolve outstanding customer debts across all accounts.</span>
+            <span x-show="activeTab === 'ranking'" x-cloak>See your top-performing customers by sales volume and payment reliability.</span>
+        </p>
+
+        <!-- Tab: Summary -->
+        <div x-show="activeTab === 'summary'" x-transition.opacity.duration.200ms>
+            {% include "customers/partials/stats_row.html" %}
+            {% include "customers/partials/customer_table.html" %}
+        </div>
+
+        <!-- Tab: Debt Management -->
+        <div x-show="activeTab === 'debt'" x-transition.opacity.duration.200ms x-cloak>
+            {% include "customers/partials/debt_management.html" %}
+        </div>
+
+        <!-- Tab: Ranking -->
+        <div x-show="activeTab === 'ranking'" x-transition.opacity.duration.200ms x-cloak>
+            {% include "customers/partials/ranking.html" %}
+        </div>
     </div>
 {% endblock %}

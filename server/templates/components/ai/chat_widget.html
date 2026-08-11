@@ -58,8 +58,9 @@ on-surface-variant, background. No raw hex colors.
         <!-- Panel Header -->
         <div class="px-4 py-3 bg-primary text-on-primary flex items-center justify-between shrink-0">
             <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-2.5 h-2.5 rounded-full bg-tertiary-container shadow-sm animate-pulse shrink-0"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-[#D97706] shadow-sm animate-pulse shrink-0"></span>
                 <h4 class="font-headline-sm text-sm font-bold truncate" x-text="title"></h4>
+                <span class="text-[9px] bg-[#D97706] text-white px-1.5 py-0.5 rounded-full uppercase font-bold tracking-tight shrink-0">Coming Soon</span>
             </div>
             <div class="flex items-center gap-1 shrink-0">
                 <button type="button"
@@ -71,6 +72,20 @@ on-surface-variant, background. No raw hex colors.
                 </button>
             </div>
         </div>
+
+        {# Coming Soon conversation body overlay — keeps the mock conversation design visible underneath #}
+        <div class="relative flex-1 flex flex-col overflow-hidden">
+
+            <!-- Coming Soon overlay -->
+            <div class="absolute inset-0 z-20 bg-surface/95 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+                <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center max-w-[18rem]">
+                    <span class="material-symbols-outlined text-primary text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">construction</span>
+                    <p class="font-headline-sm text-headline-sm text-on-surface font-bold mb-2">Coming Soon</p>
+                    <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                        Hydr8 AI is still being trained on your operations data. Chat features will be available soon.
+                    </p>
+                </div>
+            </div>
 
         <!-- Messages Container -->
         <div x-ref="messages"
@@ -152,6 +167,7 @@ on-surface-variant, background. No raw hex colors.
                     <span class="material-symbols-outlined text-base">send</span>
                 </button>
             </form>
+        </div>
         </div>
     </div>
 

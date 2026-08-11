@@ -23,6 +23,10 @@ urlpatterns = [
     path('analytics/', include('apps.analytics.urls')),
     path('remittance/', include('apps.remittance.urls')),
     path('customers/', include('apps.customers.urls')),
+    path('products/', include('apps.products.urls')),
+    path('employees/', include('apps.employees.urls')),
+    path('settings/', include('apps.settings.urls')),
+    path('audit/', include('apps.audit.urls')),
 ]
 
 # Custom error handler — renders a friendly HTMX form fragment when a login

@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+import math
+from datetime import date, datetime, timedelta
 
 from django.contrib.auth.decorators import login_required
 from django_ratelimit.decorators import ratelimit
@@ -24,7 +25,11 @@ def _mock_add_remittance_data() -> dict:
 
     # --- Riders, each with their own per-product commission rates and
     # --- their own product-line entries for today.
+    # subtotal = (sold - credited) * unit_price   (credited deducts full price)
     # commission = (sold - credited) * commission_rate
+    # Repayments (collected from the customer's page) restore sales and
+    # commission: repayment amount is added to total sales, and the rider
+    # earns commission on the repaid quantity.
     riders = [
         {
             "id": 1,
@@ -38,9 +43,16 @@ def _mock_add_remittance_data() -> dict:
                 "1gal_dispenser": 8.00,
                 "350ml_case": 12.00,
             },
+            "commission_override": "",
             "product_lines": [
                 {"product_key": "5gal_alk_round",    "sold": 42, "credited": 0, "borrowed": 3},
                 {"product_key": "5gal_mineral_slim", "sold": 28, "credited": 5, "borrowed": 0},
+            ],
+            # Repayments collected from the customer's page within this
+            # session.  Read-only on the remittance form — auto-populated
+            # when a collection is recorded against this rider.
+            "repayments": [
+                {"payer": "Aling Nena Store", "product_key": "5gal_mineral_slim", "qty": 2, "amount": 70.00},
             ],
         },
         {
@@ -55,8 +67,12 @@ def _mock_add_remittance_data() -> dict:
                 "1gal_dispenser": 7.00,
                 "350ml_case": 10.00,
             },
+            "commission_override": "",
             "product_lines": [
                 {"product_key": "5gal_alk_round", "sold": 35, "credited": 2, "borrowed": 1},
+            ],
+            "repayments": [
+                {"payer": "Rizal Mini Mart", "product_key": "5gal_alk_round", "qty": 1, "amount": 40.00},
             ],
         },
         {
@@ -71,10 +87,12 @@ def _mock_add_remittance_data() -> dict:
                 "1gal_dispenser": 8.50,
                 "350ml_case": 13.00,
             },
+            "commission_override": "",
             "product_lines": [
                 {"product_key": "1gal_dispenser", "sold": 12, "credited": 0, "borrowed": 0},
                 {"product_key": "350ml_case",     "sold": 8,  "credited": 1, "borrowed": 0},
             ],
+            "repayments": [],
         },
     ]
 
@@ -85,11 +103,11 @@ def _mock_add_remittance_data() -> dict:
         # NOTE: values are computed client-side by Alpine.js; these are initial
         # server-rendered values that match the seed data below.
         "summary": {
-            "total_sales": "₱2,660.00",
-            "net_remittance": "₱1,415.00",
-            "tithes": "₱124.50",
+            "total_sales": "₱5,800.00",
+            "net_remittance": "₱3,923.00",
+            "tithes": "₱392.30",
             "total_expenses": "₱1,245.00",
-            "total_commission": "₱290.50",
+            "total_commission": "₱632.00",
             "manual_offering": "₱0.00",
         },
 
@@ -112,11 +130,91 @@ def _mock_add_remittance_data() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Mock data — Performance Trends (30-day time series for the history page)
+# Deterministic pseudo-realistic series so the charts look the same on every
+# render.  Replace with real aggregator selectors once the backend lands.
+# ---------------------------------------------------------------------------
+_TREND_RIDERS = [
+    {"name": "Juan Dela Cruz",   "color": "#006591"},  # primary
+    {"name": "Roberto Santos",   "color": "#505F76"},  # secondary
+    {"name": "Maria Garcia",     "color": "#35AF80"},  # tertiary-container
+    {"name": "Carlos Reyes",     "color": "#D97706"},  # warning amber
+    {"name": "Ana Torres",       "color": "#7C3AED"},  # violet
+    {"name": "Pedro Lim",        "color": "#0EA5E9"},  # sky
+    {"name": "Liza Mendoza",     "color": "#E11D48"},  # rose
+    {"name": "Ramon Cruz",       "color": "#059669"},  # emerald
+    {"name": "Diana Villanueva", "color": "#4F46E5"},  # indigo
+    {"name": "Mark Tan",         "color": "#EA580C"},  # orange
+    {"name": "Sofia Ramos",      "color": "#0D9488"},  # teal
+    {"name": "Erik Bautista",    "color": "#B45309"},  # dark amber
+]
+
+
+def _build_trend_series(days: int = 30) -> dict:
+    """Build a deterministic 30-day trend dataset for the four history charts."""
+    today = date.today()
+    labels: list[str] = []
+    total_sales: list[float] = []
+    outstanding_debt: list[float] = []
+    commissions_paid: list[float] = []
+
+    # Per-rider units sold per day — each rider has a distinct rhythm.
+    rider_units: list[list[int]] = [[] for _ in _TREND_RIDERS]
+
+    for i in range(days):
+        d = today - timedelta(days=days - 1 - i)
+        labels.append(d.strftime("%b %d"))
+
+        # Upward-trending weekly-seasonal sales curve.
+        base = 4200 + (i * 35)
+        weekly = 900 * math.sin((i / 7) * math.pi)
+        noise = 220 * math.sin(i * 1.3)
+        sales = max(1800.0, round(base + weekly + noise, 2))
+        total_sales.append(sales)
+
+        # Outstanding debt oscillates around a slowly declining baseline.
+        debt_base = 18500 - (i * 60)
+        debt_wave = 2600 * math.sin((i / 5) * math.pi + 1)
+        debt = max(2000.0, round(debt_base + debt_wave, 2))
+        outstanding_debt.append(debt)
+
+        # Commissions track ~11% of sales with a one-day lag.
+        lag_sales = total_sales[max(0, i - 1)]
+        commissions_paid.append(round(lag_sales * 0.11, 2))
+
+        # Rider units — each rider has a different base volume, cadence, and
+        # growth slope, derived deterministically from their index.
+        for idx in range(len(_TREND_RIDERS)):
+            base_units = 28 - (idx * 1.8)
+            cadence = 2.1 + (idx * 0.4)
+            phase = idx * 0.7
+            slope = 0.25 - (idx * 0.015)
+            val = max(4, int(round(base_units + 10 * math.sin(i / cadence + phase) + i * slope)))
+            rider_units[idx].append(val)
+
+    rider_series = [
+        {"name": r["name"], "color": r["color"], "units_sold": rider_units[idx]}
+        for idx, r in enumerate(_TREND_RIDERS)
+    ]
+
+    return {
+        "labels": labels,
+        "total_sales": total_sales,
+        "outstanding_debt": outstanding_debt,
+        "commissions_paid": commissions_paid,
+        "riders": rider_series,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Mock data — Remittance History (paginated list of past remittances)
 # Mirrors the Stitch "Remittance History" screen.
 # ---------------------------------------------------------------------------
 def _mock_remittance_history_data() -> dict:
+    trends = _build_trend_series(days=30)
     return {
+        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
+        "trends": trends,
         # --- Bento summary cards ---
         "summary_cards": [
             {
@@ -232,6 +330,8 @@ def add_remittance_view(request):
     context = _mock_add_remittance_data()
     # Serialize the seed data so Alpine.js can hydrate the form client-side.
     # KPIs are recomputed live from this state on every input change.
+    # The JSON is embedded inside a single-quoted x-data attribute, so we
+    # escape any single quotes to avoid breaking the attribute boundary.
     context["alpine_seed"] = json.dumps({
         "riders": context["riders"],
         "products": context["products"],
@@ -242,7 +342,7 @@ def add_remittance_view(request):
             (r["id"] for r in context["riders"] if r["selected"]),
             context["riders"][0]["id"],
         ),
-    })
+    }).replace("'", "&#39;")
     return render(request, "remittance/add_remittance.html", context)
 
 
@@ -256,4 +356,9 @@ def remittance_history_view(request):
     the paginated history table for client approval.
     """
     context = _mock_remittance_history_data()
+    # Serialize the trend series so Alpine.js + ApexCharts can hydrate the
+    # Performance Trends section and re-render on filter changes client-side.
+    # The JSON is embedded inside a single-quoted x-data attribute, so we
+    # escape any single quotes to avoid breaking the attribute boundary.
+    context["trends_seed"] = json.dumps(context["trends"]).replace("'", "&#39;")
     return render(request, "remittance/remittance_history.html", context)

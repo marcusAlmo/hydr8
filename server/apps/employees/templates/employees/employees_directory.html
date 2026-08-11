@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Employees &amp; Users | Hydr8{% endblock %}
+
+{% block extra_head %}
+    <!-- ApexCharts — lightweight charting for the user detail trend mini-charts -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
+{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="users" %}
+{% endblock %}
+
+{% block content %}
+<!-- Single Alpine scope wraps the page so the drawer state can be toggled
+     from any child element via the `open-drawer` event. -->
+<div class="flex-1 flex flex-col overflow-hidden" x-data="{ activeTab: 'directory', drawerOpen: false }" @open-drawer.window="drawerOpen = true">
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-4">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Employees &amp; Users</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200" title="AI Assistant">
+                <span class="material-symbols-outlined">smart_toy</span>
+            </button>
+            <button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200" title="Notifications">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Content Canvas with tabbed sections -->
+    <div
+        class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar"
+    >
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md mb-6">Manage staff accounts, roles, and permissions.</p>
+
+        <!-- Tab Navigation -->
+        <nav class="flex items-center gap-1 mb-3 border-b border-outline-variant/20" role="tablist">
+            <button
+                role="tab"
+                @click="activeTab = 'directory'"
+                :class="activeTab === 'directory' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">contacts</span>
+                Directory
+            </button>
+            <button
+                role="tab"
+                @click="activeTab = 'roles'"
+                :class="activeTab === 'roles' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                Roles &amp; Permissions
+            </button>
+        </nav>
+
+        <!-- Tab Description -->
+        <p class="text-on-surface-variant font-body-sm text-body-sm mb-6">
+            <span x-show="activeTab === 'directory'">Browse and manage all employee and user accounts in your organization.</span>
+            <span x-show="activeTab === 'roles'" x-cloak>Define access levels and permission sets for each role in the system.</span>
+        </p>
+
+        <!-- Tab: Directory -->
+        <div x-show="activeTab === 'directory'" x-transition.opacity.duration.200ms>
+            {% include "employees/partials/stats_row.html" %}
+            {% include "employees/partials/users_table.html" %}
+        </div>
+
+        <!-- Tab: Roles & Permissions -->
+        <div x-show="activeTab === 'roles'" x-transition.opacity.duration.200ms x-cloak>
+            {% include "employees/partials/roles_permissions.html" %}
+        </div>
+    </div>
+
+    <!-- User Detail Drawer — slides in from the right.
+         HTMX loads the user detail partial into #drawer-root, and the
+         Alpine `drawerOpen` flag controls the overlay + slide animation. -->
+    <!-- Backdrop -->
+    <div
+        x-show="drawerOpen"
+        x-cloak
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        @click="drawerOpen = false"
+        class="fixed inset-0 bg-on-surface/40 z-40"
+    ></div>
+    <!-- Drawer panel -->
+    <div
+        x-show="drawerOpen"
+        x-cloak
+        x-transition:enter="transform transition ease-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transform transition ease-in duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        @keydown.escape.window="drawerOpen = false"
+        class="fixed right-0 top-0 h-full w-full max-w-5xl bg-surface z-50 shadow-2xl overflow-y-auto custom-scrollbar"
+    >
+        <!-- Close button (always visible) -->
+        <button
+            @click="drawerOpen = false"
+            class="absolute top-4 right-4 z-10 p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+            title="Close"
+        >
+            <span class="material-symbols-outlined">close</span>
+        </button>
+        <!-- HTMX swaps the user detail partial here -->
+        <div id="user-detail-content"></div>
+    </div>
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 <form hx-post="{% url 'users:login' %}" hx-target="this" hx-swap="outerHTML" class="space-y-4">
     {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next|default:'' }}">
 
     {% if form.non_field_errors %}
     <div class="p-4 bg-error-container border-l-4 border-error flex items-center gap-3 rounded-md mb-4">

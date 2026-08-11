@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="audit" %}
+{% endblock %}
+
+{% block content %}
+<!-- Single Alpine scope wraps header + content so the date range filter
+     in the header drives the action chips, search, and records table. -->
+<div x-data='auditLogPage({{ logs_json|safe }})'
+     class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-2">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Audit Log</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <!-- Date range filter — drives the records table -->
+            <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
+                <template x-for="r in dateRanges" :key="r.key">
+                    <button
+                        @click="setDateRange(r.key)"
+                        :class="dateRange === r.key
+                            ? 'bg-primary text-on-primary shadow-sm'
+                            : 'text-on-surface-variant hover:bg-surface-container-high'"
+                        class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                        x-text="r.label"
+                    ></button>
+                </template>
+
+                <!-- Custom Range trigger -->
+                <button
+                    @click="customRangeOpen = !customRangeOpen"
+                    :class="dateRange === 'custom'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all flex items-center gap-1.5"
+                >
+                    <span class="material-symbols-outlined text-[16px]">date_range</span>
+                    <span>Custom</span>
+                </button>
+
+                <!-- Custom Range popover -->
+                <div
+                    x-show="customRangeOpen"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 -translate-y-1"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100 translate-y-0"
+                    x-transition:leave-end="opacity-0 -translate-y-1"
+                    @click.outside="customRangeOpen = false"
+                    @keydown.escape.window="customRangeOpen = false"
+                    class="absolute right-0 top-full mt-1 z-50 w-80 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden"
+                >
+                    <div class="p-4 space-y-3">
+                        <h4 class="font-headline-sm text-body-md font-bold text-on-surface">Custom Date Range</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">From</label>
+                                <input
+                                    type="date"
+                                    x-model="customFrom"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">To</label>
+                                <input
+                                    type="date"
+                                    x-model="customTo"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button @click="customRangeOpen = false" class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors">Cancel</button>
+                            <button @click="applyCustomRange()" class="px-3 py-1.5 bg-primary text-on-primary text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200" title="AI Assistant">
+                <span class="material-symbols-outlined">smart_toy</span>
+            </button>
+            <button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200" title="Notifications">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Content Canvas -->
+    <div class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar">
+
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md mb-6">Review every system change with full field-level audit trails and metadata.</p>
+
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {% for stat in stats %}
+            <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined {{ stat.accent }}">{{ stat.icon }}</span>
+                </div>
+                <div class="min-w-0">
+                    <div class="font-data-mono font-bold text-xl text-on-surface leading-tight">{{ stat.value }}</div>
+                    <div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider truncate">{{ stat.label }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Filters & Search -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div class="flex items-center flex-wrap gap-2">
+                <!-- Action filter chips (Alpine-driven) -->
+                <template x-for="f in actionFilters" :key="f.value">
+                    <button
+                        @click="actionFilter = f.value"
+                        :class="actionFilter === f.value
+                            ? 'bg-primary text-on-primary shadow-sm'
+                            : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-highest'"
+                        class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 flex items-center gap-1.5"
+                    >
+                        <span x-text="f.label"></span>
+                        <span class="font-data-mono text-xs" :class="actionFilter === f.value ? 'text-on-primary/70' : 'text-on-surface-variant/60'" x-text="actionCount(f.value)"></span>
+                    </button>
+                </template>
+
+                <!-- Clear filters -->
+                <button
+                    x-show="hasFilters"
+                    x-cloak
+                    @click="clearFilters()"
+                    class="px-3 py-1.5 rounded-full font-body-sm text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 flex items-center gap-1"
+                >
+                    <span class="material-symbols-outlined text-[16px]">close</span>
+                    <span>Clear</span>
+                </button>
+            </div>
+            <div class="relative max-w-sm w-full">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+                <input
+                    type="text"
+                    x-model="searchQuery"
+                    placeholder="Search object, IP, correlation ID, or username..."
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                >
+            </div>
+        </div>
+
+        <!-- Audit Log Table -->
+        <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Timestamp</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Actor</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Action</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Object</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Changes</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">IP</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Correlation ID</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                        {% for entry in logs %}
+                        <tr
+                            x-show="matchesAction('{{ entry.action }}') && matchesDate('{{ entry.timestamp|escapejs }}') && matchesSearch('{{ entry.object_repr|escapejs }}', '{{ entry.remote_addr|default:''|escapejs }}', '{{ entry.cid|default:''|escapejs }}', '{{ entry.actor_display|escapejs }}')"
+                            x-cloak
+                            class="hover:bg-surface-container-low transition-colors group cursor-pointer"
+                            hx-get="{% url 'audit:detail' entry.id %}"
+                            hx-target="#modal-root"
+                            hx-swap="innerHTML">
+                            <!-- Timestamp -->
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
+                                {{ entry.timestamp }}
+                            </td>
+                            <!-- Actor -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">
+                                        {% if entry.actor_display == "System" or entry.actor_display == "system-scheduler" %}
+                                        <span class="material-symbols-outlined text-[14px]">memory</span>
+                                        {% else %}
+                                        {{ entry.actor_display|slice:":2"|upper }}
+                                        {% endif %}
+                                    </div>
+                                    <div class="flex flex-col gap-0.5 min-w-0">
+                                        <span class="font-sans text-on-surface text-xs font-medium truncate">{{ entry.actor_display }}</span>
+                                        {% if entry.actor_email %}
+                                        <span class="text-[10px] text-on-surface-variant/70 truncate">{{ entry.actor_email }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- Action badge -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border {{ entry.badge_class }}">
+                                    {{ entry.action_label }}
+                                </span>
+                            </td>
+                            <!-- Object -->
+                            <td class="px-4 py-3 max-w-[220px]">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="font-sans text-on-surface text-xs font-medium truncate" title="{{ entry.object_repr }}">{{ entry.object_repr }}</span>
+                                    <span class="text-[10px] text-on-surface-variant/70 font-data-mono">{{ entry.content_type }}</span>
+                                </div>
+                            </td>
+                            <!-- Changes summary -->
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
+                                {{ entry.changes_summary }}
+                            </td>
+                            <!-- IP -->
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono">
+                                {{ entry.remote_addr|default:"—" }}
+                            </td>
+                            <!-- Correlation ID -->
+                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono max-w-[140px]">
+                                <span class="truncate inline-block max-w-[120px] align-bottom" title="{{ entry.cid|default:'' }}">
+                                    {{ entry.cid|default:"—" }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        <!-- Empty state when no rows match filters -->
+                        <tr x-show="filteredCount() === 0" x-cloak>
+                            <td colspan="7" class="px-4 py-12 text-center">
+                                <div class="flex flex-col items-center gap-3">
+                                    <span class="material-symbols-outlined text-outline-variant text-[40px]">search_off</span>
+                                    <p class="font-body-md text-body-md text-on-surface-variant">No entries match the current filters.</p>
+                                    <button @click="clearFilters()" class="text-primary font-body-sm text-body-sm hover:underline">Clear all filters</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                    Showing <span class="text-primary font-data-mono font-bold" x-text="filteredCount()"></span>
+                    of <span class="font-data-mono">{{ logs|length }}</span> entries
+                    <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered</span>
+                </span>
+                <div class="flex items-center gap-1">
+                    <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Previous page">
+                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </button>
+                    <button class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</button>
+                    <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Next page">
+                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Note -->
+        <div class="mt-4 flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <span class="material-symbols-outlined text-primary text-[18px] flex-shrink-0 mt-0.5">info</span>
+            <p class="text-xs text-on-surface-variant">
+                Click any row to view the full mutation detail — field-level Before/After diff, serialized object snapshot, and request metadata.
+                Audit entries are recorded by <span class="font-data-mono text-primary">django-auditlog</span> via the
+                <span class="font-data-mono text-primary">AuditlogMiddleware</span> and correlated via
+                <span class="font-data-mono text-primary">X-Correlation-ID</span>.
+            </p>
+        </div>
+
+    </div>
+
+    <!-- Alpine component definition -->
+    <script>
+        function auditLogPage(logsData) {
+            return {
+                logs: logsData,
+                searchQuery: '',
+                actionFilter: '',
+                dateRange: 'all',
+                customRangeOpen: false,
+                customFrom: '',
+                customTo: '',
+                dateRanges: [
+                    { key: 'today', label: 'Today' },
+                    { key: '7d',    label: '7D'   },
+                    { key: '30d',   label: '30D'  },
+                    { key: 'all',   label: 'All'  },
+                ],
+                actionFilters: [
+                    { value: '',  label: 'All Actions' },
+                    { value: '0', label: 'Create'      },
+                    { value: '1', label: 'Update'      },
+                    { value: '2', label: 'Delete'      },
+                    { value: '3', label: 'Access'      },
+                ],
+
+                // --- Filter predicates -----------------------------------------
+                matchesAction(actionStr) {
+                    return !this.actionFilter || actionStr === this.actionFilter;
+                },
+                matchesDate(tsStr) {
+                    if (this.dateRange === 'all') return true;
+                    const ts = new Date(tsStr.replace(' ', 'T'));
+                    if (isNaN(ts)) return true;
+                    const now = new Date();
+                    if (this.dateRange === 'today') {
+                        const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        return ts >= midnight;
+                    }
+                    const days = { '7d': 7, '30d': 30 }[this.dateRange];
+                    if (days) {
+                        const cutoff = new Date(now.getTime() - days * 86400000);
+                        return ts >= cutoff;
+                    }
+                    if (this.dateRange === 'custom' && this.customFrom && this.customTo) {
+                        const from = new Date(this.customFrom + 'T00:00:00');
+                        const to   = new Date(this.customTo   + 'T23:59:59');
+                        return ts >= from && ts <= to;
+                    }
+                    return true;
+                },
+                matchesSearch(objRepr, remoteAddr, cid, actorDisplay) {
+                    if (!this.searchQuery) return true;
+                    const q = this.searchQuery.toLowerCase();
+                    return (
+                        objRepr.toLowerCase().includes(q) ||
+                        remoteAddr.toLowerCase().includes(q) ||
+                        cid.toLowerCase().includes(q) ||
+                        actorDisplay.toLowerCase().includes(q)
+                    );
+                },
+
+                // --- Computed counts (mirrors row x-show logic) ----------------
+                filteredCount() {
+                    return this.logs.filter(e =>
+                        this.matchesAction(String(e.action)) &&
+                        this.matchesDate(e.timestamp) &&
+                        this.matchesSearch(
+                            e.object_repr,
+                            e.remote_addr || '',
+                            e.cid || '',
+                            e.actor_display
+                        )
+                    ).length;
+                },
+                actionCount(value) {
+                    if (!value) return this.logs.length;
+                    return this.logs.filter(e => String(e.action) === value).length;
+                },
+
+                // --- Actions ---------------------------------------------------
+                setDateRange(key) {
+                    this.dateRange = key;
+                    this.customRangeOpen = false;
+                },
+                applyCustomRange() {
+                    if (this.customFrom && this.customTo) {
+                        this.dateRange = 'custom';
+                        this.customRangeOpen = false;
+                    }
+                },
+                clearFilters() {
+                    this.searchQuery = '';
+                    this.actionFilter = '';
+                    this.dateRange = 'all';
+                    this.customFrom = '';
+                    this.customTo = '';
+                    this.customRangeOpen = false;
+                },
+
+                // --- Derived state ---------------------------------------------
+                get hasFilters() {
+                    return !!(this.searchQuery || this.actionFilter || this.dateRange !== 'all');
+                },
+            };
+        }
+    </script>
+</div>
+{% endblock %}

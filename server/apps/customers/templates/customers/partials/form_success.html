@@ -1,0 +1,18 @@
+{% comment %}
+Form success response — returned by HTMX POST handlers for the customer
+modals (add, record-debt, record-borrowed, delete).
+
+Renders a toast partial with an OOB swap into ``#toast-container`` (the
+toast auto-dismisses via Alpine.js after 4 seconds) plus a ``<script>``
+that dispatches ``close-modal`` on the window so the open modal removes
+itself and restores body scroll.
+
+Expects context:
+  - message: str — toast message text
+{% endcomment %}
+{% now "U" as ts %}
+{% include "components/toasts/toast.html" with id=ts timestamp=ts message=message type="success" duration=4000 %}
+<script>
+    window.dispatchEvent(new CustomEvent('close-modal'));
+    document.body.style.overflow = '';
+</script>

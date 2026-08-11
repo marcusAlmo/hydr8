@@ -57,9 +57,13 @@ class User(AbstractUser):
     pin = models.CharField(max_length=128, null=True, blank=True)
     role = models.ForeignKey(Role, on_delete=models.RESTRICT, null=True, blank=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
-    
+    force_password_change = models.BooleanField(
+        default=False,
+        help_text="When True, the user must change their password on next login.",
+    )
+
     # We will let AbstractUser handle username, email, first_name, last_name, password, is_active, is_staff, is_superuser, last_login, date_joined
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)

@@ -1,0 +1,156 @@
+{% comment %}
+Debt Management tab — focused collections workflow.
+Expects context:
+  - debt_stats: list of { col_span, label, icon, icon_class, value,
+                          value_size, subtitle?, border_class }
+  - debt_rows: list of { id, name, initials, debt_balance, days_overdue,
+                         days_overdue_class, last_payment_at,
+                         last_payment_class, suggested_action, action_class,
+                         status, anomaly_badge }
+  - debt_pagination: { showing_from, showing_to, total_display,
+                       current_page, total_pages }
+{% endcomment %}
+<div class="flex-1 flex flex-col gap-6">
+
+    <!-- Debt summary cards (asymmetric grid) -->
+    <section class="grid grid-cols-1 md:grid-cols-12 gap-6">
+        {% for stat in debt_stats %}
+        <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 {{ stat.border_class }} flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default">
+            <div class="flex justify-between items-start">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
+                <span class="material-symbols-outlined {{ stat.icon_class }}">{{ stat.icon }}</span>
+            </div>
+            <div class="mt-4">
+                <h3 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold">{{ stat.value }}</h3>
+                {% if stat.subtitle %}
+                <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- Collections workflow header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary">payments</span>
+            <h3 class="font-headline-sm text-sm font-bold text-on-surface">Active Debtors — Sorted by Balance</h3>
+        </div>
+        <div class="flex items-center gap-2">
+            <button
+                hx-get="{% url 'customers:record_borrowed' %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                class="px-3 py-1.5 bg-[#D97706] text-on-primary text-xs font-bold rounded hover:bg-[#D97706]/90 transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+                title="Record containers borrowed by a customer">
+                <span class="material-symbols-outlined text-[14px]">water_damage</span>
+                Record Borrowed
+            </button>
+            <button
+                hx-get="{% url 'customers:record_debt' %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                class="px-3 py-1.5 bg-error text-on-primary text-xs font-bold rounded hover:bg-error/90 transition-colors flex items-center gap-1.5 active:scale-[0.98]"
+                title="Record credited items owed by a customer">
+                <span class="material-symbols-outlined text-[14px]">receipt_long</span>
+                Record Debt
+            </button>
+            <button class="px-3 py-1.5 bg-surface-container text-on-surface-variant text-xs font-bold rounded hover:bg-surface-container-highest transition-colors flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[14px]">download</span>
+                Export
+            </button>
+        </div>
+    </div>
+
+    <!-- Debtors table -->
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Customer</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Debt Balance</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Days Overdue</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Last Payment</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Suggested Action</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Collect</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                    {% for row in debt_rows %}
+                    <tr class="hover:bg-surface-container-low transition-colors group border-l-4 {% if row.status == 'blacklisted' %}border-l-error{% elif row.status == 'flagged' %}border-l-[#D97706]{% else %}border-l-transparent{% endif %}">
+                        <!-- Customer -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">{{ row.initials }}</div>
+                                <div class="flex flex-col gap-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ row.name }}</span>
+                                        {% if row.anomaly_badge %}
+                                        <span class="font-label-caps text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider {% if row.status == 'blacklisted' %}bg-error text-on-primary{% else %}bg-[#D97706]/15 text-[#D97706]{% endif %}">{{ row.anomaly_badge }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="font-data-mono text-on-surface-variant text-[11px]">{{ row.id }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <!-- Debt balance -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-error font-bold">{{ row.debt_balance }}</span>
+                        </td>
+                        <!-- Days overdue -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="{{ row.days_overdue_class }} font-bold">{{ row.days_overdue }}d</span>
+                        </td>
+                        <!-- Last payment -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="font-sans {{ row.last_payment_class }} italic text-body-sm">{{ row.last_payment_at }}</span>
+                        </td>
+                        <!-- Suggested action -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="font-sans text-on-surface-variant text-body-sm">{{ row.suggested_action }}</span>
+                        </td>
+                        <!-- Collect button -->
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    hx-get="{% url 'customers:collect' row.id %}"
+                                    hx-target="#modal-root"
+                                    hx-swap="innerHTML"
+                                    class="px-3 py-1 {{ row.action_class }} text-[11px] font-bold rounded transition-colors">COLLECT</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="py-12 px-6 text-center text-on-surface-variant font-body-sm">
+                            <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">payments</span>
+                            No active debtors. All accounts are settled.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                Showing {{ debt_pagination.showing_from }}–{{ debt_pagination.showing_to }} of {{ debt_pagination.total_display }} debtors
+            </span>
+            <div class="flex items-center gap-1">
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Previous page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                <button class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ debt_pagination.current_page }}</button>
+                <button class="px-3 py-1 rounded hover:bg-surface-container text-on-surface-variant text-xs font-data-mono transition-colors">2</button>
+                <button class="px-3 py-1 rounded hover:bg-surface-container text-on-surface-variant text-xs font-data-mono transition-colors">3</button>
+                <span class="px-2 text-on-surface-variant text-xs font-data-mono">…</span>
+                <button class="px-3 py-1 rounded hover:bg-surface-container text-on-surface-variant text-xs font-data-mono transition-colors">{{ debt_pagination.total_pages }}</button>
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Next page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

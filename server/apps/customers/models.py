@@ -25,7 +25,6 @@ class Customer(models.Model):
     borrowed_slim_8gal = models.SmallIntegerField(default=0)
     borrowed_other = models.SmallIntegerField(default=0)
     last_credit_at = models.DateTimeField(null=True, blank=True)
-    notes = models.TextField(null=True, blank=True)
 
     # --- Anomaly / blacklist tracking ---
     status = models.CharField(

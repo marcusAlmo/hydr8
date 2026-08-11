@@ -1,13 +1,72 @@
 import logging
+import secrets
+import string
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+
+from apps.users.models import User
 
 logger = logging.getLogger(__name__)
 
 # Lockout policy — 5 failed attempts locks the (ip, username) bucket for 1 minute.
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCKOUT_SECONDS = 60
+
+# Temporary password policy — 12 chars, mixed case + digits + symbols.
+TEMP_PASSWORD_LENGTH = 12
+_TEMP_PASSWORD_ALPHABET = string.ascii_letters + string.digits + "!@#$%^&*"
+
+
+def generate_temporary_password(length: int = TEMP_PASSWORD_LENGTH) -> str:
+    """
+    Generates a cryptographically secure temporary password.
+    Uses ``secrets`` (not ``random``) to ensure CSPRNG-grade entropy.
+    Guarantees at least one uppercase, one lowercase, one digit, and one symbol.
+    """
+    while True:
+        pw = "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))
+        has_upper = any(c.isupper() for c in pw)
+        has_lower = any(c.islower() for c in pw)
+        has_digit = any(c.isdigit() for c in pw)
+        has_symbol = any(c in "!@#$%^&*" for c in pw)
+        if has_upper and has_lower and has_digit and has_symbol:
+            return pw
+
+
+def set_temporary_password(user: User) -> str:
+    """
+    Generates a temporary password, sets it as the user's password, and
+    flags the account for a forced password change on next login.
+
+    Returns the raw (plaintext) temporary password so the caller can display
+    it once for copy. The plaintext is never logged or persisted.
+
+    Logs only the user ID — never the password itself (RA 10173).
+    """
+    raw_password = generate_temporary_password()
+    user.set_password(raw_password)
+    user.force_password_change = True
+    user.save(update_fields=["password", "force_password_change", "updated_at"])
+    logger.info(
+        "Temporary password generated. user_id=%s force_change=True",
+        user.id,
+    )
+    return raw_password
+
+
+def change_user_password(user: User, new_password: str) -> None:
+    """
+    Sets a new password for the user and clears the force_password_change flag.
+    Used by the forced password-change flow after a temporary-password login.
+    """
+    user.set_password(new_password)
+    user.force_password_change = False
+    user.save(update_fields=["password", "force_password_change", "updated_at"])
+    logger.info(
+        "Password changed by user. user_id=%s force_change=False",
+        user.id,
+    )
 
 
 def _lockout_cache_key(ip: str, username: str) -> str:

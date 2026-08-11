@@ -1,0 +1,179 @@
+{# My Profile tab — current user's profile card with username + password change #}
+<div class="max-w-3xl space-y-6">
+
+    {# --- Profile card — identity + name fields --- #}
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-8 shadow-sm">
+        {# Profile header — avatar + identity #}
+        <div class="flex items-center gap-8 mb-8">
+            <div class="relative group">
+                <div class="w-24 h-24 rounded-lg bg-primary-container/20 border-2 border-primary shadow-lg flex items-center justify-center text-primary">
+                    <span class="font-headline-lg text-headline-lg font-black">{{ profile.avatar_initials }}</span>
+                </div>
+                <button class="absolute inset-0 bg-primary/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200 rounded-lg">
+                    <span class="material-symbols-outlined">edit</span>
+                </button>
+            </div>
+            <div>
+                <h3 class="font-headline-md text-headline-md text-on-surface">{{ profile.full_name }}</h3>
+                <p class="text-on-surface-variant font-body-md text-body-md">{{ profile.role }} &bull; ID: <span class="font-data-mono text-data-mono">{{ profile.employee_id }}</span></p>
+            </div>
+        </div>
+
+        {# Profile form fields #}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">First Name</label>
+                <input
+                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                    type="text"
+                    value="{{ profile.first_name }}"/>
+            </div>
+            <div class="space-y-2">
+                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Last Name</label>
+                <input
+                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                    type="text"
+                    value="{{ profile.last_name }}"/>
+            </div>
+        </div>
+
+        <div class="flex justify-end pt-6">
+            <button class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
+                Save Profile
+            </button>
+        </div>
+    </div>
+
+    {# --- Account credentials card — username + password change --- #}
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-8 shadow-sm">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 bg-primary-container/20 rounded-lg flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined">lock_person</span>
+            </div>
+            <div>
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Account Credentials</h3>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">Change your username and password. These are used to log in to Hydr8.</p>
+            </div>
+        </div>
+
+        {# Username change #}
+        <div class="space-y-2 mb-6">
+            <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Username</label>
+            <input
+                class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                type="text"
+                value="{{ profile.username }}"/>
+        </div>
+
+        {# Divider #}
+        <div class="border-t border-outline-variant/20 my-6"></div>
+
+        {# Password change — Alpine.js owns show/hide + validation state #}
+        <div x-data="{
+            showCurrent: false,
+            showNew: false,
+            showConfirm: false,
+            newPassword: '',
+            confirmPassword: '',
+            get passwordsMatch() {
+                return this.newPassword.length > 0 && this.newPassword === this.confirmPassword;
+            },
+            get tooShort() {
+                return this.newPassword.length > 0 && this.newPassword.length < 8;
+            },
+            get canSubmit() {
+                return this.newPassword.length >= 8 && this.passwordsMatch;
+            }
+        }">
+            <h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-4">Change Password</h4>
+
+            <div class="space-y-4">
+                {# Current password #}
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password</label>
+                    <div class="relative">
+                        <input
+                            :type="showCurrent ? 'text' : 'password'"
+                            class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                            placeholder="Enter current password"
+                            autocomplete="current-password"/>
+                        <button
+                            type="button"
+                            @click="showCurrent = !showCurrent"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-[20px]" x-text="showCurrent ? 'visibility_off' : 'visibility'">visibility</span>
+                        </button>
+                    </div>
+                </div>
+
+                {# New password #}
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">New Password</label>
+                    <div class="relative">
+                        <input
+                            :type="showNew ? 'text' : 'password'"
+                            x-model="newPassword"
+                            class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                            :class="tooShort ? 'border-error/50 focus:ring-error' : ''"
+                            placeholder="Enter new password (min 8 chars)"
+                            autocomplete="new-password"/>
+                        <button
+                            type="button"
+                            @click="showNew = !showNew"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-[20px]" x-text="showNew ? 'visibility_off' : 'visibility'">visibility</span>
+                        </button>
+                    </div>
+                    {# Validation hint — too short #}
+                    <p x-show="tooShort" x-cloak class="text-error font-body-sm text-body-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px]">error</span>
+                        Password must be at least 8 characters.
+                    </p>
+                </div>
+
+                {# Confirm new password #}
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Confirm New Password</label>
+                    <div class="relative">
+                        <input
+                            :type="showConfirm ? 'text' : 'password'"
+                            x-model="confirmPassword"
+                            class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                            :class="confirmPassword.length > 0 && !passwordsMatch ? 'border-error/50 focus:ring-error' : (passwordsMatch ? 'border-tertiary/50 focus:ring-tertiary' : '')"
+                            placeholder="Re-enter new password"
+                            autocomplete="new-password"/>
+                        <button
+                            type="button"
+                            @click="showConfirm = !showConfirm"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-[20px]" x-text="showConfirm ? 'visibility_off' : 'visibility'">visibility</span>
+                        </button>
+                    </div>
+                    {# Validation hints #}
+                    <p x-show="confirmPassword.length > 0 && !passwordsMatch" x-cloak class="text-error font-body-sm text-body-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px]">error</span>
+                        Passwords do not match.
+                    </p>
+                    <p x-show="passwordsMatch" x-cloak class="text-tertiary font-body-sm text-body-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                        Passwords match.
+                    </p>
+                </div>
+            </div>
+
+            {# Submit — disabled until validation passes #}
+            <div class="flex justify-end pt-6">
+                <button
+                    type="button"
+                    :disabled="!canSubmit"
+                    :class="canSubmit
+                        ? 'bg-tertiary text-on-tertiary hover:opacity-90 active:scale-[0.98] shadow-sm hover:shadow-md cursor-pointer'
+                        : 'bg-surface-container text-on-surface-variant cursor-not-allowed'"
+                    class="flex items-center gap-2 font-label-caps text-label-caps px-8 py-3 rounded uppercase transition-all duration-200">
+                    <span class="material-symbols-outlined text-[18px]">lock_reset</span>
+                    <span>Update Password</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

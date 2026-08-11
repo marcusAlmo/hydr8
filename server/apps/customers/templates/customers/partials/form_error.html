@@ -1,0 +1,13 @@
+{% comment %}
+Form error response — returned by HTMX POST handlers when validation
+fails. Renders an inline error banner inside the modal body (the form's
+hx-target should be the error placeholder element).
+
+Expects context:
+  - message: str — error message text
+{% endcomment %}
+<div class="flex items-start gap-2 bg-error/5 border border-error/30 rounded-lg p-3 text-error"
+     x-data="{ show: true }" x-show="show" x-transition>
+    <span class="material-symbols-outlined text-[18px] flex-shrink-0">error</span>
+    <span class="font-body-sm text-body-sm text-error">{{ message }}</span>
+</div>

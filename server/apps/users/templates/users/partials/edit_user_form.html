@@ -1,0 +1,158 @@
+{% comment %}
+Edit user form — loaded into the drawer via HTMX when an admin clicks
+"Edit" on a user. Submits via HTMX to the edit_user_submit endpoint.
+
+On success, the parent swaps in the success partial.
+On failure, the form re-renders with errors.
+{% endcomment %}
+<form
+    hx-post="{% url 'users:edit_user_submit' target_user.id %}"
+    hx-target="#edit-user-form-container"
+    hx-swap="outerHTML"
+    class="px-6 py-6 space-y-5"
+>
+    {% csrf_token %}
+
+    <!-- Form header — aligns with the profile header above -->
+    <div class="flex items-center gap-2 pb-3 border-b border-outline-variant/20">
+        <span class="material-symbols-outlined text-primary text-[20px]">edit</span>
+        <h4 class="font-headline-sm text-base font-bold text-on-surface">Edit User</h4>
+    </div>
+
+    <!-- Field stack — constrained so inputs don't stretch across the wide drawer -->
+    <div class="max-w-lg space-y-5">
+
+    {% if form.non_field_errors %}
+    <div class="p-4 bg-error-container border-l-4 border-error flex items-center gap-3 rounded-md">
+        <span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">error</span>
+        <p class="font-body-sm text-on-error-container font-medium text-sm">{{ form.non_field_errors.0 }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Username -->
+    <div class="space-y-1.5">
+        <label class="block font-label-caps text-label-caps text-outline uppercase" for="id_username">Username</label>
+        <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">person</span>
+            <input
+                type="text"
+                id="id_username"
+                name="username"
+                value="{{ form.username.value|default:'' }}"
+                class="w-full pl-9 pr-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+            >
+        </div>
+        {% if form.username.errors %}
+        <p class="text-xs text-error font-medium">{{ form.username.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- First Name + Last Name (2-col) -->
+    <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+            <label class="block font-label-caps text-label-caps text-outline uppercase" for="id_first_name">First Name</label>
+            <input
+                type="text"
+                id="id_first_name"
+                name="first_name"
+                value="{{ form.first_name.value|default:'' }}"
+                class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+            {% if form.first_name.errors %}
+            <p class="text-xs text-error font-medium">{{ form.first_name.errors.0 }}</p>
+            {% endif %}
+        </div>
+        <div class="space-y-1.5">
+            <label class="block font-label-caps text-label-caps text-outline uppercase" for="id_last_name">Last Name</label>
+            <input
+                type="text"
+                id="id_last_name"
+                name="last_name"
+                value="{{ form.last_name.value|default:'' }}"
+                class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+            {% if form.last_name.errors %}
+            <p class="text-xs text-error font-medium">{{ form.last_name.errors.0 }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Email -->
+    <div class="space-y-1.5">
+        <label class="block font-label-caps text-label-caps text-outline uppercase" for="id_email">Email</label>
+        <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">mail</span>
+            <input
+                type="email"
+                id="id_email"
+                name="email"
+                value="{{ form.email.value|default:'' }}"
+                class="w-full pl-9 pr-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+        </div>
+        {% if form.email.errors %}
+        <p class="text-xs text-error font-medium">{{ form.email.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Role -->
+    <div class="space-y-1.5">
+        <label class="block font-label-caps text-label-caps text-outline uppercase" for="id_role">Role</label>
+        <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">badge</span>
+            <select
+                id="id_role"
+                name="role"
+                class="w-full pl-9 pr-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent appearance-none"
+            >
+                <option value="">— No role —</option>
+                {% for role in roles %}
+                <option value="{{ role.id }}" {% if form.role.value|stringformat:"s" == role.id|stringformat:"s" %}selected{% endif %}>{{ role.name }}</option>
+                {% endfor %}
+            </select>
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px] pointer-events-none">expand_more</span>
+        </div>
+        {% if form.role.errors %}
+        <p class="text-xs text-error font-medium">{{ form.role.errors.0 }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Active toggle -->
+    <div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">
+        <div>
+            <span class="font-body-md text-body-md text-on-surface font-medium">Account Active</span>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">Inactive users cannot log in.</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+            <input
+                type="checkbox"
+                id="id_is_active"
+                name="is_active"
+                class="sr-only peer"
+                {% if form.is_active.value %}checked{% endif %}
+            >
+            <div class="w-11 h-6 bg-outline-variant peer-focus:ring-2 peer-focus:ring-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-tertiary after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+        </label>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
+        <button
+            type="button"
+            @click="$dispatch('close-drawer')"
+            class="px-4 py-2 text-body-sm font-body-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors cursor-pointer"
+        >
+            Cancel
+        </button>
+        <button
+            type="submit"
+            class="px-4 py-2 bg-primary text-on-primary font-body-sm font-bold text-sm rounded-lg hover:bg-primary/90 transition-all flex items-center gap-2 cursor-pointer"
+        >
+            <span class="material-symbols-outlined text-[16px]">save</span>
+            Save Changes
+        </button>
+    </div>
+
+    </div><!-- /max-w-lg field stack -->
+</form>

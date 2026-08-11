@@ -291,3 +291,35 @@ body {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
 }
 
+/* ── Editable product field — minimal underline indicator ──
+   Used by the Products & Pricing table.  Defined in static CSS
+   (not Tailwind CDN) so the styles are always available even
+   though the classes are applied dynamically via Alpine :class.
+   Explicitly sets all four sides so the Tailwind forms-plugin
+   default input border (1px all sides) is fully overridden. */
+.editable-underline {
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 1px solid #bec8d2;          /* outline-variant */
+    border-radius: 0;
+    cursor: text;
+    transition: border-color 0.2s ease, border-width 0.2s ease;
+}
+.editable-underline:focus {
+    border-bottom: 2px solid #006591;          /* primary */
+    outline: none;
+}
+.editable-underline-dirty {
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 2px solid #006591;          /* primary */
+    border-radius: 0;
+    cursor: text;
+    transition: border-color 0.2s ease;
+}
+.editable-underline-dirty:focus {
+    outline: none;
+}
+

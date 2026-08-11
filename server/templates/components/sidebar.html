@@ -7,7 +7,7 @@
     <!-- Brand Header -->
     <div class="mb-8 flex items-center gap-3" :class="expanded ? 'px-2' : 'justify-center'">
         <button @click="expanded = !expanded" 
-                class="flex-shrink-0 w-8 h-8 rounded flex items-center justify-center text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors"
+                class="flex-shrink-0 w-8 h-8 rounded flex items-center justify-center text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors"
                 title="Toggle Sidebar">
             <span class="material-symbols-outlined" x-text="expanded ? 'menu_open' : 'menu'">menu</span>
         </button>
@@ -24,8 +24,8 @@
     <!-- Navigation Links -->
     <nav class="flex-1 space-y-1">
         <!-- Dashboard -->
-        <a href="{% url 'users:index' %}" 
-           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'dashboard' or active_item == 'index' or active_item == 'home' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+        <a href="{% url 'analytics:dashboard' %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'dashboard' or active_item == 'index' or active_item == 'home' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Dashboard">
             <span class="material-symbols-outlined flex-shrink-0">dashboard</span>
@@ -34,7 +34,7 @@
 
         <!-- Remittance -->
         <a href="{% url 'remittance:history' %}"
-           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'remittance' or active_item == 'remittances' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'remittance' or active_item == 'remittances' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Remittance">
             <span class="material-symbols-outlined flex-shrink-0">payments</span>
@@ -43,7 +43,7 @@
 
         <!-- Customers -->
         <a href="{% url 'customers:list' %}"
-           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'customers' or active_item == 'customer' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'customers' or active_item == 'customer' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Customers">
             <span class="material-symbols-outlined flex-shrink-0">group</span>
@@ -51,8 +51,8 @@
         </a>
 
         <!-- Products & Pricing -->
-        <a href="#" 
-           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'products' or active_item == 'pricing' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+        <a href="{% url 'products:list' %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'products' or active_item == 'pricing' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Products & Pricing">
             <span class="material-symbols-outlined flex-shrink-0">inventory_2</span>
@@ -60,8 +60,8 @@
         </a>
 
         <!-- Employees & Users -->
-        <a href="#" 
-           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'users' or active_item == 'employees' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+        <a href="{% url 'employees:list' %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'users' or active_item == 'employees' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Employees & Users">
             <span class="material-symbols-outlined flex-shrink-0">badge</span>
@@ -69,29 +69,41 @@
         </a>
 
         <!-- Settings -->
-        <a href="#" 
-           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'settings' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+        <a href="{% url 'settings:list' %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'settings' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
            :class="expanded ? 'px-3' : 'justify-center px-0'"
            title="Settings">
             <span class="material-symbols-outlined flex-shrink-0">settings</span>
             <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap">Settings</span>
         </a>
+
+        <!-- Audit Log -->
+        <a href="{% url 'audit:list' %}"
+           class="flex items-center gap-3 py-2.5 rounded transition-colors duration-200 {% if active_item == 'audit' %}text-primary-fixed-dim font-bold bg-secondary-fixed-dim/10 border-l-2 border-primary-container{% else %}text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed border-l-2 border-transparent{% endif %}"
+           :class="expanded ? 'px-3' : 'justify-center px-0'"
+           title="Audit Log">
+            <span class="material-symbols-outlined flex-shrink-0">history</span>
+            <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap">Audit Log</span>
+        </a>
     </nav>
 
     <!-- Bottom Actions -->
-    <div class="mt-auto pt-4 border-t border-on-secondary-fixed-variant/20 space-y-1">
-        <button class="w-full flex items-center gap-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200 border-l-2 border-transparent"
+    <div class="mt-auto pt-4 border-t border-secondary-fixed-dim/20 space-y-1">
+        <button class="w-full flex items-center gap-3 py-2.5 rounded text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200 border-l-2 border-transparent"
                 :class="expanded ? 'px-3' : 'justify-center px-0'"
                 type="button" title="Theme Toggle">
             <span class="material-symbols-outlined flex-shrink-0">light_mode</span>
             <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap">Theme Toggle</span>
         </button>
-        <button class="w-full flex items-center gap-3 py-2.5 rounded text-on-secondary-fixed-variant hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200 border-l-2 border-transparent"
-                :class="expanded ? 'px-3' : 'justify-center px-0'"
-                type="button" title="Profile">
-            <span class="material-symbols-outlined flex-shrink-0">account_circle</span>
-            <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap">Profile</span>
-        </button>
+        <a href="{% url 'settings:list' %}?tab=profile"
+           class="w-full flex items-center gap-3 py-2.5 rounded text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200 border-l-2 border-transparent"
+           :class="expanded ? 'px-3' : 'justify-center px-0'"
+           title="My Profile">
+            <div class="w-8 h-8 flex-shrink-0 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-body-sm">
+                {% if user.first_name and user.last_name %}{{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}{% else %}{{ user.username|slice:":1"|upper }}{% endif %}
+            </div>
+            <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap">{{ user.username }}</span>
+        </a>
     </div>
 </aside>
 {% endwith %}

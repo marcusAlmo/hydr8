@@ -1,15 +1,22 @@
 {% comment %}
-Customer table — searchable, filterable list of customers.
+Customer table — searchable, filterable, sortable list of customers.
 Expects context:
   - filters: list of { label, count, active }
   - customers: list of { id, name, initials, address, contact_number,
                          debt_balance, debt_class, borrowed_round_8gal,
                          borrowed_slim_8gal, borrowed_other, borrowed_total,
                          borrowed_class, payable_amount, last_credit_at,
-                         row_border, has_debt }
+                         row_border, has_debt, status, anomaly_badge,
+                         anomaly_reason }
   - pagination: { showing_from, showing_to, total, current_page, total_pages }
+  - sort_state: { field, direction, next_dir } — drives the active sort
+    indicator and the direction the next header click requests.
+
+Column headers issue HTMX GETs to the table partial endpoint, swapping
+``#customer-table`` in place. The whole partial is wrapped in
+``#customer-table`` so the swap replaces the search/filter row too.
 {% endcomment %}
-<div class="flex-1 flex flex-col gap-6">
+<div id="customer-table" class="flex-1 flex flex-col gap-6">
 
     <!-- Search & Filter Chips -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -21,14 +28,25 @@ Expects context:
             </button>
             {% endfor %}
         </div>
-        <div class="relative max-w-sm w-full">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
-            <input
-                type="text"
-                id="customerSearch"
-                placeholder="Search by name or customer ID..."
-                class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
-            >
+        <div class="flex items-center gap-3">
+            <div class="relative max-w-sm w-full">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+                <input
+                    type="text"
+                    id="customerSearch"
+                    placeholder="Search by name or customer ID..."
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                >
+            </div>
+            <button
+                hx-get="{% url 'customers:add' %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                class="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                title="Add a new customer">
+                <span class="material-symbols-outlined text-[16px]">person_add</span>
+                Add Customer
+            </button>
         </div>
     </div>
 
@@ -38,26 +56,79 @@ Expects context:
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-surface-container-low border-b border-outline-variant/20">
-                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Customer</th>
-                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Debt Balance</th>
-                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Borrowed Containers</th>
-                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Payable Amount</th>
-                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Last Credit</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:table' %}?sort=name&dir={% if sort_state.field == 'name' %}{{ sort_state.next_dir }}{% else %}asc{% endif %}"
+                                hx-target="#customer-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if sort_state.field == 'name' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Customer
+                                <span class="material-symbols-outlined text-[14px] {% if sort_state.field != 'name' %}opacity-0{% endif %}">{% if sort_state.field == 'name' and sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:table' %}?sort=debt_balance&dir={% if sort_state.field == 'debt_balance' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}"
+                                hx-target="#customer-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if sort_state.field == 'debt_balance' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Debt Balance
+                                <span class="material-symbols-outlined text-[14px] {% if sort_state.field != 'debt_balance' %}opacity-0{% endif %}">{% if sort_state.field == 'debt_balance' and sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:table' %}?sort=borrowed_total&dir={% if sort_state.field == 'borrowed_total' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}"
+                                hx-target="#customer-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if sort_state.field == 'borrowed_total' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Borrowed Containers
+                                <span class="material-symbols-outlined text-[14px] {% if sort_state.field != 'borrowed_total' %}opacity-0{% endif %}">{% if sort_state.field == 'borrowed_total' and sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:table' %}?sort=payable_amount&dir={% if sort_state.field == 'payable_amount' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}"
+                                hx-target="#customer-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if sort_state.field == 'payable_amount' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Payable Amount
+                                <span class="material-symbols-outlined text-[14px] {% if sort_state.field != 'payable_amount' %}opacity-0{% endif %}">{% if sort_state.field == 'payable_amount' and sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:table' %}?sort=last_credit&dir={% if sort_state.field == 'last_credit' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}"
+                                hx-target="#customer-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if sort_state.field == 'last_credit' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Last Credit
+                                <span class="material-symbols-outlined text-[14px] {% if sort_state.field != 'last_credit' %}opacity-0{% endif %}">{% if sort_state.field == 'last_credit' and sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
                         <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
                     {% for customer in customers %}
                     <tr class="hover:bg-surface-container-low transition-colors group border-l-4 {{ customer.row_border }} cursor-pointer"
-                        hx-get="#"
+                        hx-get="{% url 'customers:detail' customer.id %}"
                         hx-target="#modal-root"
                         hx-swap="innerHTML">
                         <!-- Customer name + ID -->
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center gap-3">
                                 <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">{{ customer.initials }}</div>
-                                <div class="flex flex-col">
-                                    <span class="font-sans text-on-surface font-headline-sm text-sm">{{ customer.name }}</span>
+                                <div class="flex flex-col gap-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ customer.name }}</span>
+                                        {% if customer.anomaly_badge %}
+                                        <span
+                                            class="font-label-caps text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider {% if customer.status == 'blacklisted' %}bg-error text-on-primary{% else %}bg-[#D97706]/15 text-[#D97706]{% endif %}"
+                                            title="{{ customer.anomaly_reason }}"
+                                        >{{ customer.anomaly_badge }}</span>
+                                        {% endif %}
+                                    </div>
                                     <span class="font-data-mono text-on-surface-variant text-[11px]">{{ customer.id }}</span>
                                 </div>
                             </div>
@@ -93,11 +164,15 @@ Expects context:
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                 {% if customer.has_debt %}
-                                <button class="px-3 py-1 bg-primary text-on-primary text-[11px] font-bold rounded hover:bg-primary-container transition-colors">COLLECT</button>
+                                <button @click.stop
+                                    hx-get="{% url 'customers:collect' customer.id %}"
+                                    hx-target="#modal-root"
+                                    hx-swap="innerHTML"
+                                    class="px-3 py-1 bg-primary text-on-primary text-[11px] font-bold rounded hover:bg-primary-container transition-colors">COLLECT</button>
                                 {% else %}
-                                <button class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">VIEW</button>
+                                <button @click.stop class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">VIEW</button>
                                 {% endif %}
-                                <button class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">EDIT</button>
+                                <button @click.stop class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">EDIT</button>
                             </div>
                         </td>
                     </tr>

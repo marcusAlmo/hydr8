@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Settings | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="settings" %}
+{% endblock %}
+
+{% block content %}
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-4">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Settings</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200" title="AI Assistant">
+                <span class="material-symbols-outlined">smart_toy</span>
+            </button>
+            <button class="p-2 text-on-surface-variant hover:text-primary relative transition-all duration-200" title="Notifications">
+                <span class="material-symbols-outlined">notifications</span>
+                <span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Content Canvas — Alpine.js owns the active tab state -->
+    <div class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar" x-data="{ activeTab: '{{ initial_tab }}' }" x-cloak>
+
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md mb-6">Configure system-wide preferences, company details, profiles, and AI model settings.</p>
+
+        <!-- Tab Navigation -->
+        <nav class="flex items-center gap-1 mb-3 border-b border-outline-variant/20 overflow-x-auto whitespace-nowrap" role="tablist">
+            {% for tab in tabs %}
+            <button
+                role="tab"
+                @click="activeTab = '{{ tab.id }}'"
+                :class="activeTab === '{{ tab.id }}' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">{{ tab.icon }}</span>
+                {{ tab.label }}
+            </button>
+            {% endfor %}
+        </nav>
+
+        <!-- Tab Description -->
+        <p class="text-on-surface-variant font-body-sm text-body-sm mb-6">
+            <span x-show="activeTab === 'system-config'">Operational toggles and rates — lockscreen, tithe rate, and system behavior.</span>
+            <span x-show="activeTab === 'company'" x-cloak>Business identity — name, contact details, and branding information.</span>
+            <span x-show="activeTab === 'profile'" x-cloak>Your personal account — name, username, password, and preferences.</span>
+            <span x-show="activeTab === 'ai-model'" x-cloak>Gemma 2B local model status — size, latency, and download progress.</span>
+        </p>
+
+        <!-- Tab Content: System Config -->
+        <section x-show="activeTab === 'system-config'" class="block animate-in fade-in duration-500">
+            {% include "settings/partials/system_config.html" %}
+        </section>
+
+        <!-- Tab Content: Company -->
+        <section x-show="activeTab === 'company'" x-cloak class="animate-in fade-in duration-500">
+            {% include "settings/partials/company.html" %}
+        </section>
+
+        <!-- Tab Content: My Profile -->
+        <section x-show="activeTab === 'profile'" x-cloak class="animate-in fade-in duration-500">
+            {% include "settings/partials/profile.html" %}
+        </section>
+
+        <!-- Tab Content: AI Model -->
+        <section x-show="activeTab === 'ai-model'" x-cloak class="animate-in fade-in duration-500">
+            {% include "settings/partials/ai_model.html" %}
+        </section>
+
+    </div>
+{% endblock %}

@@ -1,0 +1,272 @@
+{% comment %}
+Customer detail modal — rendered via HTMX into #modal-root.
+Shows the full profile for a single customer:
+  - Header: avatar, name, status badge, customer ID
+  - Metadata grid: contact, address, member since, last credit
+  - Financial summary (asymmetric 6/3/3): debt balance, payable, credit limit
+  - Borrowed containers breakdown (round / slim / other + total)
+  - Anomaly banner (if flagged or blacklisted)
+  - Footer: Collect (if has_debt), Edit, Close
+
+Address and contact_number are optional — empty values render a neutral
+"Not provided" placeholder instead of a blank cell.
+
+Expects context:
+  - customer: dict with all list fields plus enrichment:
+      member_since, total_credits, credit_limit, last_payment_at,
+      status_badge_class, status_label
+{% endcomment %}
+
+<!-- Modal Backdrop -->
+<div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm p-4"
+    @click="$dispatch('close-modal')"
+    @keydown.escape.window="$dispatch('close-modal')"
+    x-data
+    x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
+    x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
+>
+    <!-- Modal Panel -->
+    <div
+        class="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-3xl w-full max-h-[88vh] overflow-hidden flex flex-col border border-outline-variant/30"
+        @click.stop
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 scale-95"
+        x-transition:enter-end="opacity-100 scale-100"
+    >
+        <!-- Header -->
+        <div class="flex items-start justify-between p-5 border-b border-outline-variant/20 bg-surface-container-low">
+            <div class="flex items-start gap-3 min-w-0">
+                <div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-base flex-shrink-0">
+                    {{ customer.initials }}
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border {{ customer.status_badge_class }}">
+                            {{ customer.status_label }}
+                        </span>
+                        <span class="font-data-mono text-[10px] text-on-surface-variant">{{ customer.id }}</span>
+                    </div>
+                    <h3 class="font-headline-sm text-headline-sm font-bold text-on-surface truncate">{{ customer.name }}</h3>
+                    <p class="text-xs text-on-surface-variant font-data-mono mt-0.5">{{ customer.total_credits }} lifetime credits · Member since {{ customer.member_since }}</p>
+                </div>
+            </div>
+            <button
+                @click="$dispatch('close-modal')"
+                class="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors flex-shrink-0"
+                title="Close (Esc)">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <div class="overflow-y-auto custom-scrollbar p-5 space-y-5">
+
+            <!-- Metadata Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <!-- Contact (optional) -->
+                <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Contact</div>
+                    {% if customer.contact_number %}
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[16px]">call</span>
+                        <span class="font-data-mono text-xs text-on-surface">{{ customer.contact_number }}</span>
+                    </div>
+                    {% else %}
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-outline-variant text-[16px]">call</span>
+                        <span class="font-data-mono text-xs text-on-surface-variant/60 italic">Not provided</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <!-- Address (optional) -->
+                <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Address</div>
+                    {% if customer.address %}
+                    <div class="flex items-start gap-2">
+                        <span class="material-symbols-outlined text-primary text-[16px] flex-shrink-0">location_on</span>
+                        <span class="font-sans text-xs text-on-surface leading-snug">{{ customer.address }}</span>
+                    </div>
+                    {% else %}
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-outline-variant text-[16px] flex-shrink-0">location_on</span>
+                        <span class="font-sans text-xs text-on-surface-variant/60 italic">Not provided</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <!-- Last Credit -->
+                <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Last Credit</div>
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+                        <span class="font-data-mono text-xs text-on-surface">{{ customer.last_credit_at }}</span>
+                    </div>
+                </div>
+                <!-- Last Payment -->
+                <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Last Payment</div>
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[16px]">payments</span>
+                        <span class="font-data-mono text-xs text-on-surface">{{ customer.last_payment_at }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Summary (asymmetric 6/3/3) -->
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <!-- Debt Balance (hero) -->
+                <div class="md:col-span-6 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 border-t-2 {% if customer.has_debt %}border-t-error{% else %}border-t-tertiary{% endif %}">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined {% if customer.has_debt %}text-error{% else %}text-tertiary{% endif %} text-[20px]">dangerous</span>
+                        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Outstanding Debt</span>
+                    </div>
+                    <div class="font-data-mono text-3xl font-bold {{ customer.debt_class }}">{{ customer.debt_balance }}</div>
+                    <div class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                        {% if customer.has_debt %}Action required — overdue balance{% else %}No outstanding balance{% endif %}
+                    </div>
+                </div>
+                <!-- Payable Amount -->
+                <div class="md:col-span-3 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 border-t-2 border-t-primary">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
+                        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Payable</span>
+                    </div>
+                    <div class="font-data-mono text-2xl font-bold text-on-surface">{{ customer.payable_amount }}</div>
+                    <div class="font-body-sm text-body-sm text-on-surface-variant mt-1">Current cycle</div>
+                </div>
+                <!-- Credit Limit -->
+                <div class="md:col-span-3 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 border-t-2 border-t-secondary">
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="material-symbols-outlined text-secondary text-[20px]">credit_card</span>
+                        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Credit Limit</span>
+                    </div>
+                    <div class="font-data-mono text-2xl font-bold text-on-surface">{{ customer.credit_limit }}</div>
+                    <div class="font-body-sm text-body-sm text-on-surface-variant mt-1">Approved ceiling</div>
+                </div>
+            </div>
+
+            <!-- Borrowed Containers Breakdown -->
+            <div>
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="material-symbols-outlined text-on-surface-variant text-[20px]">water_damage</span>
+                    <h4 class="font-headline-sm text-sm font-bold text-on-surface">Borrowed Containers</h4>
+                    {% if customer.borrowed_total > 0 %}
+                    <span class="font-data-mono text-[10px] bg-surface-container text-on-surface-variant px-2 py-0.5 rounded-full">{{ customer.borrowed_total }} unreturned</span>
+                    {% endif %}
+                </div>
+
+                {% if customer.borrowed_total > 0 %}
+                <div class="grid grid-cols-4 gap-3">
+                    <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20 text-center">
+                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Round 8gal</div>
+                        <div class="font-data-mono text-xl font-bold text-on-surface">{{ customer.borrowed_round_8gal }}</div>
+                    </div>
+                    <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20 text-center">
+                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Slim 8gal</div>
+                        <div class="font-data-mono text-xl font-bold text-on-surface">{{ customer.borrowed_slim_8gal }}</div>
+                    </div>
+                    <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20 text-center">
+                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Other</div>
+                        <div class="font-data-mono text-xl font-bold text-on-surface">{{ customer.borrowed_other }}</div>
+                    </div>
+                    <div class="bg-primary/5 rounded-lg p-3 border border-primary/20 text-center">
+                        <div class="font-label-caps text-[9px] text-primary uppercase tracking-wider mb-1">Total</div>
+                        <div class="font-data-mono text-xl font-bold text-primary">{{ customer.borrowed_total }}</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="bg-surface-container-low rounded-lg border border-outline-variant/20 p-6 text-center">
+                    <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">inventory_2</span>
+                    <p class="text-sm text-on-surface-variant">No unreturned containers.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Anomaly Banner -->
+            {% if customer.anomaly_badge %}
+            <div class="rounded-lg p-4 border {% if customer.status == 'blacklisted' %}bg-error/5 border-error/30{% else %}bg-[#D97706]/5 border-[#D97706]/30{% endif %}">
+                <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined {% if customer.status == 'blacklisted' %}text-error{% else %}text-[#D97706]{% endif %} text-[22px] flex-shrink-0">warning</span>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-label-caps text-label-caps {% if customer.status == 'blacklisted' %}text-error{% else %}text-[#D97706]{% endif %} uppercase tracking-wider">{{ customer.anomaly_badge }}</span>
+                        </div>
+                        <p class="font-body-md text-body-sm text-on-surface">{{ customer.anomaly_reason }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between p-4 border-t border-outline-variant/20 bg-surface-container-low"
+             x-data="{ confirmDelete: false }">
+            <div class="flex items-center gap-2 text-[10px] text-on-surface-variant/70 font-data-mono">
+                <span class="material-symbols-outlined text-[14px]">fingerprint</span>
+                <span>{{ customer.id }} · {{ customer.status_label }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+                {% if customer.can_delete %}
+                <!-- Delete (with inline confirm) -->
+                <button
+                    x-show="!confirmDelete"
+                    @click="confirmDelete = true"
+                    class="px-4 py-2 bg-error/10 text-error text-xs font-bold rounded-lg hover:bg-error/20 transition-colors active:scale-[0.98] flex items-center gap-1.5"
+                    title="Delete this customer">
+                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                    Delete
+                </button>
+                <div x-show="confirmDelete" x-cloak class="flex items-center gap-2">
+                    <span class="text-[10px] text-error font-bold uppercase tracking-wider">Confirm?</span>
+                    <button
+                        @click="confirmDelete = false"
+                        class="px-3 py-2 bg-surface-container text-on-surface-variant text-xs font-bold rounded-lg hover:bg-surface-container-highest transition-colors">
+                        No
+                    </button>
+                    <button
+                        hx-post="{% url 'customers:delete' customer.id %}"
+                        hx-target="#modal-root"
+                        hx-swap="innerHTML"
+                        class="px-3 py-2 bg-error text-on-primary text-xs font-bold rounded-lg hover:bg-error/90 transition-colors active:scale-[0.98] flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[14px]">delete_forever</span>
+                        Yes, Delete
+                    </button>
+                </div>
+                {% else %}
+                <!-- Delete disabled — customer has pending items -->
+                <button
+                    disabled
+                    title="Cannot delete: customer has pending debt or unreturned containers"
+                    class="px-4 py-2 bg-surface-container/50 text-on-surface-variant/40 text-xs font-bold rounded-lg cursor-not-allowed flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px]">delete</span>
+                    Delete
+                </button>
+                {% endif %}
+
+                <!-- Close / Edit / Collect — hidden when delete confirm is open -->
+                <button
+                    x-show="!confirmDelete"
+                    @click="$dispatch('close-modal')"
+                    class="px-4 py-2 bg-surface-container text-on-surface-variant text-xs font-bold rounded-lg hover:bg-surface-container-highest transition-colors">
+                    Close
+                </button>
+                <button
+                    x-show="!confirmDelete"
+                    class="px-4 py-2 bg-surface-container text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container-highest transition-colors active:scale-[0.98]">
+                    Edit
+                </button>
+                {% if customer.has_debt %}
+                <button
+                    x-show="!confirmDelete"
+                    hx-get="{% url 'customers:collect' customer.id %}"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm">
+                    Collect
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

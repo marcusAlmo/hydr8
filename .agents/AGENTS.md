@@ -172,6 +172,7 @@ These are non-negotiable for all code generated in this project:
 
 ## Workspace Learning Rules
 
+- STRICT: **Never open a browser preview automatically.** The user keeps a dedicated browser open at all times. Auto-opening `browser_preview` after every fix or feature creates workspace clutter. Only open a browser preview when the user explicitly asks (e.g., "open the browser", "show me the page"). For verification, use the Django test client, `manage.py check`, or `curl` instead.
 - STRICT: Always ask the user for permission before taking any actions that are more than read-only (e.g., modifying, creating, deleting, restarting) on their VPS.
 - ALWAYS: Always use the user's private VPS or the provided VPS credentials when asked to deploy, test, or manage the application on a remote server.
 - NEVER: Never use localhost or the current machine (i.e., your own VPS) when the user explicitly requests actions on *their* production or staging environment.
@@ -182,3 +183,23 @@ These are non-negotiable for all code generated in this project:
 - ALWAYS: When presenting technical alternatives or tool recommendations, you must provide a detailed justification for your choice. Your justification should explicitly discuss tradeoffs such as "Time-to-Value", "Architectural Overhead", and the "Cost of State", comparing why your proposed solution is more pragmatic or scalable than the alternatives.
 - ALWAYS: Upon completing any significant coding task, feature implementation, or architectural change, automatically execute `npx repomix` in the `server` directory to ensure the codebase graph remains up-to-date for future context.
 - ALWAYS: Prioritize standard, robust coding practices and established framework conventions. Avoid providing risky, fragile, or "hacky" methods to ensure the user learns safe, production-ready patterns.
+
+## Dev Credentials (DO NOT CHANGE)
+
+The local dev database has a superuser account that the user logs in with:
+
+- **Username:** `admin`
+- **Password:** `admin`
+
+**NEVER change this user's password or username.** Not for testing, not for
+"convenience", not for any reason. If you need an authenticated client for
+verification, use these exact credentials:
+
+```python
+from django.test import Client
+c = Client(HTTP_HOST='127.0.0.1')
+c.login(username='admin', password='admin')
+```
+
+If a test suite needs a fresh user, create a *separate* one with a clearly
+non-default username (e.g. `test_runner`). Do not touch `admin`.

@@ -37,7 +37,11 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.customers',
     'apps.remittance',
+    'apps.products',
+    'apps.employees',
     'apps.analytics',
+    'apps.settings',
+    'apps.audit',
 ]
 
 MIDDLEWARE = [
@@ -147,8 +151,11 @@ CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
-# Login URL — @login_required redirects here. Matches the route in apps/users/urls.py.
-LOGIN_URL = 'users:login'
+# Login URL — @login_required redirects here. Points to the full landing page
+# (users:index at '/') which renders users/index.html with the login form embedded.
+# The HTMX login endpoint (users:login at '/login/') returns only the bare form
+# partial on GET, so it must NOT be the LOGIN_URL target.
+LOGIN_URL = 'users:index'
 LOGIN_REDIRECT_URL = 'analytics:dashboard'
 
 # Logging Configuration

@@ -1,0 +1,171 @@
+{% comment %}
+Record debt modal — rendered via HTMX into #modal-root.
+Lets the operator record a new credit line (debt) against a customer:
+  - Required: Customer, Product, Quantity credited
+  - Optional override: Unit price (pre-filled from product default)
+  - Footer: Cancel, Record Debt
+
+The form POSTs to the ``customers:record_debt_submit`` endpoint. On
+success the server returns a toast + closes the modal. On validation
+error an inline error banner is swapped into ``#form-error``.
+
+Expects context:
+  - customers: list of { id, name }
+  - products: list of { key, label, unit_price }
+{% endcomment %}
+
+<!-- Modal Backdrop -->
+<div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm p-4"
+    @click="$dispatch('close-modal')"
+    @keydown.escape.window="$dispatch('close-modal')"
+    x-data="{
+        selectedPrice: '',
+        onProductChange(el) {
+            const opt = el.options[el.selectedIndex];
+            this.selectedPrice = opt ? opt.getAttribute('data-price') || '' : '';
+        }
+    }"
+    x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
+    x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
+>
+    <!-- Modal Panel -->
+    <div
+        class="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-lg w-full max-h-[88vh] overflow-hidden flex flex-col border border-outline-variant/30"
+        @click.stop
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 scale-95"
+        x-transition:enter-end="opacity-100 scale-100"
+    >
+        <!-- Header -->
+        <div class="flex items-start justify-between p-5 border-b border-outline-variant/20 bg-surface-container-low">
+            <div class="flex items-start gap-3 min-w-0">
+                <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error flex-shrink-0">
+                    <span class="material-symbols-outlined">receipt_long</span>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-label-caps text-label-caps text-error uppercase tracking-wider">New Credit Line</span>
+                    </div>
+                    <h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">Record Debt</h3>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Record credited items owed by a customer.</p>
+                </div>
+            </div>
+            <button
+                @click="$dispatch('close-modal')"
+                class="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors flex-shrink-0"
+                title="Close (Esc)">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <form id="record-debt-form"
+              class="overflow-y-auto custom-scrollbar p-5 space-y-4"
+              hx-post="{% url 'customers:record_debt_submit' %}"
+              hx-target="#form-error"
+              hx-swap="innerHTML">
+
+            <!-- Error placeholder -->
+            <div id="form-error"></div>
+
+            <!-- Customer (required) -->
+            <div>
+                <label for="debt-customer" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                    Customer <span class="text-error">*</span>
+                </label>
+                <select
+                    id="debt-customer"
+                    name="customer_id"
+                    required
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface">
+                    <option value="">Select a customer…</option>
+                    {% for c in customers %}
+                    <option value="{{ c.id }}">{{ c.name }} — {{ c.id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Product (required) -->
+            <div>
+                <label for="debt-product" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                    Product <span class="text-error">*</span>
+                </label>
+                <select
+                    id="debt-product"
+                    name="product_key"
+                    required
+                    @change="onProductChange($el)"
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface">
+                    <option value="">Select a product…</option>
+                    {% for p in products %}
+                    <option value="{{ p.key }}" data-price="{{ p.unit_price }}">{{ p.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Quantity + Unit Price (side by side) -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="debt-qty" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                        Quantity Credited <span class="text-error">*</span>
+                    </label>
+                    <input
+                        type="number"
+                        id="debt-qty"
+                        name="qty_credited"
+                        min="1"
+                        step="1"
+                        required
+                        placeholder="0"
+                        class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
+                </div>
+                <div>
+                    <label for="debt-price" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                        Unit Price (₱)
+                    </label>
+                    <input
+                        type="number"
+                        id="debt-price"
+                        name="unit_price"
+                        min="0"
+                        step="0.01"
+                        :value="selectedPrice"
+                        placeholder="0.00"
+                        class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
+                </div>
+            </div>
+
+            <!-- Computed total (Alpine live preview) -->
+            <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20 flex items-center justify-between">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Credit</span>
+                <span class="font-data-mono text-lg font-bold text-on-surface"
+                      x-text="'₱' + ((parseFloat($el.closest('form').querySelector('#debt-qty')?.value || '0') || 0) * (parseFloat($el.closest('form').querySelector('#debt-price')?.value || '0') || 0)).toFixed(2)">₱0.00</span>
+            </div>
+
+        </form>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between p-4 border-t border-outline-variant/20 bg-surface-container-low">
+            <div class="flex items-center gap-2 text-[10px] text-on-surface-variant/70 font-data-mono">
+                <span class="material-symbols-outlined text-[14px]">info</span>
+                <span>Fields marked * are required</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button
+                    type="button"
+                    @click="$dispatch('close-modal')"
+                    class="px-4 py-2 bg-surface-container text-on-surface-variant text-xs font-bold rounded-lg hover:bg-surface-container-highest transition-colors">
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    form="record-debt-form"
+                    class="px-4 py-2 bg-error text-on-primary text-xs font-bold rounded-lg hover:bg-error/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px]">receipt_long</span>
+                    Record Debt
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

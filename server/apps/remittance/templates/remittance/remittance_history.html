@@ -2,26 +2,155 @@
 
 {% block title %}Remittance History | Hydr8{% endblock %}
 
+{% block extra_head %}
+    <!-- ApexCharts — lightweight charting for the Performance Trends section -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
+    <style>
+        /* --- Page-load transitions for the Performance Trends section --- */
+        /* The section fades + slides in, then each chart card cascades with
+           a staggered delay so the charts "draw in" left-to-right naturally. */
+
+        @keyframes trendsFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes chartCardReveal {
+            from { opacity: 0; transform: translateY(8px) scale(0.99); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes skeletonShimmer {
+            0%   { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        #trends-section {
+            animation: trendsFadeIn 0.5s ease-out both;
+        }
+
+        /* Each chart card cascades in with an increasing delay */
+        .chart-card {
+            opacity: 0;
+            animation: chartCardReveal 0.45s ease-out both;
+        }
+        .chart-card:nth-child(1) { animation-delay: 0.15s; }
+        .chart-card:nth-child(2) { animation-delay: 0.30s; }
+        .chart-card:nth-child(3) { animation-delay: 0.45s; }
+        .chart-card:nth-child(4) { animation-delay: 0.60s; }
+
+        /* Skeleton placeholder behind each chart while ApexCharts draws */
+        .chart-skeleton {
+            background: linear-gradient(
+                90deg,
+                rgba(190, 200, 210, 0.08) 0%,
+                rgba(190, 200, 210, 0.18) 50%,
+                rgba(190, 200, 210, 0.08) 100%
+            );
+            background-size: 200% 100%;
+            animation: skeletonShimmer 1.4s ease-in-out infinite;
+            border-radius: 0.25rem;
+        }
+        .chart-skeleton.is-hidden {
+            display: none;
+        }
+
+        /* Respect reduced-motion preference */
+        @media (prefers-reduced-motion: reduce) {
+            #trends-section,
+            .chart-card {
+                animation: none;
+                opacity: 1;
+            }
+            .chart-skeleton { display: none; }
+        }
+    </style>
+{% endblock %}
+
 {% block sidebar %}
     {% include "components/sidebar.html" with active_page="remittance" %}
 {% endblock %}
 
 {% block content %}
+<!-- Single Alpine scope wraps the entire page so the banner date filter
+     drives the summary cards, performance trends, and records table. -->
+<div x-data='remittancePage({{ trends_seed|safe }})' x-init="init()"
+     class="flex-1 flex flex-col overflow-hidden">
     <!-- Top Navigation Bar -->
-    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10">
-        <div class="flex items-center gap-8">
-            <h2 class="font-headline-sm text-headline-sm text-on-surface">Remittance Management</h2>
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-4">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Remittance Management</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
         </div>
         <div class="flex items-center gap-4">
-            <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">calendar_today</span>
-                <select class="pl-10 pr-8 py-2 bg-surface-container-low border border-outline-variant rounded-lg text-body-sm font-body-sm focus:ring-2 focus:ring-primary focus:border-transparent appearance-none">
-                    <option>Last 30 Days</option>
-                    <option>This Quarter</option>
-                    <option>Year to Date</option>
-                    <option>Custom Range</option>
-                </select>
+            <!-- Global date range filter — drives ALL sections -->
+            <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
+                <template x-for="r in dateRanges" :key="r.key">
+                    <button
+                        @click="setDateRange(r.key)"
+                        :class="dateRange === r.key
+                            ? 'bg-primary text-on-primary shadow-sm'
+                            : 'text-on-surface-variant hover:bg-surface-container-high'"
+                        class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                        x-text="r.label"
+                    ></button>
+                </template>
+
+                <!-- Custom Range trigger -->
+                <button
+                    @click="customRangeOpen = !customRangeOpen"
+                    :class="dateRange === 'custom'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all flex items-center gap-1.5"
+                >
+                    <span class="material-symbols-outlined text-[16px]">date_range</span>
+                    <span>Custom</span>
+                </button>
+
+                <!-- Custom Range popover -->
+                <div
+                    x-show="customRangeOpen"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 -translate-y-1"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100 translate-y-0"
+                    x-transition:leave-end="opacity-0 -translate-y-1"
+                    @click.outside="customRangeOpen = false"
+                    @keydown.escape.window="customRangeOpen = false"
+                    class="absolute right-0 top-full mt-1 z-50 w-80 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden"
+                >
+                    <div class="p-4 space-y-3">
+                        <h4 class="font-headline-sm text-body-md font-bold text-on-surface">Custom Date Range</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">From</label>
+                                <input
+                                    type="date"
+                                    x-model="customFrom"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">To</label>
+                                <input
+                                    type="date"
+                                    x-model="customTo"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button @click="customRangeOpen = false" class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors">Cancel</button>
+                            <button @click="applyCustomRange()" class="px-3 py-1.5 bg-primary text-on-primary text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all">Apply</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
             <a href="{% url 'remittance:add' %}" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90 transition-all shadow-sm">
                 <span class="material-symbols-outlined">add</span>
                 <span class="text-body-md font-body-md">Add Remittance</span>
@@ -41,7 +170,16 @@
     <!-- Content Area -->
     <section class="flex-1 overflow-y-auto custom-scrollbar p-margin-page space-y-6">
 
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md">Track, record, and analyze all remittance transactions across your operation.</p>
+
         <!-- Quick Insights / Bento Summary -->
+        <div class="flex items-center justify-between">
+            <span class="text-label-caps font-label-caps text-outline uppercase">
+                Showing
+                <span class="text-primary font-data-mono font-bold" x-text="rangeLabel()"></span>
+            </span>
+        </div>
         <div class="grid grid-cols-12 gap-gutter">
             {% for card in summary_cards %}
             <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 shadow-sm relative overflow-hidden {% if card.shimmer %}ai-shimmer{% endif %}">
@@ -61,14 +199,244 @@
             {% endfor %}
         </div>
 
+        <!-- Operational Efficiency Insight — shown before trends so the
+             narrative leads, then the charts provide the supporting data -->
+        <div class="grid grid-cols-12 gap-gutter">
+            <div class="col-span-12 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 flex gap-4 items-start shadow-sm">
+                <div class="w-10 h-10 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center text-primary flex-shrink-0">
+                    <span class="material-symbols-outlined">auto_awesome</span>
+                </div>
+                <div class="flex-1">
+                    <h4 class="font-headline-sm text-body-md font-bold mb-1">Operational Efficiency Insight</h4>
+                    <p class="text-on-surface-variant text-body-sm leading-relaxed">
+                        {{ ai_insight|safe }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Trends — line charts for decision support -->
+        <div
+            id="trends-section"
+            class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden"
+        >
+            <!-- Section header + rider filter (date range is global, set in banner) -->
+            <div class="p-4 border-b border-outline-variant/20 flex flex-wrap justify-between items-center gap-3 bg-surface-container-low/30">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[20px]">show_chart</span>
+                    <h3 class="font-headline-sm text-body-md font-bold text-on-surface">Performance Trends</h3>
+                    <span class="text-label-caps font-label-caps text-outline uppercase hidden sm:inline" x-text="`· ${rangeLabel()}`"></span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-4">
+                    <!-- Rider filter — compact dropdown popover (handles 20+ riders) -->
+                    <div class="relative" x-data="{ riderDropdownOpen: false, riderQuery: '' }">
+                        <!-- Trigger button -->
+                        <button
+                            @click="riderDropdownOpen = true"
+                            class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low border border-outline-variant/40 rounded-lg text-body-sm font-body-sm text-on-surface hover:border-primary/40 hover:bg-surface-container-high transition-all"
+                        >
+                            <span class="material-symbols-outlined text-[18px] text-outline">group</span>
+                            <span>
+                                Riders
+                                <span class="font-data-mono text-primary font-bold" x-text="`(${selectedRiders.length}/${seed.riders.length})`"></span>
+                            </span>
+                            <span class="material-symbols-outlined text-[18px] text-outline">expand_more</span>
+                        </button>
+
+                        <!-- Dropdown panel -->
+                        <div
+                            x-show="riderDropdownOpen"
+                            x-cloak
+                            x-transition:enter="transition ease-out duration-200"
+                            x-transition:enter-start="opacity-0 -translate-y-1"
+                            x-transition:enter-end="opacity-100 translate-y-0"
+                            x-transition:leave="transition ease-in duration-150"
+                            x-transition:leave-start="opacity-100 translate-y-0"
+                            x-transition:leave-end="opacity-0 -translate-y-1"
+                            @click.outside="riderDropdownOpen = false; riderQuery = ''"
+                            @keydown.escape.window="riderDropdownOpen = false; riderQuery = ''"
+                            class="absolute right-0 z-50 mt-1 w-72 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden"
+                        >
+                            <!-- Search + quick actions header -->
+                            <div class="p-3 border-b border-outline-variant/20 bg-surface-container-low/30 space-y-2">
+                                <div class="relative">
+                                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[16px]">search</span>
+                                    <input
+                                        type="text"
+                                        x-model="riderQuery"
+                                        @click.stop
+                                        placeholder="Search riders..."
+                                        class="w-full pl-8 pr-3 py-1.5 bg-surface-container-lowest border border-outline-variant/30 rounded-lg text-body-sm font-body-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    >
+                                </div>
+                                <div class="flex items-center justify-between text-body-sm">
+                                    <button
+                                        @click="selectAllRiders()"
+                                        class="text-primary hover:bg-primary/10 px-2 py-0.5 rounded font-body-sm transition-colors"
+                                    >Select All</button>
+                                    <span class="text-outline font-data-mono text-[11px]" x-text="`${selectedRiders.length} selected`"></span>
+                                    <button
+                                        @click="deselectAllRiders()"
+                                        class="text-outline hover:bg-surface-container-high px-2 py-0.5 rounded font-body-sm transition-colors"
+                                    >Clear</button>
+                                </div>
+                            </div>
+
+                            <!-- Scrollable rider list -->
+                            <div class="max-h-64 overflow-y-auto custom-scrollbar">
+                                <template x-for="rider in filteredRiders(riderQuery)" :key="rider.name">
+                                    <label
+                                        @click.prevent=""
+                                        :class="isRiderActive(rider.name)
+                                            ? 'bg-primary/5'
+                                            : 'hover:bg-surface-container-low'"
+                                        class="flex items-center gap-3 px-3 py-2.5 cursor-pointer border-b border-outline-variant/10 last:border-0 transition-colors"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            :checked="isRiderActive(rider.name)"
+                                            @change="toggleRider(rider.name)"
+                                            class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary flex-shrink-0"
+                                        >
+                                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="`background:${rider.color}`"></span>
+                                        <span class="text-body-sm font-body-sm text-on-surface flex-1 truncate" x-text="rider.name"></span>
+                                        <span class="font-data-mono text-[11px] text-outline" x-text="rider.units_sold[rider.units_sold.length - 1] + ' u'"></span>
+                                    </label>
+                                </template>
+                                <!-- Empty search state -->
+                                <div
+                                    x-show="filteredRiders(riderQuery).length === 0"
+                                    class="px-3 py-6 text-center text-on-surface-variant text-body-sm italic"
+                                >
+                                    No riders match "<span x-text="riderQuery"></span>"
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2x2 chart grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y divide-outline-variant/20 lg:divide-y-0 lg:divide-x">
+                <!-- Total Sales -->
+                <div class="chart-card p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-label-caps font-label-caps text-outline uppercase">Total Sales</span>
+                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(latestValue('total_sales'))"></div>
+                        </div>
+                        <span class="flex items-center gap-1 text-tertiary text-body-sm font-bold">
+                            <span class="material-symbols-outlined text-[14px]">trending_up</span>
+                            <span x-text="pctChange('total_sales') + '%'"></span>
+                        </span>
+                    </div>
+                    <!-- MAC stat badges: Min / Avg / Max for selected range -->
+                    <div class="flex items-center gap-3 mb-2 text-[11px] font-data-mono">
+                        <span class="text-outline">Min <span class="text-on-surface font-bold" x-text="formatPesoShort(minValue('total_sales'))"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Avg <span class="text-primary font-bold" x-text="formatPesoShort(avgValue('total_sales'))"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxValue('total_sales'))"></span></span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">7D MA overlay</span>
+                    </div>
+                    <div class="relative">
+                        <div x-show="!charts['#chart-total-sales']" class="chart-skeleton w-full h-[200px]"></div>
+                        <div id="chart-total-sales" class="w-full h-[200px]"></div>
+                    </div>
+                </div>
+
+                <!-- Outstanding Debt -->
+                <div class="chart-card p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-label-caps font-label-caps text-outline uppercase">Outstanding Debt</span>
+                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(latestValue('outstanding_debt'))"></div>
+                        </div>
+                        <span class="flex items-center gap-1 text-[#D97706] text-body-sm font-bold">
+                            <span class="material-symbols-outlined text-[14px]">trending_down</span>
+                            <span x-text="pctChange('outstanding_debt') + '%'"></span>
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 mb-2 text-[11px] font-data-mono">
+                        <span class="text-outline">Min <span class="text-on-surface font-bold" x-text="formatPesoShort(minValue('outstanding_debt'))"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Avg <span class="text-[#D97706] font-bold" x-text="formatPesoShort(avgValue('outstanding_debt'))"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxValue('outstanding_debt'))"></span></span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">7D MA overlay</span>
+                    </div>
+                    <div class="relative">
+                        <div x-show="!charts['#chart-outstanding-debt']" class="chart-skeleton w-full h-[200px]"></div>
+                        <div id="chart-outstanding-debt" class="w-full h-[200px]"></div>
+                    </div>
+                </div>
+
+                <!-- Commissions Paid -->
+                <div class="chart-card p-4 border-t border-outline-variant/20 lg:border-t-0">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-label-caps font-label-caps text-outline uppercase">Commissions Paid</span>
+                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(latestValue('commissions_paid'))"></div>
+                        </div>
+                        <span class="flex items-center gap-1 text-tertiary text-body-sm font-bold">
+                            <span class="material-symbols-outlined text-[14px]">trending_up</span>
+                            <span x-text="pctChange('commissions_paid') + '%'"></span>
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-3 mb-2 text-[11px] font-data-mono">
+                        <span class="text-outline">Min <span class="text-on-surface font-bold" x-text="formatPesoShort(minValue('commissions_paid'))"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Avg <span class="text-tertiary font-bold" x-text="formatPesoShort(avgValue('commissions_paid'))"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxValue('commissions_paid'))"></span></span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">7D MA overlay</span>
+                    </div>
+                    <div class="relative">
+                        <div x-show="!charts['#chart-commissions']" class="chart-skeleton w-full h-[200px]"></div>
+                        <div id="chart-commissions" class="w-full h-[200px]"></div>
+                    </div>
+                </div>
+
+                <!-- Rider Performance (units sold) -->
+                <div class="chart-card p-4 border-t border-outline-variant/20 lg:border-t-0">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="text-label-caps font-label-caps text-outline uppercase">Rider Performance</span>
+                            <div class="font-data-mono text-headline-md text-on-surface font-bold">
+                                <span x-text="totalRiderUnits()"></span>
+                                <span class="text-body-sm text-outline font-body-sm font-normal ml-1">units today</span>
+                            </div>
+                        </div>
+                        <span class="text-label-caps font-label-caps text-outline uppercase">Units Sold</span>
+                    </div>
+                    <div class="flex items-center gap-3 mb-2 text-[11px] font-data-mono">
+                        <span class="text-outline">Min <span class="text-on-surface font-bold" x-text="minRiderUnits()"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Avg <span class="text-primary font-bold" x-text="avgRiderUnits()"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="maxRiderUnits()"></span></span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">Per rider</span>
+                    </div>
+                    <div class="relative">
+                        <div x-show="!charts['#chart-rider-performance']" class="chart-skeleton w-full h-[200px]"></div>
+                        <div id="chart-rider-performance" class="w-full h-[200px]"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Main Data Table Container -->
         <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden">
             <div class="p-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low/30">
                 <div class="flex items-center gap-4">
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">search</span>
-                        <input class="pl-10 pr-4 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm font-body-sm focus:ring-1 focus:ring-primary w-64" placeholder="Filter by user..." type="text">
+                        <input class="pl-10 pr-4 py-1.5 bg-surface-container-lowest border border-outline-variant rounded-lg text-body-sm font-body-sm focus:ring-1 focus:ring-primary w-64" placeholder="Search by user..." type="text">
                     </div>
+                    <span class="text-label-caps font-label-caps text-outline uppercase hidden sm:inline">
+                        · <span class="text-primary font-data-mono font-bold" x-text="rangeLabel()"></span>
+                    </span>
                 </div>
                 <div class="flex gap-2">
                     <button class="p-1.5 text-outline hover:bg-surface-container-high rounded transition-colors">
@@ -90,7 +458,6 @@
                             <th class="px-6 py-3 font-bold text-right">Tithes</th>
                             <th class="px-6 py-3 font-bold text-center">Tithes Paid</th>
                             <th class="px-6 py-3 font-bold text-center">Offering Paid</th>
-                            <th class="px-6 py-3 font-bold text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
@@ -111,11 +478,6 @@
                             </td>
                             <td class="px-6 py-3 text-center">
                                 <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary" type="checkbox" {% if rem.offering_paid %}checked{% endif %}>
-                            </td>
-                            <td class="px-6 py-3 text-right">
-                                <button class="text-outline hover:text-primary transition-colors">
-                                    <span class="material-symbols-outlined text-[18px]">more_vert</span>
-                                </button>
                             </td>
                         </tr>
                         {% endfor %}
@@ -143,22 +505,8 @@
                 </div>
             </div>
         </div>
-
-        <!-- Recent AI Insight Card -->
-        <div class="grid grid-cols-12 gap-gutter">
-            <div class="col-span-12 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 flex gap-4 items-start shadow-sm">
-                <div class="w-10 h-10 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center text-primary flex-shrink-0">
-                    <span class="material-symbols-outlined">auto_awesome</span>
-                </div>
-                <div>
-                    <h4 class="font-headline-sm text-body-md font-bold mb-1">Operational Efficiency Insight</h4>
-                    <p class="text-on-surface-variant text-body-sm leading-relaxed">
-                        {{ ai_insight|safe }}
-                    </p>
-                </div>
-            </div>
-        </div>
     </section>
+</div>
 {% endblock %}
 
 {% block extra_body %}
@@ -180,5 +528,394 @@
                 }, 500);
             });
         });
+
+        /**
+         * remittancePage — top-level Alpine component for the entire Remittance
+         * History page.  Holds the GLOBAL date-range state (set once in the
+         * banner) that drives the summary cards, performance trends charts,
+         * and the records table.  Rider selection is also held here so the
+         * rider dropdown popover (inside the trends section) can mutate it.
+         */
+        function remittancePage(seed) {
+            return {
+                seed,
+                // --- Global date range (banner) ---
+                dateRange: '30d',
+                customRangeOpen: false,
+                customFrom: '',
+                customTo: '',
+                dateRanges: [
+                    { key: '7d',  label: '7D'  },
+                    { key: '14d', label: '14D' },
+                    { key: '30d', label: '30D' },
+                ],
+                // --- Rider filter ---
+                selectedRiders: seed.riders.map(r => r.name),
+                // --- Chart state ---
+                charts: {},
+                _isInitialRender: true,
+
+                init() {
+                    this.$watch('dateRange', () => this.renderAll());
+                    this.$watch('selectedRiders', () => {
+                        // Only the rider chart depends on the rider filter.
+                        this.renderRiderChart();
+                    });
+                    // Stagger initial renders so charts cascade in left-to-right
+                    // with a ~180ms gap between each, matching the CSS card reveal.
+                    this.renderChart('#chart-total-sales', 'total_sales', '#006591', true);
+                    setTimeout(() => this.renderChart('#chart-outstanding-debt', 'outstanding_debt', '#D97706', true), 180);
+                    setTimeout(() => this.renderChart('#chart-commissions', 'commissions_paid', '#006C4A', true), 360);
+                    setTimeout(() => { this.renderRiderChart(); this._isInitialRender = false; }, 540);
+                },
+
+                // --- Global date-range actions -------------------------------------
+                setDateRange(key) {
+                    this.dateRange = key;
+                    this.customRangeOpen = false;
+                },
+                applyCustomRange() {
+                    if (this.customFrom && this.customTo) {
+                        this.dateRange = 'custom';
+                        this.customRangeOpen = false;
+                        // For the prototype, custom range slices the 30-day
+                        // seed to the requested window.  Real backend would
+                        // re-query with the actual date boundaries.
+                        this.renderAll();
+                    }
+                },
+                // Human-readable label for the active range, shown in context
+                // badges across all sections.
+                rangeLabel() {
+                    if (this.dateRange === 'custom' && this.customFrom && this.customTo) {
+                        return `${this.customFrom} → ${this.customTo}`;
+                    }
+                    const r = this.dateRanges.find(d => d.key === this.dateRange);
+                    return r ? `Last ${r.label}` : 'Last 30D';
+                },
+
+                // --- Filter helpers -------------------------------------------------
+                rangeLength() {
+                    if (this.dateRange === 'custom') {
+                        // Compute day count from the custom date inputs.
+                        if (this.customFrom && this.customTo) {
+                            const from = new Date(this.customFrom);
+                            const to = new Date(this.customTo);
+                            const diff = Math.round((to - from) / 86400000) + 1;
+                            return Math.max(1, Math.min(diff, this.seed.labels.length));
+                        }
+                        return this.seed.labels.length;
+                    }
+                    return { '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] ?? 30;
+                },
+                sliceStart() {
+                    return this.seed.labels.length - this.rangeLength();
+                },
+                filteredLabels() {
+                    return this.seed.labels.slice(this.sliceStart());
+                },
+                filteredSeries(field) {
+                    return this.seed[field].slice(this.sliceStart());
+                },
+
+                toggleRider(name) {
+                    const idx = this.selectedRiders.indexOf(name);
+                    if (idx > -1) {
+                        // Never allow zero riders selected — re-add immediately.
+                        if (this.selectedRiders.length === 1) return;
+                        this.selectedRiders.splice(idx, 1);
+                    } else {
+                        this.selectedRiders.push(name);
+                    }
+                },
+                isRiderActive(name) {
+                    return this.selectedRiders.includes(name);
+                },
+                // Select all riders (used by the dropdown "Select All" action)
+                selectAllRiders() {
+                    this.selectedRiders = this.seed.riders.map(r => r.name);
+                },
+                // Deselect down to just the first rider (never allow zero)
+                deselectAllRiders() {
+                    this.selectedRiders = [this.seed.riders[0].name];
+                },
+                // Filter the rider list by search query (for the dropdown)
+                filteredRiders(query) {
+                    if (!query) return this.seed.riders;
+                    const q = query.toLowerCase();
+                    return this.seed.riders.filter(r =>
+                        r.name.toLowerCase().includes(q)
+                    );
+                },
+
+                // --- KPI helpers ----------------------------------------------------
+                latestValue(field) {
+                    const series = this.filteredSeries(field);
+                    return series[series.length - 1] ?? 0;
+                },
+                pctChange(field) {
+                    const series = this.filteredSeries(field);
+                    if (series.length < 2) return 0;
+                    const first = series[0];
+                    const last = series[series.length - 1];
+                    if (first === 0) return 0;
+                    return Math.round(((last - first) / first) * 100);
+                },
+                totalRiderUnits() {
+                    const start = this.sliceStart();
+                    return this.seed.riders
+                        .filter(r => this.selectedRiders.includes(r.name))
+                        .reduce((sum, r) => sum + (r.units_sold[r.units_sold.length - 1] ?? 0), 0);
+                },
+                formatPeso(value) {
+                    return '₱' + Number(value).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2, maximumFractionDigits: 2
+                    });
+                },
+                // Short peso format for MAC stat badges (e.g. ₱4.2k, ₱18.5k)
+                formatPesoShort(value) {
+                    const n = Number(value);
+                    if (n >= 1000000) return '₱' + (n / 1000000).toFixed(1) + 'M';
+                    if (n >= 1000) return '₱' + (n / 1000).toFixed(1) + 'k';
+                    return '₱' + n.toFixed(0);
+                },
+
+                // --- MAC (Min / Avg / Max) helpers ---------------------------------
+                minValue(field) {
+                    const s = this.filteredSeries(field);
+                    return s.length ? Math.min(...s) : 0;
+                },
+                maxValue(field) {
+                    const s = this.filteredSeries(field);
+                    return s.length ? Math.max(...s) : 0;
+                },
+                avgValue(field) {
+                    const s = this.filteredSeries(field);
+                    if (!s.length) return 0;
+                    return s.reduce((a, b) => a + b, 0) / s.length;
+                },
+                // Rider unit aggregates across all selected riders, per day
+                _riderDailyTotals() {
+                    const start = this.sliceStart();
+                    const len = this.rangeLength();
+                    const totals = new Array(len).fill(0);
+                    this.seed.riders
+                        .filter(r => this.selectedRiders.includes(r.name))
+                        .forEach(r => {
+                            const slice = r.units_sold.slice(start);
+                            slice.forEach((v, i) => { totals[i] += v; });
+                        });
+                    return totals;
+                },
+                minRiderUnits() {
+                    const t = this._riderDailyTotals();
+                    return t.length ? Math.min(...t) : 0;
+                },
+                maxRiderUnits() {
+                    const t = this._riderDailyTotals();
+                    return t.length ? Math.max(...t) : 0;
+                },
+                avgRiderUnits() {
+                    const t = this._riderDailyTotals();
+                    if (!t.length) return 0;
+                    return Math.round(t.reduce((a, b) => a + b, 0) / t.length);
+                },
+
+                // --- Moving Average (7-day window) ---------------------------------
+                // Returns an array aligned with the filtered series; nulls pad
+                // the first (window-1) entries so the MA line starts naturally.
+                movingAverage(field, window = 7) {
+                    const series = this.filteredSeries(field);
+                    const result = [];
+                    for (let i = 0; i < series.length; i++) {
+                        if (i < window - 1) {
+                            result.push(null);
+                        } else {
+                            let sum = 0;
+                            for (let j = i - window + 1; j <= i; j++) sum += series[j];
+                            result.push(Math.round((sum / window) * 100) / 100);
+                        }
+                    }
+                    return result;
+                },
+
+                // --- Chart renderers -----------------------------------------------
+                // Shared animation config — smooth left-to-right draw-in on
+                // initial render, and a softer transition on filter changes.
+                _animConfig(initial) {
+                    return {
+                        enabled: true,
+                        easing: 'easeinout',
+                        speed: initial ? 1200 : 600,
+                        animateGradually: { enabled: initial, delay: initial ? 200 : 80 },
+                        dynamicAnimation: { enabled: true, speed: 500 },
+                    };
+                },
+
+                baseOptions(series, color, currency, field) {
+                    const labels = this.filteredLabels();
+                    const maData = this.movingAverage(field, 7);
+                    return {
+                        chart: {
+                            type: 'area',
+                            height: 200,
+                            sparkline: { enabled: false },
+                            toolbar: { show: false },
+                            fontFamily: 'Geist, sans-serif',
+                            animations: this._animConfig(this._isInitialRender),
+                        },
+                        series: [
+                            { name: 'Daily',        data: series },
+                            { name: '7-Day MA',     data: maData },
+                        ],
+                        labels,
+                        colors: [color, '#6E7881'],
+                        stroke: {
+                            curve: 'smooth',
+                            width: [2.5, 2],
+                            dashArray: [0, 6],
+                        },
+                        fill: {
+                            type: 'gradient',
+                            gradient: {
+                                shadeIntensity: 1,
+                                opacityFrom: 0.35,
+                                opacityTo: 0.05,
+                                stops: [0, 100],
+                            },
+                        },
+                        grid: {
+                            borderColor: 'rgba(190, 200, 210, 0.25)',
+                            strokeDashArray: 4,
+                            padding: { left: 8, right: 8 },
+                        },
+                        xaxis: {
+                            labels: {
+                                style: { colors: '#6E7881', fontSize: '11px' },
+                                rotate: 0,
+                                trim: true,
+                                hideOverlappingLabels: true,
+                            },
+                            axisBorder: { show: false },
+                            axisTicks: { show: false },
+                            tickAmount: Math.min(6, labels.length),
+                        },
+                        yaxis: {
+                            labels: {
+                                style: { colors: '#6E7881', fontSize: '11px' },
+                                formatter: (v) => currency
+                                    ? '₱' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v))
+                                    : Math.round(v),
+                            },
+                        },
+                        tooltip: {
+                            theme: 'light',
+                            style: { fontFamily: 'Geist Mono, monospace', fontSize: '12px' },
+                            y: {
+                                formatter: (v) => currency
+                                    ? '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                    : v + ' units',
+                            },
+                        },
+                        dataLabels: { enabled: false },
+                        legend: {
+                            show: true,
+                            position: 'top',
+                            fontSize: '11px',
+                            labels: { colors: '#6E7881' },
+                            markers: { width: 8, height: 2, radius: 0 },
+                            itemMargin: { horizontal: 8 },
+                        },
+                    };
+                },
+
+                renderChart(elId, field, color, currency) {
+                    const opts = this.baseOptions(this.filteredSeries(field), color, currency, field);
+                    if (this.charts[elId]) {
+                        this.charts[elId].updateOptions(opts, true, false);
+                    } else {
+                        this.charts[elId] = new ApexCharts(document.querySelector(elId), opts);
+                        this.charts[elId].render();
+                    }
+                },
+
+                renderRiderChart() {
+                    const labels = this.filteredLabels();
+                    const start = this.sliceStart();
+                    const series = this.seed.riders
+                        .filter(r => this.selectedRiders.includes(r.name))
+                        .map(r => ({
+                            name: r.name,
+                            data: r.units_sold.slice(start),
+                        }));
+                    const colors = this.seed.riders
+                        .filter(r => this.selectedRiders.includes(r.name))
+                        .map(r => r.color);
+
+                    const opts = {
+                        chart: {
+                            type: 'line',
+                            height: 200,
+                            toolbar: { show: false },
+                            fontFamily: 'Geist, sans-serif',
+                            animations: this._animConfig(this._isInitialRender),
+                        },
+                        series,
+                        labels,
+                        colors,
+                        stroke: { curve: 'smooth', width: 2.5 },
+                        grid: {
+                            borderColor: 'rgba(190, 200, 210, 0.25)',
+                            strokeDashArray: 4,
+                            padding: { left: 8, right: 8 },
+                        },
+                        xaxis: {
+                            labels: {
+                                style: { colors: '#6E7881', fontSize: '11px' },
+                                trim: true, hideOverlappingLabels: true,
+                            },
+                            axisBorder: { show: false },
+                            axisTicks: { show: false },
+                            tickAmount: Math.min(6, labels.length),
+                        },
+                        yaxis: {
+                            labels: { style: { colors: '#6E7881', fontSize: '11px' } },
+                        },
+                        tooltip: {
+                            theme: 'light',
+                            style: { fontFamily: 'Geist Mono, monospace', fontSize: '12px' },
+                            y: { formatter: (v) => v + ' units' },
+                        },
+                        dataLabels: { enabled: false },
+                        legend: {
+                            show: true,
+                            position: 'bottom',
+                            fontSize: '11px',
+                            labels: { colors: '#6E7881' },
+                            markers: { width: 8, height: 8, radius: 4 },
+                            itemMargin: { horizontal: 8 },
+                        },
+                    };
+
+                    if (this.charts['#chart-rider-performance']) {
+                        this.charts['#chart-rider-performance'].updateOptions(opts, true, false);
+                    } else {
+                        this.charts['#chart-rider-performance'] = new ApexCharts(
+                            document.querySelector('#chart-rider-performance'), opts
+                        );
+                        this.charts['#chart-rider-performance'].render();
+                    }
+                },
+
+                renderAll() {
+                    // Filter change — use the faster transition speed.
+                    this._isInitialRender = false;
+                    this.renderChart('#chart-total-sales',     'total_sales',      '#006591', true);
+                    this.renderChart('#chart-outstanding-debt','outstanding_debt', '#D97706', true);
+                    this.renderChart('#chart-commissions',     'commissions_paid', '#006C4A', true);
+                    this.renderRiderChart();
+                },
+            };
+        }
     </script>
 {% endblock %}
