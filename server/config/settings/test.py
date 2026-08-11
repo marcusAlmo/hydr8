@@ -9,6 +9,15 @@ DATABASES = {
     }
 }
 
+# Tests use LocMemCache so the suite is hermetic and does not require a running
+# Redis instance. Rate limiting still works (counters live in process memory).
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'hydr8-test',
+    }
+}
+
 class DisableMigrations:
     def __contains__(self, item):
         return True

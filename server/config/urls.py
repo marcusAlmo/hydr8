@@ -22,3 +22,8 @@ urlpatterns = [
     path('', include('apps.users.urls')),
     path('analytics/', include('apps.analytics.urls')),
 ]
+
+# Custom error handler — renders a friendly HTMX form fragment when a login
+# attempt is blocked by django-ratelimit (Ratelimited is a PermissionDenied
+# subclass, which Django routes to handler403).
+handler403 = 'apps.users.views.ratelimited_view'

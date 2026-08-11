@@ -9,3 +9,18 @@ CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Production cache — Redis (the VPS already runs Redis on port 6379).
+# Used by django-ratelimit and the login lockout logic. The shared, atomic
+# counter is required so rate limits are enforced across all gunicorn workers.
+REDIS_URL = env('REDIS_URL', default='redis://127.0.0.1:6379/1')
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_URL,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        },
+    }
+}

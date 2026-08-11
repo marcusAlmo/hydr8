@@ -15,3 +15,6 @@ Thumbs.db
 .env
 .env.*
 !*.example
+
+# Devin local MCP config (contains secret references)
+.devin/mcp_config.local.json

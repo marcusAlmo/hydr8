@@ -78,6 +78,23 @@ DATABASES = {
     'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
 }
 
+# Caching — the cache backend is environment-specific:
+#   * local.py    -> LocMemCache (no Redis required for dev)
+#   * production  -> Redis (the VPS already runs Redis on port 6379)
+#   * test.py     -> LocMemCache (hermetic test suite)
+# django-ratelimit and the login lockout both use the 'default' cache.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'hydr8-default',
+    }
+}
+
+# Rate limiting defaults — applied via the @ratelimit decorator on views.
+# Login is the most abuse-prone endpoint; other endpoints use these as a baseline.
+RATELIMIT_ENABLE = env.bool('RATELIMIT_ENABLE', default=True)
+RATELIMIT_USE_CACHE = 'default'
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
