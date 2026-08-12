@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.db.models import Q
+from django.utils import timezone
 
 from apps.core.models import Product
 from apps.users.models import User, DriverCommission
@@ -183,15 +184,13 @@ def get_products_pricing_context(user: "UserType") -> dict:
     block remains mock — it will be driven by the browser-local Gemma 2B
     engine in a separate effort.
     """
-    from datetime import datetime
-
     products = list_products(user)
     columns = list_product_columns(user)
     riders = list_riders_with_rates(user)
 
     return {
         # --- Top bar ---
-        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
 
         # --- Tabs ---
         "tabs": [

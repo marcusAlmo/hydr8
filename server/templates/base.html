@@ -136,6 +136,48 @@
         })
     </script>
 
+    <!-- Scroll restoration for the inner content canvas.
+         The body is overflow-hidden/h-screen, so the document itself never
+         scrolls and the browser can't restore position on reload. We persist
+         the scrollTop of the main overflow-y-auto container per URL. -->
+    <script>
+        (function () {
+            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+            var key = 'hydr8_scroll:' + location.pathname + location.search;
+            function canvas() {
+                return document.querySelector('main [class*="overflow-y-auto"]');
+            }
+
+            function restore() {
+                var el = canvas();
+                if (!el) return;
+                var saved = sessionStorage.getItem(key);
+                if (saved !== null) el.scrollTop = parseInt(saved, 10) || 0;
+            }
+            function save() {
+                var el = canvas();
+                if (el) sessionStorage.setItem(key, String(el.scrollTop));
+            }
+
+            // The content canvas is already in the DOM by the time this runs
+            // (it's rendered in the content block, above this script).
+            var el = canvas();
+            if (el) {
+                restore();
+                el.addEventListener('scroll', function () {
+                    sessionStorage.setItem(key, String(el.scrollTop));
+                }, { passive: true });
+            }
+            // Re-restore after fonts/layout settle, in case content height
+            // wasn't available on first paint.
+            window.addEventListener('DOMContentLoaded', restore);
+            window.addEventListener('load', restore);
+            window.addEventListener('pagehide', save);
+            window.addEventListener('beforeunload', save);
+        })();
+    </script>
+
     {% block extra_body %}{% endblock %}
 </body>
 </html>

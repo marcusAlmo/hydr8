@@ -336,7 +336,7 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
     the 30-day subset of the same query) so their "(30D)" labels stay
     accurate regardless of the active chart filter.
     """
-    today = timezone.now().date()
+    today = timezone.localdate()
     # 90-day window for the trend seed (charts + daily table).
     seed_start = today - timedelta(days=89)
     # 30-day window for the summary stat cards.
@@ -562,7 +562,7 @@ def get_employee_directory_context(
     _apply_stat_accents(stats)
 
     return {
-        "today_date": timezone.now().strftime("%A, %b %d, %Y"),
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "stats": stats,
         "filters": _directory_filters(_user_qs(request_user)),
         "users": users,

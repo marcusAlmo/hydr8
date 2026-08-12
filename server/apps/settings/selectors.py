@@ -16,9 +16,10 @@ here — only reads + formatting.
 """
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+
+from django.utils import timezone
 
 from apps.core.models import SystemConfig
 
@@ -315,7 +316,7 @@ def get_settings_context(user) -> dict[str, Any]:
     company_id = getattr(getattr(user, 'company', None), 'id', None)
 
     return {
-        'today_date': datetime.now().strftime('%A, %b %d, %Y'),
+        'today_date': timezone.localtime().strftime('%A, %b %d, %Y'),
         'tabs': _SETTINGS_TABS,
         'system_config': _build_system_config(company_id),
         'company': _build_company_context(user),

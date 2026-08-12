@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import logging
 from calendar import monthrange
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from apps.core.models import Product, SystemConfig
 from apps.customers.models import CreditPayment, Customer
@@ -151,7 +152,7 @@ def list_riders_for_remittance(
     separate flat list by :func:`_repayments_for_date` and injected into
     the page context at the top level.
     """
-    remittance_date = remittance_date or date.today()
+    remittance_date = remittance_date or timezone.localdate()
     products = list_products_for_remittance(user)
     product_keys = [p["key"] for p in products]
     riders_qs = _active_riders_qs(user)
@@ -258,7 +259,7 @@ def get_add_remittance_context(user: "UserType") -> dict:
     offering amount are restored so the user can continue editing
     seamlessly after a "Save as Draft" / page refresh cycle.
     """
-    default_date = date.today()
+    default_date = timezone.localdate()
     products = list_products_for_remittance(user)
     riders_qs = _active_riders_qs(user)
     riders = list_riders_for_remittance(user, remittance_date=default_date)
@@ -287,7 +288,7 @@ def get_add_remittance_context(user: "UserType") -> dict:
         offering_amount = draft_state["offering_amount"]
 
     return {
-        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "default_date": default_date.isoformat(),
         "products": products,
         "riders": riders,
@@ -421,7 +422,7 @@ def _rider_trend_color(index: int) -> str:
 
 def get_remittance_history_context(user: "UserType", days: int = 30) -> dict:
     """Build the full page context for the Remittance History page from live DB data."""
-    today = date.today()
+    today = timezone.localdate()
     start = today - timedelta(days=days - 1)
     dates = [start + timedelta(days=i) for i in range(days)]
     labels = [d.strftime("%b %d") for d in dates]
@@ -626,7 +627,7 @@ def get_remittance_history_context(user: "UserType", days: int = 30) -> dict:
     )
 
     return {
-        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "trends": trends,
         "summary_cards": summary_cards,
         "ai_insight": ai_insight,

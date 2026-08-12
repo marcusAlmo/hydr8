@@ -7,11 +7,11 @@ to an active rider via ``CreditLine.care_of``) are:
   3. Counted in ``total_repayments_received`` and ``total_commission``.
   4. Unlinked when a draft is deleted or replaced.
 """
-from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.core.models import Product
 from apps.customers.models import CreditLine, CreditPayment, Customer
@@ -120,7 +120,7 @@ class RepaymentSyncTests(TestCase):
 
         from apps.remittance.selectors import _active_riders_qs
         riders_qs = _active_riders_qs(self.admin)
-        repayments = _repayments_for_date(self.admin, riders_qs, date.today())
+        repayments = _repayments_for_date(self.admin, riders_qs, timezone.localdate())
         self.assertEqual(len(repayments), 1)
         rp = repayments[0]
         self.assertEqual(rp["payer"], "Test Store")
@@ -138,7 +138,7 @@ class RepaymentSyncTests(TestCase):
 
         from apps.remittance.selectors import _active_riders_qs
         riders_qs = _active_riders_qs(self.admin)
-        repayments = _repayments_for_date(self.admin, riders_qs, date.today())
+        repayments = _repayments_for_date(self.admin, riders_qs, timezone.localdate())
         self.assertEqual(len(repayments), 1)
         rp = repayments[0]
         self.assertEqual(rp["care_of_id"], str(self.admin.pk))
@@ -156,14 +156,14 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
 
         # The payment is now linked; selector should show no repayments.
         from apps.remittance.selectors import _active_riders_qs
         riders_qs = _active_riders_qs(self.admin)
-        repayments = _repayments_for_date(self.admin, riders_qs, date.today())
+        repayments = _repayments_for_date(self.admin, riders_qs, timezone.localdate())
         self.assertEqual(repayments, [])
 
     # --- service tests ------------------------------------------------------
@@ -179,7 +179,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
         rem.refresh_from_db()
@@ -215,7 +215,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
         rem.refresh_from_db()
@@ -243,7 +243,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
         )
         payment = CreditPayment.objects.get(credit_line=self.credit_line)
         self.assertEqual(payment.remittance_id, rem.id)
@@ -251,7 +251,7 @@ class RepaymentSyncTests(TestCase):
         # Delete the draft — payment should be unlinked.
         delete_draft_remittance(
             performed_by=self.admin,
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
         )
         payment.refresh_from_db()
         self.assertIsNone(payment.remittance)
@@ -267,7 +267,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
         )
         payment = CreditPayment.objects.get(credit_line=self.credit_line)
         self.assertEqual(payment.remittance_id, rem1.id)
@@ -279,7 +279,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
         )
         self.assertNotEqual(rem1.id, rem2.id)
         payment.refresh_from_db()
@@ -302,7 +302,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
         rem.refresh_from_db()
@@ -317,7 +317,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
         rem.refresh_from_db()
@@ -338,7 +338,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
         rem.refresh_from_db()
@@ -377,7 +377,7 @@ class RepaymentSyncTests(TestCase):
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             finalize=True,
         )
         rem.refresh_from_db()

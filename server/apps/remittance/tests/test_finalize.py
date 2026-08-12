@@ -5,12 +5,12 @@ Covers:
   - finalize_remittance() service — happy path, role/PIN validation,
     tenant isolation, and already-finalized guard.
 """
-from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.remittance.models import Remittance
 from apps.remittance.services import (
@@ -89,7 +89,7 @@ class FinalizeRemittanceTests(TestCase):
         # Create a draft remittance (by staff)
         self.draft = save_remittance_draft(
             performed_by=self.staff,
-            remittance_date=date.today(),
+            remittance_date=timezone.localdate(),
             riders_data=[],
             expenses_data=[],
             manual_offering="0",

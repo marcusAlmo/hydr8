@@ -107,7 +107,7 @@ def create_remittance_view(request):
                 status=400,
             )
 
-    remittance_date = date.today()
+    remittance_date = timezone.localdate()
     remittance_date_str = body.get("remittanceDate")
     if remittance_date_str:
         try:
@@ -115,7 +115,7 @@ def create_remittance_view(request):
         except (ValueError, TypeError):
             logger.info("[%s] invalid remittance date: %s", request.user.id, remittance_date_str)
             return JsonResponse({"ok": False, "error": "Invalid remittance date."}, status=400)
-    if remittance_date > date.today():
+    if remittance_date > timezone.localdate():
         logger.info("[%s] future remittance date: %s", request.user.id, remittance_date)
         return JsonResponse({"ok": False, "error": "Remittance date cannot be in the future."}, status=400)
 
@@ -411,7 +411,7 @@ def clear_draft_view(request):
     except (ValueError, TypeError):
         return JsonResponse({"ok": False, "error": "Invalid request."}, status=400)
 
-    remittance_date = date.today()
+    remittance_date = timezone.localdate()
     date_str = body.get("remittanceDate")
     if date_str:
         try:

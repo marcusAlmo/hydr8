@@ -1,7 +1,8 @@
 <!-- SideNavBar (The Abyss Sidebar) -->
 {% with active_item=active_page|default:request.resolver_match.url_name|default:request.resolver_match.app_name %}
-<aside x-data="{ expanded: true }" 
-       :class="expanded ? 'w-[240px]' : 'w-[80px]'"
+<aside x-data="{ expanded: true }"
+       :style="{ width: expanded ? '240px' : '80px' }"
+       style="width: 240px"
        class="relative h-full bg-inverse-surface flex flex-col py-4 px-3 shadow-md z-50 transition-all duration-300 flex-shrink-0 overflow-hidden">
     
     <!-- Brand Header -->

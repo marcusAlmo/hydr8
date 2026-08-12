@@ -1,10 +1,10 @@
 import json
 import logging
-from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
@@ -87,7 +87,7 @@ def _build_list_context(*, user, page: int, query: str = "") -> dict:
     })
 
     return {
-        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "logs": page_obj.object_list,
         "total": data["total"],
         "action_filters": action_filters,

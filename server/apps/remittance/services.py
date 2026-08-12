@@ -148,7 +148,7 @@ def create_remittance(
     is negative.
     """
     company = getattr(performed_by, "company", None)
-    remittance_date = remittance_date or date.today()
+    remittance_date = remittance_date or timezone.localdate()
 
     existing = Remittance.objects.filter(company=company, date=remittance_date).first()
     if existing is not None:
@@ -212,7 +212,7 @@ def save_remittance_draft(
     Returns the newly created :class:`Remittance` instance.
     """
     company = getattr(performed_by, "company", None)
-    remittance_date = remittance_date or date.today()
+    remittance_date = remittance_date or timezone.localdate()
 
     existing = Remittance.objects.filter(company=company, date=remittance_date).first()
     if existing is not None:
@@ -264,7 +264,7 @@ def delete_draft_remittance(
     found.
     """
     company = getattr(performed_by, "company", None)
-    remittance_date = remittance_date or date.today()
+    remittance_date = remittance_date or timezone.localdate()
 
     existing = Remittance.objects.filter(company=company, date=remittance_date).first()
     if existing is None:

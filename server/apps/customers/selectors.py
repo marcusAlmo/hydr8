@@ -673,7 +673,7 @@ def get_customer_list_context(user: "UserType") -> dict:
     ranking_context = _ranking_context(user)
 
     return {
-        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "stats": _customer_stats(user),
         "filters": table_context["filters"],
         "customers": table_context["customers"],

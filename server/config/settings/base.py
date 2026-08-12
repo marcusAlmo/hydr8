@@ -128,7 +128,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+# Philippines is GMT+8 (Asia/Manila). The server/VPS may run in UTC or
+# another OS timezone, but all "today" / display logic must resolve to PHT.
+# USE_TZ stays True so datetimes are still stored as UTC in the database;
+# timezone.localdate() / timezone.localtime() / template rendering all use
+# this zone, and date.today()/datetime.now() (which use the OS timezone) are
+# replaced with the timezone-aware helpers throughout the services layer.
+TIME_ZONE = 'Asia/Manila'
 USE_I18N = True
 USE_TZ = True
 

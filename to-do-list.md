@@ -168,6 +168,50 @@
 
 ---
 
+## 5. Page Load Animations & Skeleton Loaders
+
+> Pages currently render with a sudden "boom" — no transitions, no loading
+> states. Add smooth page-load animations and skeleton/progressive loaders so
+> navigation feels polished instead of jarring.
+
+- [ ] **5.1 Page-load transition animation**
+  - Add a fade-in / slide-up entrance animation on the main content area
+    (`<main>` in `base.html`) when a full page renders
+  - Use CSS `@keyframes` + `animation` (already patterned in
+    `remittance_history.html` `trendsFadeIn` / `chartCardReveal`)
+  - Apply to all full-page templates: dashboard, customers, remittance,
+    products, employees, settings, audit
+  - Respect `prefers-reduced-motion` (disable animation for users who
+    request it)
+
+- [ ] **5.2 Skeleton loaders for HTMX partial loads**
+  - Add skeleton placeholders (shimmer blocks) that render while HTMX
+    fetches partial content
+  - Use the existing `skeletonShimmer` keyframe pattern from
+    `remittance_history.html`
+  - Show skeleton on initial page load for data-heavy sections (tables,
+    cards, charts) before the real content swaps in
+  - Create a reusable `components/loaders/page_skeleton.html` partial
+
+- [ ] **5.3 HTMX swap transitions**
+  - Add smooth `hx-transition` classes (fade/slide) on HTMX content swaps
+    so partials don't pop in abruptly
+  - Apply to: customer table swaps, remittance form swaps, modal/drawer
+    open/close, tab switches in settings
+
+- [ ] **5.4 Sidebar navigation loader**
+  - Show a brief loading bar or spinner at the top of `<main>` while
+    navigating between sidebar pages (HTMX-driven navigation)
+  - Use `htmx:beforeRequest` / `htmx:afterRequest` events to toggle
+    visibility
+
+- [ ] **5.5 Login page entrance animation**
+  - Add a staggered fade-in for the login card, form fields, and brand
+    elements on `users/index.html` so the landing page feels premium
+    rather than static
+
+---
+
 ## Notes
 
 - Order is intentional: skeletons + theme first (foundation), then caching
