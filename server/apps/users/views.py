@@ -4,20 +4,21 @@ from urllib.parse import quote
 from django import forms
 from django.forms.forms import NON_FIELD_ERRORS
 from django.forms.utils import ErrorList
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from apps.users.models import User, Role
+from apps.users.models import User
 from apps.users.signals import login_failed
+from .selectors import get_roles_for_user, get_user_by_id
 from .services import (
     change_user_password,
     check_login_lockout,
@@ -33,6 +34,13 @@ logger = logging.getLogger(__name__)
 # the inner 5-failure lockout (per ip+username) protects against credential
 # guessing. Both use the 'default' cache (Redis in prod, locmem in dev/test).
 LOGIN_RATELIMIT = ratelimit(key='ip', rate='10/m', method='POST', block=True)
+
+
+def _can_change_user(user) -> bool:
+    """Django built-in RBAC check for user-management mutations."""
+    return user.is_authenticated and (
+        user.is_staff or user.is_superuser or user.has_perm("users.change_user")
+    )
 
 
 def _form_with_non_field_error(form: AuthenticationForm, message: str) -> AuthenticationForm:
@@ -246,12 +254,16 @@ def generate_temp_password_view(request, user_id):
     Returns a partial with the plaintext password displayed once for copy.
     The plaintext is never logged (RA 10173).
 
-    Only admin/staff users can generate temporary passwords.
+    Protected by Django's built-in users.change_user permission (or
+    is_staff / is_superuser).
     """
-    if not (request.user.is_staff or request.user.is_superuser):
+    if not _can_change_user(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    target_user = get_object_or_404(User, pk=user_id)
+    target_user = get_user_by_id(request.user, user_id)
+    if target_user is None:
+        return HttpResponse("User not found.", status=404)
+
     raw_password = set_temporary_password(target_user)
 
     return render(request, 'users/partials/temp_password_result.html', {
@@ -298,14 +310,18 @@ class EditUserForm(forms.ModelForm):
 def edit_user_view(request, user_id):
     """
     HTMX endpoint — returns the edit user form partial for the drawer.
-    Only admin/staff users can edit other users.
+    Protected by Django's built-in users.change_user permission.
     """
-    if not (request.user.is_staff or request.user.is_superuser):
+    if not _can_change_user(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    target_user = get_object_or_404(User, pk=user_id)
+    target_user = get_user_by_id(request.user, user_id)
+    if target_user is None:
+        return HttpResponse("User not found.", status=404)
+
     form = EditUserForm(instance=target_user)
-    roles = Role.objects.all().order_by('name')
+    form.fields['role'].queryset = get_roles_for_user(request.user)
+    roles = get_roles_for_user(request.user)
 
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
@@ -323,20 +339,24 @@ def edit_user_submit_view(request, user_id):
     On success, returns a success toast partial. On failure, re-renders
     the form with errors.
     """
-    if not (request.user.is_staff or request.user.is_superuser):
+    if not _can_change_user(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    target_user = get_object_or_404(User, pk=user_id)
+    target_user = get_user_by_id(request.user, user_id)
+    if target_user is None:
+        return HttpResponse("User not found.", status=404)
+
     form = EditUserForm(request.POST, instance=target_user)
+    form.fields['role'].queryset = get_roles_for_user(request.user)
 
     if form.is_valid():
         form.save()
-        logger.info("User updated. user_id=%s actor=%s", target_user.id, request.user.id)
+        logger.info("[%s] Updated User id=%s", request.user.id, target_user.id)
         return render(request, 'users/partials/edit_user_success.html', {
             'target_user': target_user,
         })
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
-        'roles': Role.objects.all().order_by('name'),
+        'roles': get_roles_for_user(request.user),
     })
