@@ -159,10 +159,6 @@
                 <button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors">
                     <span class="material-symbols-outlined">smart_toy</span>
                 </button>
-                <button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors relative">
-                    <span class="material-symbols-outlined">notifications</span>
-                    <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
-                </button>
             </div>
         </div>
     </header>
@@ -458,31 +454,15 @@
                             <th class="px-6 py-3 font-bold text-right">Tithes</th>
                             <th class="px-6 py-3 font-bold text-center">Tithes Paid</th>
                             <th class="px-6 py-3 font-bold text-center">Offering Paid</th>
+                            <th class="px-6 py-3 font-bold text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
                         {% for rem in remittances %}
-                        <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 {% if rem.unpaid %}border-l-[#f59e0b]{% else %}border-l-transparent{% endif %} rem-row">
-                            <td class="px-6 py-3 font-data-mono text-on-surface">{{ rem.date }}</td>
-                            <td class="px-6 py-3">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-full {{ rem.avatar_bg }} text-[10px] flex items-center justify-center font-bold {{ rem.avatar_text }}">{{ rem.initials }}</div>
-                                    <span class="text-body-sm font-medium">{{ rem.created_by }}</span>
-                                </div>
-                            </td>
-                            <td class="px-6 py-3 text-right font-data-mono">{{ rem.total_sales }}</td>
-                            <td class="px-6 py-3 text-right font-data-mono text-tertiary">{{ rem.net_profit }}</td>
-                            <td class="px-6 py-3 text-right font-data-mono text-primary font-bold">{{ rem.tithes }}</td>
-                            <td class="px-6 py-3 text-center">
-                                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary tithes-checkbox" type="checkbox" {% if rem.tithes_paid %}checked{% endif %}>
-                            </td>
-                            <td class="px-6 py-3 text-center">
-                                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary" type="checkbox" {% if rem.offering_paid %}checked{% endif %}>
-                            </td>
-                        </tr>
+                            {% include "remittance/partials/remittance_row.html" %}
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="px-6 py-10 text-center text-on-surface-variant text-body-sm">
+                            <td colspan="8" class="px-6 py-10 text-center text-on-surface-variant text-body-sm">
                                 {% if request.GET %}
                                     <span class="font-bold text-on-surface">Nothing Found</span>
                                 {% else %}
@@ -521,23 +501,28 @@
 
 {% block extra_body %}
     <script>
-        // Micro-interaction for checkboxes to simulate a "saving" state
-        document.querySelectorAll('.tithes-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const row = this.closest('.rem-row');
-                if (this.checked) {
-                    row.classList.remove('border-l-[#f59e0b]');
-                    row.classList.add('border-l-transparent');
-                } else {
-                    row.classList.add('border-l-[#f59e0b]');
-                    row.classList.remove('border-l-transparent');
-                }
-                this.parentElement.classList.add('animate-pulse');
-                setTimeout(() => {
-                    this.parentElement.classList.remove('animate-pulse');
-                }, 500);
-            });
-        });
+        /**
+         * remittanceRow — per-row Alpine component that tracks the dirty
+         * state between the DB-backed original values and the current
+         * checkbox state.  When either flag is mutated, the "Confirm"
+         * button appears; "Cancel" reverts to the original values.
+         */
+        function remittanceRow(seed) {
+            return {
+                origTithes: seed.tithes_paid,
+                origOffering: seed.offering_paid,
+                tithesPaid: seed.tithes_paid,
+                offeringPaid: seed.offering_paid,
+                get dirty() {
+                    return this.tithesPaid !== this.origTithes
+                        || this.offeringPaid !== this.origOffering;
+                },
+                cancel() {
+                    this.tithesPaid = this.origTithes;
+                    this.offeringPaid = this.origOffering;
+                },
+            };
+        }
 
         /**
          * remittancePage — top-level Alpine component for the entire Remittance

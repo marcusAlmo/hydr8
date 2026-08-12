@@ -206,6 +206,7 @@ def record_debt_submit_view(request):
             product_key=request.POST.get("product_key", ""),
             qty_credited=request.POST.get("qty_credited", ""),
             unit_price=request.POST.get("unit_price", ""),
+            care_of_id=request.POST.get("care_of_id", ""),
             performed_by=request.user,
         )
     except ValidationError as e:
@@ -252,6 +253,7 @@ def record_borrowed_submit_view(request):
             customer_id=customer_id,
             container_key=request.POST.get("container_key", ""),
             qty_borrowed=qty_borrowed,
+            care_of_id=request.POST.get("care_of_id", ""),
             performed_by=request.user,
         )
     except ValidationError as e:

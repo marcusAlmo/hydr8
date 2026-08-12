@@ -7,7 +7,7 @@ Expects context:
 <div class="flex-1">
     <div class="flex items-center justify-between mb-4">
         <h4 class="font-headline-sm text-headline-sm">Recent Remittances</h4>
-        <button class="text-primary font-bold text-body-sm hover:underline">View All History</button>
+        <a href="{% url 'remittance:history' %}" class="text-primary font-bold text-body-sm hover:underline">View All History</a>
     </div>
     <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse">
@@ -28,7 +28,7 @@ Expects context:
                     <td class="py-3 px-4 text-tertiary">{{ rem.net_profit }}</td>
                     <td class="py-3 px-4 {% if rem.tithes_status == 'unpaid' %}text-error{% else %}text-tertiary-container{% endif %}">{{ rem.tithes }}</td>
                     <td class="py-3 px-4">
-                        <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</button>
+                        <a href="{% url 'remittance:history' %}" class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</a>
                     </td>
                 </tr>
                 {% empty %}

@@ -323,3 +323,17 @@ body {
     outline: none;
 }
 
+/* Muted placeholders — uses the outline-variant design token so hints
+   stay subtle and never compete with real input values. Applies to all
+   text inputs, textareas, and selects across the app. */
+input::placeholder,
+textarea::placeholder {
+    color: #bec8d2;          /* outline-variant */
+    opacity: 1;
+    font-weight: 400;
+}
+select:invalid,
+select option[value=""]:disabled {
+    color: #bec8d2;          /* outline-variant — muted "Select..." prompt */
+}
+

@@ -4,21 +4,24 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from apps.core.views import error_message
+from apps.core.views import error_message, toast_for_exception
 
 from .selectors import (
     get_add_remittance_context,
     get_recent_remittances,
     get_remittance_history_context,
+    get_remittance_row,
     remittance_exists_for_date,
 )
-from .services import create_and_finalize_remittance
+from .services import create_and_finalize_remittance, update_remittance_paid_status
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +141,54 @@ def remittance_history_view(request):
 
     context["trends_seed"] = json.dumps(context["trends"]).replace("'", "&#39;")
     return render(request, "remittance/remittance_history.html", context)
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def update_paid_status_view(request, remittance_id: int):
+    """HTMX endpoint — updates ``tithes_paid`` / ``offering_paid`` flags on
+    a single remittance and returns the refreshed row partial plus an
+    out-of-band success toast.
+
+    Checkboxes follow the standard HTML convention: present = ``on``,
+    absent = unchecked. The endpoint swaps the row via ``outerHTML`` and
+    appends a toast into ``#toast-container``.
+    """
+    tithes_paid = request.POST.get("tithes_paid") == "on"
+    offering_paid = request.POST.get("offering_paid") == "on"
+
+    try:
+        update_remittance_paid_status(
+            performed_by=request.user,
+            remittance_id=remittance_id,
+            tithes_paid=tithes_paid,
+            offering_paid=offering_paid,
+        )
+    except ValidationError as exc:
+        logger.info("[%s] update paid status error remittance_id=%s: %s",
+                    request.user.id, remittance_id, error_message(exc))
+        return toast_for_exception(request, exc)
+
+    row = get_remittance_row(request.user, remittance_id)
+    if row is None:
+        return toast_for_exception(
+            request, ValidationError("Remittance not found.")
+        )
+
+    row_html = render_to_string(
+        "remittance/partials/remittance_row.html",
+        {"rem": row},
+        request=request,
+    )
+    toast_html = render_to_string(
+        "components/toasts/toast.html",
+        {
+            "id": int(timezone.now().timestamp() * 1000),
+            "message": "Payment status updated.",
+            "type": "success",
+            "duration": 4000,
+        },
+        request=request,
+    )
+    return HttpResponse(row_html + toast_html)

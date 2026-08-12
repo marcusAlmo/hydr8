@@ -2,6 +2,7 @@
 Record borrowed item modal — rendered via HTMX into #modal-root.
 Lets the operator record containers borrowed by a customer:
   - Required: Customer, Container type, Quantity borrowed
+  - Optional: Care of (the user responsible for lending — admin/staff/driver)
   - Footer: Cancel, Record Borrowed
 
 The form POSTs to the ``customers:record_borrowed_submit`` endpoint. On
@@ -11,6 +12,7 @@ error an inline error banner is swapped into ``#form-error``.
 Expects context:
   - customers: list of { id, name }
   - container_types: list of { key, label }
+  - care_of_users: list of { id, label }
 {% endcomment %}
 
 <!-- Modal Backdrop -->
@@ -110,6 +112,27 @@ Expects context:
                     required
                     placeholder="0"
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
+            </div>
+
+            <!-- Care Of (optional — user responsible for lending) -->
+            <div>
+                <label for="borrow-care-of" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                    Care Of
+                    <span class="text-on-surface-variant/60 normal-case tracking-normal font-body-sm">(who lent these out)</span>
+                </label>
+                <select
+                    id="borrow-care-of"
+                    name="care_of_id"
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface">
+                    <option value="">Select a user…</option>
+                    {% for u in care_of_users %}
+                    <option value="{{ u.id }}">{{ u.label }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-[10px] text-on-surface-variant/70 mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">info</span>
+                    <span>Links this borrowing to the user responsible — admin, staff, or driver.</span>
+                </p>
             </div>
 
         </form>

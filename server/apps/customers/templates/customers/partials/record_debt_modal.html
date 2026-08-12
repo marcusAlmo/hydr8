@@ -3,6 +3,7 @@ Record debt modal — rendered via HTMX into #modal-root.
 Lets the operator record a new credit line (debt) against a customer:
   - Required: Customer, Product, Quantity credited
   - Optional override: Unit price (pre-filled from product default)
+  - Optional: Care of (the user responsible for extending credit)
   - Footer: Cancel, Record Debt
 
 The form POSTs to the ``customers:record_debt_submit`` endpoint. On
@@ -12,6 +13,7 @@ error an inline error banner is swapped into ``#form-error``.
 Expects context:
   - customers: list of { id, name }
   - products: list of { key, label, unit_price }
+  - care_of_users: list of { id, label }
 {% endcomment %}
 
 <!-- Modal Backdrop -->
@@ -20,10 +22,16 @@ Expects context:
     @click="$dispatch('close-modal')"
     @keydown.escape.window="$dispatch('close-modal')"
     x-data="{
+        qty: 0,
+        price: 0,
         selectedPrice: '',
         onProductChange(el) {
             const opt = el.options[el.selectedIndex];
             this.selectedPrice = opt ? opt.getAttribute('data-price') || '' : '';
+            this.price = parseFloat(this.selectedPrice) || 0;
+        },
+        get totalCredit() {
+            return ((parseFloat(this.qty) || 0) * (parseFloat(this.price) || 0)).toFixed(2);
         }
     }"
     x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
@@ -118,6 +126,7 @@ Expects context:
                         step="1"
                         required
                         placeholder="0"
+                        x-model.number="qty"
                         class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
                 </div>
                 <div>
@@ -130,17 +139,38 @@ Expects context:
                         name="unit_price"
                         min="0"
                         step="0.01"
-                        :value="selectedPrice"
+                        x-model.number="price"
                         placeholder="0.00"
                         class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
                 </div>
             </div>
 
-            <!-- Computed total (Alpine live preview) -->
+            <!-- Computed total (Alpine live preview — reacts to qty & price) -->
             <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20 flex items-center justify-between">
                 <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Credit</span>
                 <span class="font-data-mono text-lg font-bold text-on-surface"
-                      x-text="'₱' + ((parseFloat($el.closest('form').querySelector('#debt-qty')?.value || '0') || 0) * (parseFloat($el.closest('form').querySelector('#debt-price')?.value || '0') || 0)).toFixed(2)">₱0.00</span>
+                      x-text="'₱' + totalCredit">₱0.00</span>
+            </div>
+
+            <!-- Care Of (optional — user responsible for extending credit) -->
+            <div>
+                <label for="debt-care-of" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                    Care Of
+                    <span class="text-on-surface-variant/60 normal-case tracking-normal font-body-sm">(who extended this credit)</span>
+                </label>
+                <select
+                    id="debt-care-of"
+                    name="care_of_id"
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface">
+                    <option value="">Select a user…</option>
+                    {% for u in care_of_users %}
+                    <option value="{{ u.id }}">{{ u.label }}</option>
+                    {% endfor %}
+                </select>
+                <p class="text-[10px] text-on-surface-variant/70 mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">info</span>
+                    <span>Links this credit line to the user responsible — admin, staff, or driver.</span>
+                </p>
             </div>
 
         </form>

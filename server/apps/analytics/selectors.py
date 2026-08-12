@@ -211,8 +211,13 @@ def _long_running_debts(user: "User") -> list[dict]:
         )
         rider_name = credit.rider.full_name if credit.rider else "Unknown"
 
+        # Display id (e.g. ``HY-0001``) for linking to the customer collect
+        # modal. Only set when the credit is tied to a Customer record.
+        customer_id = f"HY-{credit.customer.pk:04d}" if credit.customer else ""
+
         rows.append({
             "customer": customer_name,
+            "customer_id": customer_id,
             "rider": rider_name,
             "amount": _fmt_peso(outstanding),
             "age_days": age,

@@ -30,6 +30,7 @@
                         name="first_name"
                         class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
                         type="text"
+                        placeholder="Juan"
                         value="{{ profile.first_name }}"/>
                 </div>
                 <div class="space-y-2">
@@ -38,6 +39,7 @@
                         name="last_name"
                         class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
                         type="text"
+                        placeholder="Dela Cruz"
                         value="{{ profile.last_name }}"/>
                 </div>
             </div>
@@ -69,12 +71,13 @@
               hx-swap="none"
               class="space-y-2 mb-6"
               x-data="{ showCurrent: false }">
-            <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Username</label>
+            <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Username <span class="text-error">*</span></label>
             <div class="flex gap-3">
                 <input
                     name="new_username"
                     class="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
                     type="text"
+                    placeholder="e.g. jdelacruz"
                     value="{{ profile.username }}"/>
                 <button type="button"
                         @click="showCurrent = true"
@@ -85,7 +88,7 @@
             </div>
             {# Current password — revealed when the user clicks "Change" #}
             <div x-show="showCurrent" x-cloak class="space-y-2 pt-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password (required to change username)</label>
+                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password <span class="text-error">*</span> <span class="text-on-surface-variant/70 normal-case font-body-sm text-body-sm">(required to change username)</span></label>
                 <div class="relative">
                     <input
                         name="current_password"
@@ -137,7 +140,7 @@
             <div class="space-y-4">
                 {# Current password #}
                 <div class="space-y-2">
-                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password</label>
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password <span class="text-error">*</span></label>
                     <div class="relative">
                         <input
                             name="current_password"
@@ -156,7 +159,7 @@
 
                 {# New password #}
                 <div class="space-y-2">
-                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">New Password</label>
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">New Password <span class="text-error">*</span></label>
                     <div class="relative">
                         <input
                             name="new_password"
@@ -182,7 +185,7 @@
 
                 {# Confirm new password #}
                 <div class="space-y-2">
-                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Confirm New Password</label>
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Confirm New Password <span class="text-error">*</span></label>
                     <div class="relative">
                         <input
                             name="confirm_password"

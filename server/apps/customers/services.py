@@ -14,8 +14,9 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.users.models import User
 
-from .models import Customer, CreditLine
+from .models import BorrowedContainer, Customer, CreditLine
 from .selectors import _parse_display_id
 
 if TYPE_CHECKING:
@@ -28,6 +29,25 @@ _CONTAINER_FIELDS = {
     "slim_8gal": "borrowed_slim_8gal",
     "other": "borrowed_other",
 }
+
+
+def _resolve_care_of(care_of_id: str, user: "UserType") -> "UserType | None":
+    """Resolves an optional ``care_of`` user by primary key.
+
+    Returns ``None`` when ``care_of_id`` is empty. Raises ``ValidationError``
+    when a non-empty id is supplied but no matching active user is found
+    within the operator's tenant.
+    """
+    raw = (care_of_id or "").strip()
+    if not raw:
+        return None
+    qs = User.objects.filter(deleted_at__isnull=True, is_active=True)
+    if not user.is_superuser and user.company_id is not None:
+        qs = qs.filter(company_id=user.company_id)
+    care_of = qs.filter(pk=raw).first()
+    if care_of is None:
+        raise ValidationError("Please select a valid user for the care of field.")
+    return care_of
 
 
 def _to_decimal(value) -> Decimal:
@@ -136,11 +156,13 @@ def record_customer_debt(
     product_key: str,
     qty_credited,
     unit_price="",
+    care_of_id: str = "",
     performed_by: "UserType",
 ) -> CreditLine:
     """Creates a credit line for a customer and increases their debt balance."""
     customer = _resolve_customer(customer_id, performed_by)
     product = _resolve_product(product_key, performed_by)
+    care_of = _resolve_care_of(care_of_id, performed_by)
 
     try:
         qty = int(qty_credited)
@@ -164,6 +186,7 @@ def record_customer_debt(
             qty_remaining=qty,
             unit_price_snapshot=price,
             total_credit_amount=total,
+            care_of=care_of,
         )
         Customer.objects.filter(pk=customer.pk).update(
             debt_balance=F("debt_balance") + total,
@@ -172,11 +195,12 @@ def record_customer_debt(
 
     customer.refresh_from_db()
     logger.info(
-        "[%s] Created CreditLine id=%s customer_id=%s amount=%s",
+        "[%s] Created CreditLine id=%s customer_id=%s amount=%s care_of_id=%s",
         performed_by.id,
         credit_line.id,
         customer.id,
         total,
+        getattr(care_of, "id", None),
     )
     return credit_line
 
@@ -186,10 +210,17 @@ def record_customer_borrowed(
     customer_id: str,
     container_key: str,
     qty_borrowed,
+    care_of_id: str = "",
     performed_by: "UserType",
-) -> Customer:
-    """Records containers borrowed by a customer, updating their counts."""
+) -> BorrowedContainer:
+    """Records containers borrowed by a customer.
+
+    Creates a :class:`BorrowedContainer` instance linked to the user
+    responsible (``care_of``) and updates the aggregate counters on the
+    ``Customer`` row for backward compatibility with the table/detail views.
+    """
     customer = _resolve_customer(customer_id, performed_by)
+    care_of = _resolve_care_of(care_of_id, performed_by)
 
     if not container_key or container_key not in _CONTAINER_FIELDS:
         raise ValidationError("Please select a container type.")
@@ -202,15 +233,27 @@ def record_customer_borrowed(
         raise ValidationError("Quantity must be greater than zero.")
 
     field = _CONTAINER_FIELDS[container_key]
-    Customer.objects.filter(pk=customer.pk).update(**{field: F(field) + qty})
+    with transaction.atomic():
+        borrowed = BorrowedContainer.objects.create(
+            company=getattr(performed_by, "company", None),
+            customer=customer,
+            container_key=container_key,
+            qty_borrowed=qty,
+            qty_returned=0,
+            care_of=care_of,
+            recorded_by=performed_by,
+        )
+        Customer.objects.filter(pk=customer.pk).update(**{field: F(field) + qty})
     customer.refresh_from_db()
     logger.info(
-        "[%s] Recorded %s borrowed container(s) for Customer id=%s",
+        "[%s] Recorded BorrowedContainer id=%s for Customer id=%s qty=%s care_of_id=%s",
         performed_by.id,
-        qty,
+        borrowed.id,
         customer.id,
+        qty,
+        getattr(care_of, "id", None),
     )
-    return customer
+    return borrowed
 
 
 def delete_customer(*, customer: Customer, performed_by: "UserType") -> None:

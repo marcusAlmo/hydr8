@@ -15,10 +15,11 @@ from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.users.models import User
 from apps.users.presentation import driver_code as user_driver_code
 from apps.users.presentation import initials as user_initials
 
-from .models import Customer, CreditLine, CreditPayment
+from .models import BorrowedContainer, Customer, CreditLine, CreditPayment
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -620,17 +621,45 @@ def get_customer_detail_context(customer: Customer) -> dict:
 
 
 def get_customer_collect_context(customer: Customer) -> dict:
-    """Returns the collect modal context grouped by rider."""
+    """Returns the collect modal context grouped by rider.
+
+    Credit lines are grouped by the rider who delivered them (via
+    ``remittance_rider_product``); borrowed containers are grouped by
+    their ``care_of`` user so responsibility is visible per item. Both
+    carry a ``care_of`` field rendered in the list of borrowed/credited.
+    """
     open_lines = (
         CreditLine.objects.filter(customer=customer, qty_remaining__gt=0)
         .select_related(
             "product",
+            "care_of",
+            "care_of__role",
             "remittance_rider_product__remittance_rider__rider",
         )
         .order_by("product__name")
     )
 
+    open_borrowed = (
+        BorrowedContainer.objects.filter(customer=customer, qty_returned__lt=F("qty_borrowed"))
+        .select_related("care_of", "care_of__role")
+        .order_by("-created_at")
+    )
+
     groups: dict[str, dict] = {}
+
+    def _ensure_group(key: str, rider: dict) -> dict:
+        if key not in groups:
+            groups[key] = {"rider": rider, "items": []}
+        return groups[key]
+
+    def _care_of_summary(user) -> dict:
+        if user is None:
+            return {"name": "Unassigned", "initials": "NA"}
+        return {
+            "name": user.full_name,
+            "initials": user_initials(user),
+        }
+
     for line in open_lines:
         rr = getattr(line, "remittance_rider_product", None)
         if rr is not None:
@@ -646,22 +675,21 @@ def get_customer_collect_context(customer: Customer) -> dict:
             r_driver_code = "N/A"
 
         key = f"rider-{r_id}"
-        if key not in groups:
-            groups[key] = {
-                "rider": {
-                    "id": str(r_id),
-                    "name": r_name,
-                    "initials": r_initials,
-                    "driver_code": r_driver_code,
-                },
-                "items": [],
-            }
+        group = _ensure_group(
+            key,
+            {
+                "id": str(r_id),
+                "name": r_name,
+                "initials": r_initials,
+                "driver_code": r_driver_code,
+            },
+        )
 
         product_name = line.product.name
         if line.product.variation:
             product_name = f"{product_name} — {line.product.variation}"
 
-        groups[key]["items"].append(
+        group["items"].append(
             {
                 "id": f"CL-{line.pk}",
                 "product": product_name,
@@ -669,18 +697,75 @@ def get_customer_collect_context(customer: Customer) -> dict:
                 "qty_remaining": line.qty_remaining,
                 "unit_price": _format_peso(line.unit_price_snapshot),
                 "total_credit": _format_peso(line.total_credit_amount),
-                "rider": groups[key]["rider"],
+                "rider": group["rider"],
+                "care_of": _care_of_summary(line.care_of),
+            }
+        )
+
+    for borrowed in open_borrowed:
+        care_of_user = borrowed.care_of
+        if care_of_user is not None:
+            r_id = care_of_user.pk
+            r_name = care_of_user.full_name
+            r_initials = user_initials(care_of_user)
+            r_driver_code = user_driver_code(care_of_user)
+        else:
+            r_id = "unassigned"
+            r_name = "Unassigned"
+            r_initials = "NA"
+            r_driver_code = "N/A"
+
+        key = f"rider-{r_id}"
+        group = _ensure_group(
+            key,
+            {
+                "id": str(r_id),
+                "name": r_name,
+                "initials": r_initials,
+                "driver_code": r_driver_code,
+            },
+        )
+
+        group["items"].append(
+            {
+                "id": f"BC-{borrowed.pk}",
+                "container_key": borrowed.container_key,
+                "container_label": borrowed.container_label,
+                "qty_borrowed": borrowed.qty_borrowed,
+                "outstanding": borrowed.qty_remaining,
+                "rider": group["rider"],
+                "care_of": _care_of_summary(borrowed.care_of),
             }
         )
 
     rider_groups = sorted(groups.values(), key=lambda g: g["rider"]["name"])
     all_credit_lines = [item for group in rider_groups for item in group["items"]]
+    borrowed_entries = [item for group in rider_groups for item in group["items"] if item.get("container_key")]
     return {
         "customer": _customer_row(customer),
         "rider_groups": rider_groups,
         "credit_lines": all_credit_lines,
-        "borrowed_entries": [],
+        "borrowed_entries": borrowed_entries,
     }
+
+
+def _care_of_users(user: "UserType") -> list[dict]:
+    """Active users in the operator's tenant, for the ``care of`` dropdown.
+
+    Includes admins, staff, and drivers — anyone who could be responsible
+    for lending containers or extending credit to a customer.
+    """
+    qs = User.objects.filter(deleted_at__isnull=True, is_active=True)
+    if not user.is_superuser and user.company_id is not None:
+        qs = qs.filter(company_id=user.company_id)
+    qs = qs.order_by("first_name", "last_name", "username")
+    users: list[dict] = []
+    for u in qs:
+        label = u.full_name
+        if u.role_id is not None and getattr(u.role, "name", None):
+            label = f"{label} ({u.role.name})"
+        users.append({"id": str(u.pk), "label": label})
+    return users
 
 
 def get_record_debt_context(user: "UserType") -> dict:
@@ -707,6 +792,7 @@ def get_record_debt_context(user: "UserType") -> dict:
             }
             for p in products
         ],
+        "care_of_users": _care_of_users(user),
     }
 
 
@@ -726,6 +812,7 @@ def get_record_borrowed_context(user: "UserType") -> dict:
             {"key": "slim_8gal", "label": "Slim 8gal"},
             {"key": "other", "label": "Other"},
         ],
+        "care_of_users": _care_of_users(user),
     }
 
 

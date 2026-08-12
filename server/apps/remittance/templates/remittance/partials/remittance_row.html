@@ -1,0 +1,61 @@
+{# Single remittance row — shared by the history table and the
+   update_paid_status HTMX endpoint (outerHTML swap).
+
+   Alpine tracks the dirty state between the DB-backed original values
+   and the current checkbox state. When either flag is mutated, a
+   "Confirm" button appears; clicking it POSTs to update_paid_status
+   which persists the change and re-renders this partial. #}
+<tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 rem-row"
+    :class="(!tithesPaid || !offeringPaid) ? 'border-l-[#f59e0b]' : 'border-l-transparent'"
+    x-data="remittanceRow({ tithes_paid: {{ rem.tithes_paid|yesno:'true,false' }}, offering_paid: {{ rem.offering_paid|yesno:'true,false' }} })">
+    <td class="px-6 py-3 font-data-mono text-on-surface">{{ rem.date }}</td>
+    <td class="px-6 py-3">
+        <div class="flex items-center gap-2">
+            <div class="w-6 h-6 rounded-full {{ rem.avatar_bg }} text-[10px] flex items-center justify-center font-bold {{ rem.avatar_text }}">{{ rem.initials }}</div>
+            <span class="text-body-sm font-medium">{{ rem.created_by }}</span>
+        </div>
+    </td>
+    <td class="px-6 py-3 text-right font-data-mono">{{ rem.total_sales }}</td>
+    <td class="px-6 py-3 text-right font-data-mono text-tertiary">{{ rem.net_profit }}</td>
+    <td class="px-6 py-3 text-right font-data-mono text-primary font-bold">{{ rem.tithes }}</td>
+    <td class="px-6 py-3 text-center">
+        <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
+               type="checkbox"
+               name="tithes_paid"
+               value="on"
+               x-model="tithesPaid">
+    </td>
+    <td class="px-6 py-3 text-center">
+        <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
+               type="checkbox"
+               name="offering_paid"
+               value="on"
+               x-model="offeringPaid">
+    </td>
+    <td class="px-6 py-3 text-center">
+        <div class="flex items-center justify-center gap-1.5" x-cloak x-show="dirty"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0 scale-75"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-100"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-75">
+            <button type="button"
+                    hx-post="{% url 'remittance:update_paid_status' rem.id %}"
+                    hx-target="closest tr"
+                    hx-swap="outerHTML"
+                    hx-include="closest tr"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-on-primary text-label font-label-caps hover:bg-primary/90 transition-colors"
+                    aria-label="Confirm payment status update">
+                <span class="material-symbols-outlined text-[16px]">check</span>
+                Confirm
+            </button>
+            <button type="button"
+                    @click="cancel()"
+                    class="inline-flex items-center px-2 py-1 rounded-md text-outline hover:bg-surface-container-high transition-colors text-label font-label-caps"
+                    aria-label="Revert payment status">
+                Cancel
+            </button>
+        </div>
+    </td>
+</tr>

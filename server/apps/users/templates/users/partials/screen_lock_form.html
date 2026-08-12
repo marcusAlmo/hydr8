@@ -7,7 +7,7 @@
     {% csrf_token %}
 
     <div class="space-y-2" x-data="{ show: false }">
-        <label class="block font-label-caps text-xs font-bold text-on-surface-variant uppercase tracking-wider" for="id_pin">PIN</label>
+        <label class="block font-label-caps text-xs font-bold text-on-surface-variant uppercase tracking-wider" for="id_pin">PIN <span class="text-error">*</span></label>
         <div class="relative">
             <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px]">pin</span>
             <input

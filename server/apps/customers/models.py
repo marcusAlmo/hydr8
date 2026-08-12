@@ -89,6 +89,16 @@ class CreditLine(models.Model):
     unit_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2)
     total_credit_amount = models.DecimalField(max_digits=12, decimal_places=2)
     qty_remaining = models.SmallIntegerField()
+    # The user responsible for extending this credit to the customer.
+    # May be an admin, staff, or driver — not necessarily the recorder.
+    care_of = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='credit_lines_care_of',
+        help_text='User responsible for extending this credit (admin/staff/driver).',
+    )
     company = models.ForeignKey(
         'settings.Company',
         on_delete=models.CASCADE,
@@ -106,6 +116,83 @@ class CreditLine(models.Model):
 
     def __str__(self):
         return f"{self.customer.name} - {self.product.name} ({self.qty_remaining} left)"
+
+
+class BorrowedContainer(models.Model):
+    """A single lending event of containers to a customer.
+
+    Tracks each borrowing instance so responsibility can be attributed to
+    a specific user (the ``care_of`` field) — admin, staff, or driver —
+    rather than only the aggregate counters on ``Customer``.
+    """
+
+    class ContainerType(models.TextChoices):
+        ROUND_8GAL = 'round_8gal', 'Round 8gal'
+        SLIM_8GAL = 'slim_8gal', 'Slim 8gal'
+        OTHER = 'other', 'Other'
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name='borrowed_containers',
+    )
+    container_key = models.CharField(
+        max_length=20,
+        choices=ContainerType.choices,
+    )
+    qty_borrowed = models.SmallIntegerField()
+    qty_returned = models.SmallIntegerField(default=0)
+    # The user responsible for lending these containers to the customer.
+    # May be an admin, staff, or driver — ensures accountability even when
+    # the admin lends directly to a walk-in customer.
+    care_of = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='borrowed_containers_care_of',
+        help_text='User responsible for lending these containers (admin/staff/driver).',
+    )
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_borrowed_containers',
+        help_text='User who recorded this borrowing entry.',
+    )
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='borrowed_containers',
+        db_index=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantManager()
+
+    class Meta:
+        db_table = 'customers_borrowed_container'
+        indexes = [
+            models.Index(fields=['company', 'customer']),
+            models.Index(fields=['company', 'care_of']),
+        ]
+
+    def __str__(self):
+        return f"{self.customer.name} - {self.get_container_key_display()} ({self.qty_remaining} out)"
+
+    @property
+    def qty_remaining(self) -> int:
+        """Containers still unreturned for this borrowing instance."""
+        return max(0, self.qty_borrowed - self.qty_returned)
+
+    @property
+    def container_label(self) -> str:
+        """Human-readable container label (e.g. ``Round 8gal``)."""
+        return self.get_container_key_display()
 
 
 class CreditPayment(models.Model):

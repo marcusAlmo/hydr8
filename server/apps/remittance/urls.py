@@ -8,4 +8,9 @@ urlpatterns = [
     path("create/", views.create_remittance_view, name="create"),
     path("check-date/", views.check_remittance_date_view, name="check_date"),
     path("history/", views.remittance_history_view, name="history"),
+    path(
+        "<int:remittance_id>/paid-status/",
+        views.update_paid_status_view,
+        name="update_paid_status",
+    ),
 ]

@@ -12,7 +12,7 @@ Expects context:
             <span class="material-symbols-outlined text-error">schedule</span>
             <h4 class="font-headline-sm text-headline-sm">Long-Running Debts</h4>
         </div>
-        <button class="text-primary font-bold text-body-sm hover:underline">View All Credits</button>
+        <a href="{% url 'customers:list' %}" class="text-primary font-bold text-body-sm hover:underline">View All Credits</a>
     </div>
     <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse">
@@ -45,7 +45,14 @@ Expects context:
                     </td>
                     <td class="py-3 px-4 text-on-surface-variant">{{ debt.issued_on }}</td>
                     <td class="py-3 px-4">
-                        <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Collect</button>
+                        {% if debt.customer_id %}
+                        <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors"
+                                hx-get="{% url 'customers:collect' debt.customer_id %}"
+                                hx-target="#modal-root"
+                                hx-swap="innerHTML">Collect</button>
+                        {% else %}
+                        <span class="text-on-surface-variant px-2 py-1">—</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}

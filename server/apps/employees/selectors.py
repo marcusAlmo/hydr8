@@ -30,6 +30,28 @@ logger = logging.getLogger(__name__)
 _MODULES = ["Remittance", "Customers", "Products", "Users", "Reports"]
 PER_PAGE = 25
 
+# ---------------------------------------------------------------------------
+# Accent colour mapping for summary/stat cards.
+# Maps the ``accent`` key in a stat dict to the Tailwind classes used in the
+# template (border-top colour + icon colour). Kept here so both the employees
+# views and the users edit-submit view can render stat cards consistently
+# without duplicating the mapping.
+# ---------------------------------------------------------------------------
+_ACCENT_CLASSES = {
+    "primary": {"border": "border-t-primary", "icon": "text-primary"},
+    "warning": {"border": "border-t-[#D97706]", "icon": "text-[#D97706]"},
+    "error": {"border": "border-t-error", "icon": "text-error"},
+    "tertiary": {"border": "border-t-tertiary", "icon": "text-tertiary"},
+}
+
+
+def _apply_stat_accents(stats: list[dict]) -> None:
+    """Mutate stat dicts in place, adding ``border_class`` and ``icon_class``."""
+    for stat in stats:
+        accent = _ACCENT_CLASSES.get(stat["accent"], _ACCENT_CLASSES["primary"])
+        stat["border_class"] = accent["border"]
+        stat["icon_class"] = accent["icon"]
+
 _ROLE_STYLE = {
     "Admin": {
         "accent": "tertiary",
@@ -508,9 +530,12 @@ def get_employee_directory_context(
 
     users = [_user_row(u) for u in page_obj.object_list]
 
+    stats = _directory_stats(_user_qs(request_user))
+    _apply_stat_accents(stats)
+
     return {
         "today_date": timezone.now().strftime("%A, %b %d, %Y"),
-        "stats": _directory_stats(_user_qs(request_user)),
+        "stats": stats,
         "filters": _directory_filters(_user_qs(request_user)),
         "users": users,
         "pagination": _pagination_from_page(page_obj),
@@ -544,8 +569,10 @@ def get_user_detail_context(request_user: "UserType", user_id: str) -> dict | No
 
     if role_name == "driver":
         context.update(_driver_detail_context(request_user, target))
+        _apply_stat_accents(context.get("driver_stats", []))
     elif role_name == "staff":
         context.update(_staff_detail_context())
+        _apply_stat_accents(context.get("staff_stats", []))
     else:
         context.update({"is_admin": True})
 

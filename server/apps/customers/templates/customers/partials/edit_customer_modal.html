@@ -68,6 +68,7 @@ error banner is swapped into ``#form-error``.
                     name="name"
                     required
                     value="{{ customer.name }}"
+                    placeholder="e.g. Aling Nena's Sari-Sari"
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface">
             </div>
 
@@ -81,6 +82,7 @@ error banner is swapped into ``#form-error``.
                     id="edit-cust-contact"
                     name="contact_number"
                     value="{{ customer.contact_number }}"
+                    placeholder="e.g. 0917-845-2103"
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
             </div>
 
@@ -93,6 +95,7 @@ error banner is swapped into ``#form-error``.
                     id="edit-cust-address"
                     name="address"
                     rows="2"
+                    placeholder="e.g. Brgy. 14, Mabini St., Calamba, Laguna"
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface resize-none">{{ customer.address }}</textarea>
             </div>
 

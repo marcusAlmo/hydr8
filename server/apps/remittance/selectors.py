@@ -156,6 +156,31 @@ def remittance_exists_for_date(user: "UserType", target_date: date) -> bool:
     return Remittance.objects.for_user(user).filter(date=target_date).exists()
 
 
+def _remittance_row(rem: Remittance) -> dict:
+    """Builds the template-facing dict for a single remittance row.
+
+    Shared by :func:`get_recent_remittances` (list page) and the
+    ``update_paid_status`` HTMX endpoint (single-row swap) so both render
+    identical markup.
+    """
+    creator = rem.created_by
+    bg, txt = avatar_classes(creator)
+    return {
+        "id": rem.id,
+        "date": rem.date.strftime("%Y-%m-%d"),
+        "created_by": creator.full_name,
+        "initials": initials(creator),
+        "avatar_bg": bg,
+        "avatar_text": txt,
+        "total_sales": f"{rem.total_sales:,.2f}",
+        "net_profit": f"{rem.net_profit:,.2f}",
+        "tithes": f"{rem.tithe_amount:,.2f}",
+        "tithes_paid": rem.tithes_paid,
+        "offering_paid": rem.offering_paid,
+        "unpaid": not (rem.tithes_paid and rem.offering_paid),
+    }
+
+
 def get_recent_remittances(user: "UserType", limit: int = 25) -> dict:
     """Returns recent remittance rows and the total count for pagination."""
     qs = (
@@ -165,24 +190,21 @@ def get_recent_remittances(user: "UserType", limit: int = 25) -> dict:
         .order_by("-date")
     )
 
-    rows: list[dict] = []
-    for rem in qs[:limit]:
-        creator = rem.created_by
-        bg, txt = avatar_classes(creator)
-        rows.append({
-            "date": rem.date.strftime("%Y-%m-%d"),
-            "created_by": creator.full_name,
-            "initials": initials(creator),
-            "avatar_bg": bg,
-            "avatar_text": txt,
-            "total_sales": f"{rem.total_sales:,.2f}",
-            "net_profit": f"{rem.net_profit:,.2f}",
-            "tithes": f"{rem.tithe_amount:,.2f}",
-            "tithes_paid": rem.tithes_paid,
-            "offering_paid": rem.offering_paid,
-            "unpaid": not (rem.tithes_paid and rem.offering_paid),
-        })
+    rows: list[dict] = [_remittance_row(rem) for rem in qs[:limit]]
     return {"remittances": rows, "total": qs.count()}
+
+
+def get_remittance_row(user: "UserType", remittance_id: int) -> dict | None:
+    """Returns the template-facing dict for a single remittance, or
+    ``None`` if it does not exist or is outside the user's tenant."""
+    rem = (
+        Remittance.objects
+        .for_user(user)
+        .select_related("created_by")
+        .filter(id=remittance_id)
+        .first()
+    )
+    return _remittance_row(rem) if rem else None
 
 
 _RIDER_TREND_COLORS = [

@@ -236,3 +236,44 @@ def create_and_finalize_remittance(
         net_profit,
     )
     return remittance
+
+
+@transaction.atomic
+def update_remittance_paid_status(
+    *,
+    performed_by: "UserType",
+    remittance_id: int,
+    tithes_paid: bool,
+    offering_paid: bool,
+) -> Remittance:
+    """Updates the ``tithes_paid`` / ``offering_paid`` flags on a finalized
+    remittance.
+
+    Tenant-scoped via ``Remittance.objects.for_user`` so a user can only
+    mutate remittances belonging to their own company. Raises
+    ``ValidationError`` if the remittance does not exist.
+
+    Returns the refreshed :class:`Remittance` instance.
+    """
+    remittance = (
+        Remittance.objects
+        .for_user(performed_by)
+        .select_related("created_by")
+        .filter(id=remittance_id)
+        .first()
+    )
+    if remittance is None:
+        raise ValidationError("Remittance not found.")
+
+    remittance.tithes_paid = tithes_paid
+    remittance.offering_paid = offering_paid
+    remittance.save(update_fields=["tithes_paid", "offering_paid", "updated_at"])
+
+    logger.info(
+        "[%s] Updated Remittance id=%s tithes_paid=%s offering_paid=%s",
+        performed_by.id,
+        remittance.id,
+        tithes_paid,
+        offering_paid,
+    )
+    return remittance

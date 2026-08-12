@@ -104,6 +104,12 @@ Expects context:
                             <div class="min-w-0">
                                 <div class="font-sans text-sm text-on-surface font-bold">{{ item.container_label }}</div>
                                 <div class="font-data-mono text-[11px] text-on-surface-variant mt-0.5">{{ item.id }} · {{ item.outstanding }} outstanding</div>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-outline-variant text-[12px]">person</span>
+                                    <span class="font-data-mono text-[10px] text-on-surface-variant">
+                                        Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                                    </span>
+                                </div>
                             </div>
                             <div class="flex items-center gap-2 flex-shrink-0">
                                 <label class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider">Returned</label>
@@ -134,6 +140,12 @@ Expects context:
                                 <div class="font-sans text-sm text-on-surface font-bold">{{ item.product }}</div>
                                 <div class="font-data-mono text-[11px] text-on-surface-variant mt-0.5">
                                     {{ item.id }} · {{ item.qty_remaining }} remaining · {{ item.unit_price }}/unit · {{ item.total_credit }} total
+                                </div>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <span class="material-symbols-outlined text-outline-variant text-[12px]">person</span>
+                                    <span class="font-data-mono text-[10px] text-on-surface-variant">
+                                        Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                                    </span>
                                 </div>
                             </div>
                             <div class="flex items-center gap-3 flex-shrink-0">

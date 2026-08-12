@@ -23,6 +23,7 @@ from apps.core.views import (
     toast_for_exception,
     toast_success,
 )
+from apps.employees.selectors import get_user_detail_context
 from apps.users.models import Role, User
 from apps.users.signals import login_failed
 from .selectors import get_roles_for_user, get_user_by_id
@@ -298,8 +299,6 @@ def generate_temp_password_view(request, user_id):
     return render(request, 'users/partials/temp_password_result.html', {
         'target_user': target_user,
         'temp_password': raw_password,
-        'toast_id': int(timezone.now().timestamp() * 1000),
-        'toast_message': f"Temporary password generated for {target_user.username}.",
     })
 
 
@@ -389,11 +388,14 @@ def edit_user_submit_view(request, user_id):
             return toast_for_exception(request, exc)
 
         logger.info("[%s] Updated User id=%s", request.user.id, target_user.id)
-        return render(request, 'users/partials/edit_user_success.html', {
-            'target_user': target_user,
-            'toast_id': int(timezone.now().timestamp() * 1000),
-            'toast_message': f"{target_user.username}'s profile has been saved.",
-        })
+        # Re-render the user detail partial with the updated values so the
+        # drawer reflects the saved state. No toast — the updated values in
+        # the drawer are the feedback. The drawer's built-in close button
+        # handles dismissal.
+        context = get_user_detail_context(request.user, target_user.id)
+        if context is None:
+            return HttpResponse("User not found.", status=404)
+        return render(request, 'employees/partials/user_detail.html', context)
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
@@ -496,8 +498,6 @@ def add_user_submit_view(request):
         return render(request, 'users/partials/temp_password_result.html', {
             'target_user': new_user,
             'temp_password': raw_password,
-            'toast_id': int(timezone.now().timestamp() * 1000),
-            'toast_message': f"User {new_user.username} created and temporary password generated.",
         })
 
     return render(request, 'users/partials/add_user_form.html', {
