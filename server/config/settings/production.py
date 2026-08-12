@@ -1,5 +1,8 @@
 from .base import *
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
 DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
@@ -28,3 +31,12 @@ CACHES = {
 # Persistent database connections — let gunicorn keep connections open for
 # 10 minutes instead of creating a new one on every request.
 DATABASES['default']['CONN_MAX_AGE'] = 600
+
+SENTRY_DSN = env('SENTRY_DSN', default=None)
+
+if not DEBUG and SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.0,
+    )
