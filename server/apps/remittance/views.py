@@ -2,6 +2,7 @@ import json
 import logging
 from datetime import date
 
+from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -61,9 +62,11 @@ def add_remittance_view(request):
         "manualOffering": context["offering_amount"],
         "selectedRiderId": selected_rider_id,
         "remittanceDate": context["default_date"],
+        "hasDraft": context.get("has_draft", False),
     }).replace("'", "&#39;")
 
     context["is_admin"] = is_admin_user(request.user)
+    context["verify_pin_url"] = reverse("remittance:verify_pin")
 
     return render(request, "remittance/add_remittance.html", context)
 
@@ -146,6 +149,78 @@ def create_remittance_view(request):
         return JsonResponse({"ok": False, "error": f"Invalid input: {e}"}, status=400)
 
     return JsonResponse({"ok": True, "redirect_url": reverse("remittance:history")})
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='5/15m', method='POST', block=True)
+def verify_pin_view(request):
+    """JSON endpoint — verifies the current user's PIN before finalizing a
+    remittance.
+
+    Used by the Alpine.js PIN modal on the Add Remittance page.  The
+    modal opens when the admin clicks "Confirm & Finalize"; only after
+    the PIN is verified here does the client POST the actual finalize
+    payload to ``remittance:create`` (which re-verifies the PIN
+    server-side as defence in depth).
+
+    Shares the ``pin_attempts`` session counter with the screen-lock
+    flows (``users:screen_lock_verify`` etc.) so the three surfaces
+    cannot be used to bypass each other's attempt ceiling.
+
+    Returns JSON::
+
+        {"verified": true}                          # on success
+        {"verified": false, "attempts_left": 2}     # on wrong PIN
+        {"verified": false, "logged_out": true,
+         "redirect": "/users/"}                     # after 3 failures
+
+    After 3 failed attempts the user is logged out (session destroyed)
+    and the client redirects to the login page — matching the rule on
+    the standalone screen-lock page.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (ValueError, TypeError):
+        return JsonResponse(
+            {"verified": False, "error": "Invalid request."}, status=400,
+        )
+
+    pin = str(body.get("pin", "")).strip()
+    if not pin:
+        return JsonResponse(
+            {"verified": False, "error": "PIN is required."}, status=400,
+        )
+
+    user = request.user
+    attempts = request.session.get('pin_attempts', 0)
+
+    if user.check_pin(pin):
+        request.session.pop('pin_attempts', None)
+        logger.info("[%s] Remittance finalize PIN verified.", user.id)
+        return JsonResponse({"verified": True})
+
+    attempts += 1
+    request.session['pin_attempts'] = attempts
+
+    if attempts >= 3:
+        logger.warning(
+            "[%s] Remittance finalize PIN exceeded 3 attempts; logging out.",
+            user.id,
+        )
+        auth_logout(request)
+        return JsonResponse(
+            {
+                "verified": False,
+                "logged_out": True,
+                "redirect": reverse('users:index'),
+            },
+        )
+
+    logger.info("[%s] Remittance finalize PIN failed (attempt %s).", user.id, attempts)
+    return JsonResponse(
+        {"verified": False, "attempts_left": 3 - attempts},
+    )
 
 
 @login_required

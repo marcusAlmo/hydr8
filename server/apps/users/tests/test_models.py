@@ -9,7 +9,7 @@ class UserModelTests(SimpleTestCase):
     def test_user_initial_state(self):
         """Test that a user starts with default active status using SimpleTestCase."""
         user = User(username="testuser", email="testuser@example.com")
-        self.assertEqual(user.status, User.StatusChoices.ACTIVE)
+        self.assertTrue(user.is_active)
         self.assertIsNone(user.deleted_at)
 
     def test_user_name_property_returns_full_name(self):

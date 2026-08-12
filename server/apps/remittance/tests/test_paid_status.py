@@ -92,14 +92,30 @@ class UpdatePaidStatusServiceTests(TestCase):
     def test_tenant_isolation_other_company_user_cannot_update(self):
         """A user from a different tenant cannot update another tenant's
         remittance — the for_user() filter returns no row, so
-        ValidationError is raised."""
+        ValidationError is raised.
+
+        The company-scoped remittance is created with ``company`` set at
+        creation time, because the DB immutability trigger (migration
+        0005) blocks reassigning ``company`` on an already-FINALIZED row.
+        """
         from apps.settings.models import Company
         company_a = Company.objects.create(name="Company A")
         company_b = Company.objects.create(name="Company B")
-        self.user.company = company_a
-        self.user.save()
-        self.remittance.company = company_a
-        self.remittance.save()
+
+        user_a = User.objects.create_user(
+            username="op_a",
+            password="securepassword123",
+            company=company_a,
+        )
+        rem_a = Remittance.objects.create(
+            date=date(2026, 8, 5),
+            created_by=user_a,
+            finalized_by=user_a,
+            status=Remittance.StatusChoices.FINALIZED,
+            company=company_a,
+            tithes_paid=False,
+            offering_paid=False,
+        )
 
         other = User.objects.create_user(
             username="other_operator",
@@ -109,13 +125,13 @@ class UpdatePaidStatusServiceTests(TestCase):
         with self.assertRaises(ValidationError):
             update_remittance_paid_status(
                 performed_by=other,
-                remittance_id=self.remittance.id,
+                remittance_id=rem_a.id,
                 tithes_paid=True,
                 offering_paid=True,
             )
         # Original remittance must be unchanged.
-        self.remittance.refresh_from_db()
-        self.assertFalse(self.remittance.tithes_paid)
+        rem_a.refresh_from_db()
+        self.assertFalse(rem_a.tithes_paid)
 
 
 class GetRemittanceRowSelectorTests(TestCase):

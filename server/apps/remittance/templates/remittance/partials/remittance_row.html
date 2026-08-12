@@ -31,7 +31,10 @@
         </div>
     </td>
     <td class="px-6 py-3 text-right font-data-mono">{{ rem.total_sales }}</td>
-    <td class="px-6 py-3 text-right font-data-mono text-tertiary">{{ rem.net_profit }}</td>
+    <td class="px-6 py-3 text-right font-data-mono text-on-surface-variant">{{ rem.total_repayments }}</td>
+    <td class="px-6 py-3 text-right font-data-mono text-on-surface-variant">{{ rem.total_expenses }}</td>
+    <td class="px-6 py-3 text-right font-data-mono text-on-surface-variant">{{ rem.total_commission }}</td>
+    <td class="px-6 py-3 text-right font-data-mono text-tertiary font-bold">{{ rem.net_profit }}</td>
     <td class="px-6 py-3 text-right font-data-mono text-primary font-bold">{{ rem.tithes }}</td>
 
     {% if rem.is_draft %}

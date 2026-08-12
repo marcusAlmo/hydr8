@@ -156,10 +156,25 @@ def create_remittance(
             raise ValidationError(
                 f"A finalized remittance for {remittance_date} already exists."
             )
-        raise ValidationError(
-            f"A draft for {remittance_date} already exists. "
-            "Use 'Save as Draft' to update it or 'Clear Draft' to remove it."
-        )
+        if finalize:
+            # A draft was prepared by staff; the admin is now finalizing.
+            # Replace the draft with a finalized remittance built from the
+            # current (possibly edited) payload — same upsert pattern as
+            # ``save_remittance_draft`` so the transition never errors with
+            # "a draft already exists".
+            _unlink_credit_payments(existing)
+            existing.delete()
+            logger.info(
+                "[%s] Replaced DRAFT id=%s for date=%s prior to finalize",
+                performed_by.id,
+                existing.id,
+                remittance_date,
+            )
+        else:
+            raise ValidationError(
+                f"A draft for {remittance_date} already exists. "
+                "Use 'Save as Draft' to update it or 'Clear Draft' to remove it."
+            )
 
     return _build_remittance(
         performed_by=performed_by,
@@ -304,13 +319,15 @@ def _build_remittance(
         raise ValidationError(f"Unknown product(s): {', '.join(missing_products)}")
 
     # --- Create the parent Remittance row ---------------------------------
+    # The parent is always created as DRAFT first so the DB immutability
+    # trigger (migration 0005) does not block the child-row INSERTs that
+    # follow.  When ``finalize`` is True the status is flipped to FINALIZED
+    # in the final save below, after every child has been persisted.
     remittance = Remittance.objects.create(
         date=remittance_date,
         company=company,
         created_by=performed_by,
-        status=Remittance.StatusChoices.FINALIZED if finalize else Remittance.StatusChoices.DRAFT,
-        finalized_by=performed_by if finalize else None,
-        finalized_at=timezone.now() if finalize else None,
+        status=Remittance.StatusChoices.DRAFT,
         tithe_rate_snapshot=_to_decimal(tithe_rate),
         offering_amount=_to_decimal(manual_offering),
     )
@@ -493,6 +510,17 @@ def _build_remittance(
     remittance.total_repayments_received = total_repayments
     remittance.net_profit = net_profit
     remittance.tithe_amount = tithe_amount
+
+    # Flip DRAFT -> FINALIZED as the final atomic step.  At this point
+    # every child row has been persisted, so the DB immutability trigger
+    # (which only fires when OLD.status = 'FINALIZED') does not block us.
+    finalize_fields: list[str] = []
+    if finalize:
+        remittance.status = Remittance.StatusChoices.FINALIZED
+        remittance.finalized_by = performed_by
+        remittance.finalized_at = timezone.now()
+        finalize_fields = ["status", "finalized_by", "finalized_at"]
+
     remittance.save(
         update_fields=[
             "total_sales",
@@ -503,6 +531,7 @@ def _build_remittance(
             "total_repayments_received",
             "net_profit",
             "tithe_amount",
+            *finalize_fields,
             "updated_at",
         ]
     )

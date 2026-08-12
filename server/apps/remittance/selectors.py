@@ -18,7 +18,7 @@ from apps.core.models import Product, SystemConfig
 from apps.customers.models import CreditPayment, Customer
 from apps.users.models import User, DriverCommission
 from apps.users.presentation import avatar_classes, driver_code, initials
-from .models import Remittance, RemittanceRiderProductLine
+from .models import Expense, Remittance, RemittanceRider, RemittanceRiderProductLine
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -81,8 +81,12 @@ def _repayments_for_date(
     remittance_date: date,
 ) -> list[dict]:
     """Returns a flat list of ALL CreditPayments collected on
-    ``remittance_date`` that are not yet linked to a Remittance —
-    regardless of who the ``care_of`` is (rider or staff).
+    ``remittance_date`` that are either unlinked OR linked to a DRAFT
+    remittance for the same date — regardless of who the ``care_of`` is
+    (rider or staff).
+
+    Payments linked to a FINALIZED remittance are excluded (they are
+    locked and should not reappear on the Add Remittance form).
 
     Each entry is shaped for the Alpine.js form::
 
@@ -100,13 +104,20 @@ def _repayments_for_date(
     active drivers (so the frontend knows whether to compute commission).
     """
     rider_ids = {r.pk for r in riders_qs}
+    company_id = getattr(user, "company_id", None)
 
     qs = (
         CreditPayment.objects
         .filter(
-            company_id=getattr(user, "company_id", None),
-            remittance__isnull=True,
+            company_id=company_id,
             created_at__date=remittance_date,
+        )
+        .filter(
+            Q(remittance__isnull=True)
+            | Q(
+                remittance__status=Remittance.StatusChoices.DRAFT,
+                remittance__date=remittance_date,
+            )
         )
         .select_related("credit_line__customer", "credit_line__product", "credit_line__care_of")
         .order_by("created_at")
@@ -183,14 +194,97 @@ def list_riders_for_remittance(
     return riders
 
 
+def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
+    """Loads an existing DRAFT remittance for ``remittance_date`` and
+    returns its form-facing state, or ``None`` if no draft (or a
+    finalized remittance) exists for the date.
+
+    The returned dict is shaped for direct merging into the Add
+    Remittance page context::
+
+        {
+            "rider_sold": {str(rider_id): {str(product_id): int(sold)}},
+            "expenses": [{"description": str, "amount": str, "confirmed": bool}, ...],
+            "offering_amount": str,
+        }
+
+    Only ``qty_sold`` is restored — the frontend form only edits the
+    ``sold`` field per product line.  ``qty_credited`` and
+    ``borrowed_items`` are not used by the form and are omitted.
+    """
+    draft = (
+        Remittance.objects
+        .for_user(user)
+        .filter(date=remittance_date, status=Remittance.StatusChoices.DRAFT)
+        .first()
+    )
+    if draft is None:
+        return None
+
+    # Build rider_id -> {product_id -> qty_sold} from the draft's lines.
+    rider_sold: dict[str, dict[str, int]] = {}
+    lines = (
+        RemittanceRiderProductLine.objects
+        .filter(remittance_rider__remittance=draft)
+        .select_related("remittance_rider__rider", "product")
+    )
+    for line in lines:
+        rider_id = str(line.remittance_rider.rider_id)
+        product_id = str(line.product_id)
+        rider_sold.setdefault(rider_id, {})[product_id] = line.qty_sold
+
+    # Load expenses from the draft.
+    expenses = [
+        {
+            "description": exp.description,
+            "amount": str(exp.amount),
+            "confirmed": True,
+        }
+        for exp in Expense.objects.filter(remittance=draft).order_by("id")
+    ]
+
+    return {
+        "rider_sold": rider_sold,
+        "expenses": expenses,
+        "offering_amount": str(draft.offering_amount) if draft.offering_amount else "",
+    }
+
+
 def get_add_remittance_context(user: "UserType") -> dict:
-    """Builds the full context for the Add Remittance page."""
+    """Builds the full context for the Add Remittance page.
+
+    If a DRAFT remittance already exists for today's date, the form is
+    hydrated from the database draft — sold quantities, expenses, and
+    offering amount are restored so the user can continue editing
+    seamlessly after a "Save as Draft" / page refresh cycle.
+    """
     default_date = date.today()
     products = list_products_for_remittance(user)
     riders_qs = _active_riders_qs(user)
     riders = list_riders_for_remittance(user, remittance_date=default_date)
     repayments = _repayments_for_date(user, riders_qs, default_date)
     company_id = getattr(getattr(user, "company", None), "id", None)
+
+    # Try to load an existing DRAFT for today.  If found, overlay the
+    # saved sold quantities / expenses / offering onto the fresh rider
+    # metadata so the form reflects the persisted state.
+    draft_state = _load_draft_state(user, default_date)
+    has_draft = draft_state is not None
+    expenses: list[dict] = []
+    offering_amount = ""
+
+    if draft_state is not None:
+        rider_sold = draft_state["rider_sold"]
+        for rider in riders:
+            sold_map = rider_sold.get(rider["id"])
+            if not sold_map:
+                continue
+            for line in rider["product_lines"]:
+                cached_sold = sold_map.get(line["product_key"])
+                if cached_sold is not None:
+                    line["sold"] = cached_sold
+        expenses = draft_state["expenses"]
+        offering_amount = draft_state["offering_amount"]
 
     return {
         "today_date": datetime.now().strftime("%A, %b %d, %Y"),
@@ -208,9 +302,10 @@ def get_add_remittance_context(user: "UserType") -> dict:
             "total_commission": "₱0.00",
             "manual_offering": "₱0.00",
         },
-        "expenses": [],
+        "expenses": expenses,
         "tithe_rate": _tithe_rate(company_id),
-        "offering_amount": "",
+        "offering_amount": offering_amount,
+        "has_draft": has_draft,
     }
 
 
@@ -254,6 +349,9 @@ def _remittance_row(rem: Remittance) -> dict:
         "avatar_bg": bg,
         "avatar_text": txt,
         "total_sales": f"{rem.total_sales:,.2f}",
+        "total_repayments": f"{rem.total_repayments_received:,.2f}",
+        "total_expenses": f"{rem.total_expenses:,.2f}",
+        "total_commission": f"{rem.total_commission:,.2f}",
         "net_profit": f"{rem.net_profit:,.2f}",
         "tithes": f"{rem.tithe_amount:,.2f}",
         "tithes_paid": rem.tithes_paid,
@@ -335,16 +433,31 @@ def get_remittance_history_context(user: "UserType", days: int = 30) -> dict:
         .annotate(
             total_sales=Sum("total_sales"),
             total_commission=Sum("total_commission"),
+            total_repayments=Sum("total_repayments_received"),
+            total_expenses=Sum("total_expenses"),
+            net_profit=Sum("net_profit"),
+            tithes=Sum("tithe_amount"),
+            offerings=Sum("offering_amount"),
         )
     )
     remit_by_date: dict[date, dict] = {row["date"]: row for row in remit_rows}
 
     total_sales: list[float] = []
     commissions_paid: list[float] = []
+    total_repayments: list[float] = []
+    total_expenses: list[float] = []
+    net_profit: list[float] = []
+    tithes: list[float] = []
+    offerings: list[float] = []
     for d in dates:
         rem = remit_by_date.get(d)
         total_sales.append(float(rem["total_sales"]) if rem and rem["total_sales"] is not None else 0.0)
         commissions_paid.append(float(rem["total_commission"]) if rem and rem["total_commission"] is not None else 0.0)
+        total_repayments.append(float(rem["total_repayments"]) if rem and rem["total_repayments"] is not None else 0.0)
+        total_expenses.append(float(rem["total_expenses"]) if rem and rem["total_expenses"] is not None else 0.0)
+        net_profit.append(float(rem["net_profit"]) if rem and rem["net_profit"] is not None else 0.0)
+        tithes.append(float(rem["tithes"]) if rem and rem["tithes"] is not None else 0.0)
+        offerings.append(float(rem["offerings"]) if rem and rem["offerings"] is not None else 0.0)
 
     # Outstanding debt — current customer ledger balance (no historical snapshots)
     current_debt = (
@@ -390,6 +503,11 @@ def get_remittance_history_context(user: "UserType", days: int = 30) -> dict:
         "total_sales": total_sales,
         "outstanding_debt": outstanding_debt,
         "commissions_paid": commissions_paid,
+        "total_repayments": total_repayments,
+        "total_expenses": total_expenses,
+        "net_profit": net_profit,
+        "tithes": tithes,
+        "offerings": offerings,
         "riders": rider_series,
     }
 

@@ -1,15 +1,46 @@
-from django.test import TestCase
-from django.core.cache import cache
+"""Self-contained HTMX view tests for the Customers app.
 
+Each test class creates its own customer / product / user fixtures (following
+the ``test_collect_submit.py`` pattern) so they do not depend on seed data.
+
+Covers:
+  - Customer detail modal (GET /customers/<id>/)
+  - Customer collect modal (GET /customers/<id>/collect/)
+  - Customer table partial (GET /customers/table/)
+  - Add customer modal + submit (GET/POST /customers/add/, /customers/add/submit/)
+  - Record debt modal + submit (GET/POST /customers/record-debt/, /customers/record-debt/submit/)
+  - Record borrowed modal + submit (GET/POST /customers/record-borrowed/, /customers/record-borrowed/submit/)
+  - Customer delete (POST /customers/<id>/delete/)
+"""
+from decimal import Decimal
+
+from django.core.cache import cache
+from django.test import TestCase
+
+from apps.core.models import Product
+from apps.customers.models import (
+    BorrowedContainer,
+    CreditLine,
+    Customer,
+)
+from apps.customers.services import (
+    record_customer_borrowed,
+    record_customer_debt,
+)
 from apps.users.models import User
+from apps.users.presentation import driver_code as user_driver_code
+
+
+def _display_id(customer: Customer) -> str:
+    """Returns the HY-XXXX display id for a customer."""
+    return f"HY-{customer.pk:04d}"
 
 
 class CustomerDetailViewTests(TestCase):
     """Tests for the HTMX customer detail modal endpoint.
 
-    Mirrors the audit log detail pattern: a row click issues an HTMX GET
-    to ``/customers/<id>/`` and the view returns a modal partial swapped
-    into ``#modal-root``.
+    A row click issues an HTMX GET to ``/customers/<id>/`` and the view
+    returns a modal partial swapped into ``#modal-root``.
     """
 
     def setUp(self):
@@ -17,6 +48,41 @@ class CustomerDetailViewTests(TestCase):
             username="hydr8staff",
             password="securepassword123",
         )
+        # Customer with debt + borrowed + FLAGGED status
+        self.flagged = Customer.objects.create(
+            name="Sari-Sari Store",
+            contact_number="0917-555-1234",
+            address="Brgy. 14, Mabini St.",
+            credit_limit=Decimal("5000.00"),
+            status=Customer.Status.FLAGGED,
+            flagged_reason="3 overdue cycles in 60 days",
+        )
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+        record_customer_debt(
+            customer_id=_display_id(self.flagged),
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            performed_by=self.user,
+        )
+        record_customer_borrowed(
+            customer_id=_display_id(self.flagged),
+            container_key="round_8gal",
+            qty_borrowed=3,
+            performed_by=self.user,
+        )
+        # Debt-free, borrow-free customer (deletable)
+        self.clean = Customer.objects.create(
+            name="Aqua Services Inc.",
+            contact_number="0918-555-5678",
+            address="123 Aguinaldo Hwy",
+        )
+        # Customer with empty contact/address
+        self.sparse = Customer.objects.create(name="No Contact Store")
         cache.clear()
         self.client.force_login(self.user)
 
@@ -24,13 +90,11 @@ class CustomerDetailViewTests(TestCase):
         cache.clear()
 
     def test_detail_returns_modal_partial_for_known_customer(self):
-        """GET /customers/HY-8021/ returns 200 and the modal markup."""
-        response = self.client.get("/customers/HY-8021/")
+        """GET /customers/<id>/ returns 200 and the modal markup."""
+        response = self.client.get(f"/customers/{_display_id(self.flagged)}/")
         self.assertEqual(response.status_code, 200)
-        # Modal backdrop + panel anchors (apostrophe is HTML-escaped by
-        # Django autoescape, so assert on a non-escaped substring).
-        self.assertContains(response, "Sari-Sari")
-        self.assertContains(response, "HY-8021")
+        self.assertContains(response, "Sari-Sari Store")
+        self.assertContains(response, _display_id(self.flagged))
         # Enrichment fields rendered
         self.assertContains(response, "Outstanding Debt")
         self.assertContains(response, "Credit Limit")
@@ -38,18 +102,18 @@ class CustomerDetailViewTests(TestCase):
 
     def test_detail_includes_status_badge_for_flagged_customer(self):
         """A flagged customer renders the FLAGGED anomaly banner."""
-        response = self.client.get("/customers/HY-8021/")
+        response = self.client.get(f"/customers/{_display_id(self.flagged)}/")
         self.assertContains(response, "FLAGGED")
         self.assertContains(response, "3 overdue cycles in 60 days")
 
     def test_detail_includes_collect_button_when_has_debt(self):
         """A customer with debt shows the Collect action in the footer."""
-        response = self.client.get("/customers/HY-8021/")
+        response = self.client.get(f"/customers/{_display_id(self.flagged)}/")
         self.assertContains(response, "Collect")
 
     def test_detail_omits_collect_button_when_no_debt(self):
         """A debt-free customer does not show the Collect action."""
-        response = self.client.get("/customers/HY-7712/")
+        response = self.client.get(f"/customers/{_display_id(self.clean)}/")
         self.assertContains(response, "Aqua Services Inc.")
         self.assertNotContains(response, ">Collect<")
 
@@ -62,24 +126,25 @@ class CustomerDetailViewTests(TestCase):
     def test_detail_requires_login(self):
         """An anonymous request is redirected to the login flow (login_required)."""
         self.client.logout()
-        response = self.client.get("/customers/HY-8021/")
+        url = f"/customers/{_display_id(self.flagged)}/"
+        response = self.client.get(url)
         # login_required redirects (302) to the landing page with a next param.
         self.assertEqual(response.status_code, 302)
-        self.assertIn("next=/customers/HY-8021/", response["Location"])
+        self.assertIn(f"next={url}", response["Location"])
 
     def test_detail_rejects_non_get_methods(self):
         """POST is not allowed on the detail endpoint (require_http_methods)."""
-        response = self.client.post("/customers/HY-8021/")
+        response = self.client.post(f"/customers/{_display_id(self.flagged)}/")
         self.assertEqual(response.status_code, 405)
 
     def test_detail_omits_account_notes_section(self):
         """The detail modal no longer renders an Account Notes section."""
-        response = self.client.get("/customers/HY-8021/")
+        response = self.client.get(f"/customers/{_display_id(self.flagged)}/")
         self.assertNotContains(response, "Account Notes")
 
     def test_detail_handles_missing_contact_and_address(self):
         """A customer with empty contact/address renders 'Not provided'."""
-        response = self.client.get("/customers/HY-6644/")
+        response = self.client.get(f"/customers/{_display_id(self.sparse)}/")
         self.assertContains(response, "Not provided")
 
 
@@ -93,28 +158,98 @@ class CustomerCollectViewTests(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.staff = User.objects.create_user(
             username="hydr8staff",
             password="securepassword123",
         )
+        # Two riders for the multi-rider customer
+        self.rider1 = User.objects.create_user(
+            username="juan_delacruz",
+            password="securepassword123",
+            first_name="Juan",
+            last_name="Dela Cruz",
+        )
+        self.rider2 = User.objects.create_user(
+            username="roberto_santos",
+            password="securepassword123",
+            first_name="Roberto",
+            last_name="Santos",
+        )
+        self.rider3 = User.objects.create_user(
+            username="maria_garcia",
+            password="securepassword123",
+            first_name="Maria",
+            last_name="Garcia",
+        )
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+
+        # Multi-rider customer: debt + borrowed via two riders
+        self.multi = Customer.objects.create(name="Multi Rider Store")
+        # Credit line via rider1 (care_of)
+        CreditLine.objects.create(
+            customer=self.multi,
+            product=self.product,
+            qty_credited=5,
+            qty_remaining=5,
+            unit_price_snapshot=Decimal("40.00"),
+            total_credit_amount=Decimal("200.00"),
+            care_of=self.rider1,
+        )
+        # Credit line via rider2 (care_of)
+        CreditLine.objects.create(
+            customer=self.multi,
+            product=self.product,
+            qty_credited=4,
+            qty_remaining=4,
+            unit_price_snapshot=Decimal("40.00"),
+            total_credit_amount=Decimal("160.00"),
+            care_of=self.rider2,
+        )
+        # Borrowed container via rider1
+        BorrowedContainer.objects.create(
+            customer=self.multi,
+            container_key="round_8gal",
+            qty_borrowed=3,
+            qty_returned=0,
+            care_of=self.rider1,
+        )
+
+        # Single-rider customer
+        self.single = Customer.objects.create(name="Single Rider Store")
+        CreditLine.objects.create(
+            customer=self.single,
+            product=self.product,
+            qty_credited=3,
+            qty_remaining=3,
+            unit_price_snapshot=Decimal("40.00"),
+            total_credit_amount=Decimal("120.00"),
+            care_of=self.rider3,
+        )
+
         cache.clear()
-        self.client.force_login(self.user)
+        self.client.force_login(self.staff)
 
     def tearDown(self):
         cache.clear()
 
     def test_collect_returns_modal_for_customer_with_debt(self):
-        """GET /customers/HY-8021/collect/ returns the collect modal."""
-        response = self.client.get("/customers/HY-8021/collect/")
+        """GET /customers/<id>/collect/ returns the collect modal."""
+        response = self.client.get(f"/customers/{_display_id(self.multi)}/collect/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Collect Payment")
         # Per-item labels (singular — one per row inside rider sections)
         self.assertContains(response, "Borrowed Container")
         self.assertContains(response, "Accredited Item")
         # Borrowed container return input (keyed by borrowed entry ID)
-        self.assertContains(response, "name=\"returned_B-8021-")
+        borrowed = BorrowedContainer.objects.get(customer=self.multi)
+        self.assertContains(response, f'name="returned_BC-{borrowed.pk}"')
         # Credit line amount input
-        self.assertContains(response, "name=\"amount_paid_CL-8021-")
+        line = CreditLine.objects.filter(customer=self.multi).first()
+        self.assertContains(response, f'name="amount_paid_CL-{line.pk}"')
 
     def test_collect_returns_404_for_unknown_customer(self):
         """An unknown customer ID returns 404."""
@@ -124,48 +259,47 @@ class CustomerCollectViewTests(TestCase):
     def test_collect_requires_login(self):
         """An anonymous request is redirected to the login flow."""
         self.client.logout()
-        response = self.client.get("/customers/HY-8021/collect/")
+        url = f"/customers/{_display_id(self.multi)}/collect/"
+        response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        self.assertIn("next=/customers/HY-8021/collect/", response["Location"])
+        self.assertIn(f"next={url}", response["Location"])
 
     def test_collect_rejects_non_get_methods(self):
         """POST is not allowed on the collect endpoint."""
-        response = self.client.post("/customers/HY-8021/collect/")
+        response = self.client.post(f"/customers/{_display_id(self.multi)}/collect/")
         self.assertEqual(response.status_code, 405)
 
     def test_collect_segments_items_by_rider(self):
         """The collect modal groups credit lines and borrowed entries by rider."""
-        response = self.client.get("/customers/HY-8021/collect/")
+        response = self.client.get(f"/customers/{_display_id(self.multi)}/collect/")
         self.assertEqual(response.status_code, 200)
-        # HY-8021 has two riders: Juan Dela Cruz (R-001) and Roberto Santos (R-004)
+        # Multi-rider customer has Juan Dela Cruz and Roberto Santos
         self.assertContains(response, "Juan Dela Cruz")
         self.assertContains(response, "Roberto Santos")
         # Driver codes appear as badges
-        self.assertContains(response, "DRV-001")
-        self.assertContains(response, "DRV-004")
+        self.assertContains(response, user_driver_code(self.rider1))
+        self.assertContains(response, user_driver_code(self.rider2))
 
     def test_collect_shows_rider_transaction_count(self):
         """Each rider section shows how many transactions they handled."""
-        response = self.client.get("/customers/HY-8021/collect/")
+        response = self.client.get(f"/customers/{_display_id(self.multi)}/collect/")
         self.assertContains(response, "transaction")
 
     def test_collect_single_rider_shows_one_section(self):
         """A customer served by one rider has a single rider section."""
-        response = self.client.get("/customers/HY-4421/collect/")
+        response = self.client.get(f"/customers/{_display_id(self.single)}/collect/")
         self.assertEqual(response.status_code, 200)
-        # HY-4421 is served only by Maria Garcia (R-012)
         self.assertContains(response, "Maria Garcia")
-        self.assertContains(response, "DRV-012")
+        self.assertContains(response, user_driver_code(self.rider3))
         # Other riders should not appear
         self.assertNotContains(response, "Juan Dela Cruz")
         self.assertNotContains(response, "Roberto Santos")
 
     def test_collect_credit_line_tagged_to_correct_rider(self):
         """Each credit line row appears within its rider's section."""
-        response = self.client.get("/customers/HY-5530/collect/")
+        response = self.client.get(f"/customers/{_display_id(self.multi)}/collect/")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        # HY-5530 has two riders: Juan (R-001, 2 units) and Roberto (R-004, 4 units)
         # Sections are sorted by rider name, so Juan comes before Roberto.
         juan_pos = content.find("Juan Dela Cruz")
         roberto_pos = content.find("Roberto Santos")
@@ -180,6 +314,32 @@ class CustomerTableViewTests(TestCase):
             username="hydr8staff",
             password="securepassword123",
         )
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+        # Create customers with different names and debt for sorting tests.
+        # "Aling Nena" — alphabetically first, low debt
+        self.aling = Customer.objects.create(name="Aling Nena Store")
+        # "Aqua Services" — alphabetically second, no debt
+        self.aqua = Customer.objects.create(name="Aqua Services Inc.")
+        # "Zari-Sari" — highest debt, alphabetically last
+        self.zari = Customer.objects.create(name="Zari-Sari Store")
+        record_customer_debt(
+            customer_id=_display_id(self.zari),
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            performed_by=self.user,
+        )
+        record_customer_debt(
+            customer_id=_display_id(self.aling),
+            product_key=str(self.product.pk),
+            qty_credited=1,
+            unit_price="40.00",
+            performed_by=self.user,
+        )
         cache.clear()
         self.client.force_login(self.user)
 
@@ -191,16 +351,17 @@ class CustomerTableViewTests(TestCase):
         response = self.client.get("/customers/table/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "customer-table")
-        self.assertContains(response, "Aling Nena")
+        self.assertContains(response, "Aling Nena Store")
 
     def test_table_sort_by_debt_balance_desc(self):
         """?sort=debt_balance&dir=desc orders rows by debt descending."""
         response = self.client.get("/customers/table/?sort=debt_balance&dir=desc")
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        # HY-8021 has the highest debt (₱1,850) so it should appear first.
-        first_pos = content.find("HY-8021")
-        other_pos = content.find("HY-4421")
+        # Zari-Sari has the highest debt (₱200) so it should appear before
+        # Aqua Services (which has no debt).
+        first_pos = content.find(_display_id(self.zari))
+        other_pos = content.find(_display_id(self.aqua))
         self.assertLess(first_pos, other_pos)
 
     def test_table_sort_by_name_asc(self):
@@ -209,8 +370,8 @@ class CustomerTableViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
         # 'Aling Nena' should come before 'Aqua Services'.
-        aling_pos = content.find("Aling Nena")
-        aqua_pos = content.find("Aqua Services")
+        aling_pos = content.find("Aling Nena Store")
+        aqua_pos = content.find("Aqua Services Inc.")
         self.assertLess(aling_pos, aqua_pos)
 
     def test_table_invalid_sort_falls_back_to_default(self):
@@ -300,6 +461,12 @@ class RecordDebtViewTests(TestCase):
             username="hydr8staff",
             password="securepassword123",
         )
+        self.customer = Customer.objects.create(name="Debt Test Store")
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
         cache.clear()
         self.client.force_login(self.user)
 
@@ -314,8 +481,8 @@ class RecordDebtViewTests(TestCase):
         self.assertContains(response, 'name="customer_id"')
         self.assertContains(response, 'name="product_key"')
         self.assertContains(response, 'name="qty_credited"')
-        # Customer dropdown populated from mock data
-        self.assertContains(response, "HY-8021")
+        # Customer dropdown populated from real data
+        self.assertContains(response, _display_id(self.customer))
         # Product dropdown populated
         self.assertContains(response, "Alkaline Water")
 
@@ -334,19 +501,19 @@ class RecordDebtViewTests(TestCase):
     def test_record_debt_submit_returns_success_for_valid_input(self):
         """POST with valid fields returns a success toast."""
         response = self.client.post("/customers/record-debt/submit/", {
-            "customer_id": "HY-8021",
-            "product_key": "5gal_alk_round",
+            "customer_id": _display_id(self.customer),
+            "product_key": str(self.product.pk),
             "qty_credited": "5",
             "unit_price": "40.00",
         })
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "toast")
-        self.assertContains(response, "HY-8021")
+        self.assertContains(response, _display_id(self.customer))
 
     def test_record_debt_submit_returns_400_for_missing_customer(self):
         """POST without a customer returns 400."""
         response = self.client.post("/customers/record-debt/submit/", {
-            "product_key": "5gal_alk_round",
+            "product_key": str(self.product.pk),
             "qty_credited": "5",
         })
         self.assertEqual(response.status_code, 400)
@@ -355,7 +522,7 @@ class RecordDebtViewTests(TestCase):
     def test_record_debt_submit_returns_400_for_missing_product(self):
         """POST without a product returns 400."""
         response = self.client.post("/customers/record-debt/submit/", {
-            "customer_id": "HY-8021",
+            "customer_id": _display_id(self.customer),
             "qty_credited": "5",
         })
         self.assertEqual(response.status_code, 400)
@@ -364,8 +531,8 @@ class RecordDebtViewTests(TestCase):
     def test_record_debt_submit_returns_400_for_non_numeric_qty(self):
         """POST with a non-numeric quantity returns 400."""
         response = self.client.post("/customers/record-debt/submit/", {
-            "customer_id": "HY-8021",
-            "product_key": "5gal_alk_round",
+            "customer_id": _display_id(self.customer),
+            "product_key": str(self.product.pk),
             "qty_credited": "abc",
         })
         self.assertEqual(response.status_code, 400)
@@ -374,8 +541,8 @@ class RecordDebtViewTests(TestCase):
     def test_record_debt_submit_returns_400_for_zero_qty(self):
         """POST with a zero quantity returns 400."""
         response = self.client.post("/customers/record-debt/submit/", {
-            "customer_id": "HY-8021",
-            "product_key": "5gal_alk_round",
+            "customer_id": _display_id(self.customer),
+            "product_key": str(self.product.pk),
             "qty_credited": "0",
         })
         self.assertEqual(response.status_code, 400)
@@ -395,6 +562,7 @@ class RecordBorrowedViewTests(TestCase):
             username="hydr8staff",
             password="securepassword123",
         )
+        self.customer = Customer.objects.create(name="Borrow Test Store")
         cache.clear()
         self.client.force_login(self.user)
 
@@ -427,13 +595,13 @@ class RecordBorrowedViewTests(TestCase):
     def test_record_borrowed_submit_returns_success_for_valid_input(self):
         """POST with valid fields returns a success toast."""
         response = self.client.post("/customers/record-borrowed/submit/", {
-            "customer_id": "HY-8021",
+            "customer_id": _display_id(self.customer),
             "container_key": "round_8gal",
             "qty_borrowed": "3",
         })
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "toast")
-        self.assertContains(response, "HY-8021")
+        self.assertContains(response, _display_id(self.customer))
 
     def test_record_borrowed_submit_returns_400_for_missing_customer(self):
         """POST without a customer returns 400."""
@@ -447,7 +615,7 @@ class RecordBorrowedViewTests(TestCase):
     def test_record_borrowed_submit_returns_400_for_missing_container(self):
         """POST without a container type returns 400."""
         response = self.client.post("/customers/record-borrowed/submit/", {
-            "customer_id": "HY-8021",
+            "customer_id": _display_id(self.customer),
             "qty_borrowed": "3",
         })
         self.assertEqual(response.status_code, 400)
@@ -456,7 +624,7 @@ class RecordBorrowedViewTests(TestCase):
     def test_record_borrowed_submit_returns_400_for_zero_qty(self):
         """POST with a zero quantity returns 400."""
         response = self.client.post("/customers/record-borrowed/submit/", {
-            "customer_id": "HY-8021",
+            "customer_id": _display_id(self.customer),
             "container_key": "round_8gal",
             "qty_borrowed": "0",
         })
@@ -483,6 +651,36 @@ class CustomerDeleteViewTests(TestCase):
             username="hydr8staff",
             password="securepassword123",
         )
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+        # Deletable customer — no debt, no borrowed
+        self.clean = Customer.objects.create(name="Clean Store")
+        # Customer with debt (and borrowed)
+        self.with_debt = Customer.objects.create(name="Indebted Store")
+        record_customer_debt(
+            customer_id=_display_id(self.with_debt),
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            performed_by=self.user,
+        )
+        record_customer_borrowed(
+            customer_id=_display_id(self.with_debt),
+            container_key="round_8gal",
+            qty_borrowed=3,
+            performed_by=self.user,
+        )
+        # Customer with borrowed only (no debt)
+        self.with_borrowed = Customer.objects.create(name="Borrowed Only Store")
+        record_customer_borrowed(
+            customer_id=_display_id(self.with_borrowed),
+            container_key="round_8gal",
+            qty_borrowed=2,
+            performed_by=self.user,
+        )
         cache.clear()
         self.client.force_login(self.user)
 
@@ -490,23 +688,23 @@ class CustomerDeleteViewTests(TestCase):
         cache.clear()
 
     def test_delete_succeeds_for_customer_with_no_pending_items(self):
-        """POST /customers/HY-7712/delete/ succeeds (no debt, no borrowed)."""
-        response = self.client.post("/customers/HY-7712/delete/")
+        """POST /customers/<id>/delete/ succeeds (no debt, no borrowed)."""
+        response = self.client.post(f"/customers/{_display_id(self.clean)}/delete/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "toast")
-        self.assertContains(response, "HY-7712")
+        self.assertContains(response, _display_id(self.clean))
         # HX-Redirect header set so the list refreshes
         self.assertEqual(response["HX-Redirect"], "/customers/")
 
     def test_delete_returns_400_for_customer_with_debt(self):
-        """POST /customers/HY-8021/delete/ returns 400 (has debt + borrowed)."""
-        response = self.client.post("/customers/HY-8021/delete/")
+        """POST for a customer with debt + borrowed returns 400."""
+        response = self.client.post(f"/customers/{_display_id(self.with_debt)}/delete/")
         self.assertEqual(response.status_code, 400)
         self.assertContains(response, "Cannot delete", status_code=400)
 
     def test_delete_returns_400_for_customer_with_borrowed_only(self):
-        """POST /customers/HY-9011/delete/ returns 400 (has borrowed, no debt)."""
-        response = self.client.post("/customers/HY-9011/delete/")
+        """POST for a customer with borrowed (no debt) returns 400."""
+        response = self.client.post(f"/customers/{_display_id(self.with_borrowed)}/delete/")
         self.assertEqual(response.status_code, 400)
         self.assertContains(response, "Cannot delete", status_code=400)
 
@@ -517,26 +715,26 @@ class CustomerDeleteViewTests(TestCase):
 
     def test_delete_rejects_non_post_methods(self):
         """GET is not allowed on the delete endpoint."""
-        response = self.client.get("/customers/HY-7712/delete/")
+        response = self.client.get(f"/customers/{_display_id(self.clean)}/delete/")
         self.assertEqual(response.status_code, 405)
 
     def test_delete_requires_login(self):
         """An anonymous POST is redirected to the login flow."""
         self.client.logout()
-        response = self.client.post("/customers/HY-7712/delete/")
+        response = self.client.post(f"/customers/{_display_id(self.clean)}/delete/")
         self.assertEqual(response.status_code, 302)
 
     def test_detail_modal_shows_delete_button_for_deletable_customer(self):
-        """The detail modal for HY-7712 (no debt/borrowed) renders a Delete button."""
-        response = self.client.get("/customers/HY-7712/")
+        """The detail modal for a clean customer renders a Delete button."""
+        response = self.client.get(f"/customers/{_display_id(self.clean)}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Delete")
         # The hx-post to the delete endpoint is present
-        self.assertContains(response, "/customers/HY-7712/delete/")
+        self.assertContains(response, f"/customers/{_display_id(self.clean)}/delete/")
 
     def test_detail_modal_shows_disabled_delete_for_customer_with_debt(self):
-        """The detail modal for HY-8021 (has debt) renders a disabled Delete."""
-        response = self.client.get("/customers/HY-8021/")
+        """The detail modal for a customer with debt renders a disabled Delete."""
+        response = self.client.get(f"/customers/{_display_id(self.with_debt)}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Delete")
         self.assertContains(response, "disabled")

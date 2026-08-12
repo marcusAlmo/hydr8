@@ -871,3 +871,24 @@ def screen_lock_verify_view(request):
     return JsonResponse(
         {"verified": False, "attempts_left": 3 - attempts},
     )
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def logout_view(request):
+    """Logs out the current user and redirects to the login landing page.
+
+    POST-only to prevent CSRF-via-GET logout attacks. ``auth_logout`` fires
+    the ``user_logged_out`` signal, which ``apps.audit.signals`` turns into
+    an ACCESS log entry automatically.
+    """
+    user_id = request.user.id
+    auth_logout(request)
+    logger.info("[%s] Logged out via sidebar action.", user_id)
+    target = reverse('users:index')
+    if request.headers.get('HX-Request') == 'true':
+        response = HttpResponse()
+        response['HX-Redirect'] = target
+        return response
+    return redirect(target)

@@ -114,21 +114,35 @@ class User(AbstractUser):
         self.password_expires_at = timezone.now() + timedelta(days=90)
 
     def set_pin(self, raw_pin: str) -> None:
-        """Hashes the raw PIN and stores it in the pin field."""
+        """Hashes the raw PIN and stores it in the pin field.
+
+        Passing an empty value (``None`` or ``""``) clears the PIN and its
+        expiry — useful for resetting a user's PIN during offboarding.
+        """
         if not raw_pin:
-            raise ValueError("A valid PIN must be provided.")
-            
+            self.pin = None
+            self.pin_expires_at = None
+            return
+
         if not str(raw_pin).isdigit():
             raise ValueError("PIN must contain only digits.")
-            
+
         self.pin = make_password(str(raw_pin))
         self.pin_expires_at = timezone.now() + timedelta(days=90)
 
     def check_pin(self, raw_pin: str) -> bool:
-        """Verifies a raw PIN against the stored hash safely."""
+        """Verifies a raw PIN against the stored hash safely.
+
+        Returns ``False`` when no PIN is set, when the input is empty, or
+        when the underlying hasher raises an exception (defensive — never
+        leaks a crypto error to the caller).
+        """
         if not self.pin or not raw_pin:
             return False
-        return check_password(str(raw_pin), self.pin)
+        try:
+            return check_password(str(raw_pin), self.pin)
+        except Exception:
+            return False
 
 
     def __str__(self):

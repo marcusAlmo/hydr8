@@ -198,20 +198,13 @@
                                             </div>
                                         </td>
                                         <td class="py-4 px-4">
-                                            <div class="flex items-center bg-surface-container-low rounded border border-outline-variant/20 w-fit mx-auto"
-                                                 :class="line.sold === '' || line.sold === null || (Number(line.sold)||0) < 0 ? 'border-error/60' : ''">
-                                                <input x-model.number="line.sold" type="number" min="0" step="1"
-                                                       @input="line.sold = sanitizeCount(line.sold)"
-                                                       :style="`width: ${Math.min(5, Math.max(2, String(line.sold ?? '').length || 1))}ch`"
-                                                       class="bg-transparent border-none text-center font-data-mono text-data-mono focus:ring-0 py-1 transition-[width] duration-75">
-                                                <div class="flex flex-col border-l border-outline-variant/20">
-                                                    <button type="button" @click="line.sold = clampCount(line.sold, 1)"
-                                                            class="px-2 py-0.5 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors border-b border-outline-variant/10 text-center leading-none">+</button>
-                                                    <button type="button" @click="line.sold = clampCount(line.sold, -1)"
-                                                            :disabled="(Number(line.sold)||0) <= 0"
-                                                            class="px-2 py-0.5 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors text-center leading-none disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent">-</button>
-                                                </div>
-                                            </div>
+                                            <input x-model.number="line.sold" type="number" min="0" step="1"
+                                                   @input="line.sold = sanitizeCount(line.sold)"
+                                                   :style="`width: ${Math.max(3, String(line.sold ?? '').length + 1)}ch`"
+                                                   :class="line.sold === '' || line.sold === null || (Number(line.sold)||0) < 0
+                                                           ? 'border-b-2 border-error/60 focus:border-error'
+                                                           : 'border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2'"
+                                                   class="block mx-auto bg-transparent border-l-0 border-r-0 border-t-0 text-center font-data-mono text-data-mono focus:ring-0 focus:outline-none py-1 px-1 transition-[width] duration-75">
                                         </td>
                                         <td class="py-4 px-4 text-right font-data-mono text-primary"
                                             x-text="peso(lineSubtotal(line))"></td>
@@ -472,45 +465,38 @@
                             <span class="font-data-mono text-data-mono text-primary font-bold text-lg"
                                   x-text="peso(totalCommission())"></span>
                         </div>
+                        <!-- Action buttons live in the same panel as the
+                             rider commissions for layout consistency.
+                             Cancel is intentionally omitted — the Return
+                             arrow in the header and "Save as Draft" both
+                             cover that intent. -->
+                        <div class="px-5 py-4 border-t border-outline-variant/20 space-y-2.5">
+                            <button type="button" @click="saveDraft()" :disabled="dateExists || dateChecking"
+                                    class="w-full px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                                Save as Draft
+                            </button>
+                            {% if is_admin %}
+                            <button type="button" @click="openReview()" :disabled="dateExists || dateChecking"
+                                    class="w-full px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center justify-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
+                                <span class="material-symbols-outlined text-[20px]">fact_check</span>
+                                Review &amp; Finalize
+                            </button>
+                            {% endif %}
+                            <button type="button" @click="showClearConfirm = true"
+                                    x-show="hasCache || hasDraft"
+                                    x-cloak
+                                    class="w-full px-4 py-2.5 rounded-lg border border-error/30 text-error font-medium hover:bg-error/5 hover:border-error/50 transition-all flex items-center justify-center gap-2"
+                                    title="Delete saved draft and clear form">
+                                <span class="material-symbols-outlined text-[20px]">delete_sweep</span>
+                                Clear Draft
+                            </button>
+                        </div>
                     </div>
                     <p class="text-body-sm text-on-surface-variant/70 italic px-1">
                         Commissions auto-calculate as you edit product lines. To override (e.g. for riders with advanced payments), type a value in the field — the computed amount is shown as a placeholder. Click the reset icon to revert.
                     </p>
                 </div>
             </aside>
-        </div>
-
-        <!-- Footer Buttons (full width) -->
-        <div class="sticky bottom-0 z-30 bg-background/95 backdrop-blur border-t border-outline-variant/30 px-margin-page py-4">
-            <div class="max-w-[1440px] mx-auto flex justify-between items-center gap-4">
-                <div class="flex items-center gap-3">
-                    <a href="{% url 'remittance:history' %}" class="px-6 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low hover:text-error hover:border-error/40 transition-all flex items-center gap-2">
-                        <span class="material-symbols-outlined text-[20px]">cancel</span>
-                        Cancel
-                    </a>
-                    <button type="button" @click="showClearConfirm = true"
-                            x-show="hasCache"
-                            x-cloak
-                            class="px-4 py-2.5 rounded-lg border border-error/30 text-error font-medium hover:bg-error/5 hover:border-error/50 transition-all flex items-center gap-2"
-                            title="Delete saved draft and clear form">
-                        <span class="material-symbols-outlined text-[20px]">delete_sweep</span>
-                        Clear Draft
-                    </button>
-                </div>
-                <div class="flex items-center gap-4">
-                    <button type="button" @click="saveDraft()" :disabled="dateExists || dateChecking"
-                            class="px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        Save as Draft
-                    </button>
-                    {% if is_admin %}
-                    <button type="button" @click="openReview()" :disabled="dateExists || dateChecking"
-                            class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
-                        <span class="material-symbols-outlined text-[20px]">fact_check</span>
-                        Review &amp; Finalize
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
         </div>
 
         <!-- ============ Clear Draft Confirmation Modal ============ -->
@@ -569,6 +555,23 @@
 
                 <!-- Modal body (scrollable) -->
                 <div class="overflow-y-auto custom-scrollbar p-6 space-y-6">
+                    <!-- Irreversibility warning -->
+                    <div class="flex items-start gap-3 rounded-lg border border-error/30 bg-error-container/40 px-4 py-3">
+                        <span class="material-symbols-outlined text-error text-[22px] shrink-0 mt-0.5">lock</span>
+                        <div class="min-w-0">
+                            <p class="font-label-caps text-[11px] uppercase tracking-wide text-error font-bold mb-0.5">
+                                Finalizing is irreversible
+                            </p>
+                            <p class="font-body-sm text-body-sm text-on-surface-variant">
+                                Once you enter your PIN and confirm, this remittance is
+                                <strong class="text-on-surface">permanently locked</strong>. Sales,
+                                commissions, expenses, and repayments can no longer be edited or
+                                deleted — not even by an administrator. Only the "tithes paid" and
+                                "offering paid" flags may be toggled afterwards.
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- KPI summary -->
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div class="bg-surface-container-low/50 rounded-lg p-3 border border-outline-variant/10">
@@ -602,71 +605,74 @@
                         <div class="space-y-3">
                             <template x-for="r in riders" :key="r.id">
                                 <div class="border border-outline-variant/20 rounded-lg overflow-hidden">
-                                    <div class="px-4 py-2.5 bg-surface-container-low/50 flex items-center justify-between">
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-body-md font-semibold text-on-surface" x-text="r.name"></span>
+                                    <!-- HERO ROW: rider name + total commission are the only highlights -->
+                                    <div class="px-4 py-3 bg-surface-container-low/50 flex items-center justify-between">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="material-symbols-outlined text-primary text-[20px] shrink-0">electric_rickshaw</span>
+                                            <span class="font-headline-sm text-lg font-bold text-on-surface truncate" x-text="r.name"></span>
                                             <span x-show="hasCommissionOverride(r.id)"
-                                                  class="font-label-caps text-[9px] uppercase px-1.5 py-0.5 rounded bg-tertiary/15 text-tertiary"
+                                                  class="font-label-caps text-[9px] uppercase px-1.5 py-0.5 rounded bg-tertiary/15 text-tertiary shrink-0"
                                                   title="'Computed: ' + peso(riderCommissionComputed(r.id))">override</span>
                                         </div>
-                                        <span class="font-data-mono text-data-mono text-tertiary font-bold" x-text="peso(riderCommission(r.id))"></span>
+                                        <span class="font-data-mono text-data-mono text-tertiary font-bold text-xl shrink-0 ml-3" x-text="peso(riderCommission(r.id))"></span>
                                     </div>
-                                    <table class="w-full text-left text-body-sm">
-                                        <thead class="bg-surface-container/30">
+                                    <!-- Supporting detail: products (small, muted) -->
+                                    <table class="w-full text-left">
+                                        <thead class="bg-surface-container/20">
                                             <tr>
-                                                <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase">Product</th>
-                                                <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-right">
+                                                <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant/60 uppercase">Product</th>
+                                                <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant/60 uppercase text-right">
                                                     Price
-                                                    <span class="block text-[9px] text-on-surface-variant/60 normal-case font-normal">/ comm</span>
+                                                    <span class="block text-[8px] text-on-surface-variant/40 normal-case font-normal">/ comm</span>
                                                 </th>
-                                                <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-center">Sold</th>
-                                                <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-right">Subtotal</th>
-                                                <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-right">Commission</th>
+                                                <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant/60 uppercase text-center">Sold</th>
+                                                <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant/60 uppercase text-right">Subtotal</th>
+                                                <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant/60 uppercase text-right">Commission</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-outline-variant/10">
                                             <template x-for="line in riderLines(r.id)" :key="line.product_key">
                                                 <tr>
-                                                    <td class="py-2 px-4" x-text="productName(line.product_key)"></td>
-                                                    <td class="py-2 px-4 text-right">
+                                                    <td class="py-1.5 px-4 text-xs text-on-surface-variant/70" x-text="productName(line.product_key)"></td>
+                                                    <td class="py-1.5 px-4 text-right">
                                                         <div class="flex flex-col items-end leading-tight">
-                                                            <span class="font-data-mono text-data-mono text-on-surface" x-text="peso(productPrice(line.product_key))"></span>
-                                                            <span class="font-data-mono text-[10px] text-tertiary/80" x-text="'comm ' + peso(lineCommissionRate(line, r.id))"></span>
+                                                            <span class="font-data-mono text-data-mono text-xs text-on-surface-variant/60" x-text="peso(productPrice(line.product_key))"></span>
+                                                            <span class="font-data-mono text-[10px] text-on-surface-variant/40" x-text="'comm ' + peso(lineCommissionRate(line, r.id))"></span>
                                                         </div>
                                                     </td>
-                                                    <td class="py-2 px-4 text-center font-data-mono text-data-mono" x-text="line.sold"></td>
-                                                    <td class="py-2 px-4 text-right font-data-mono text-data-mono text-primary" x-text="peso(lineSubtotal(line))"></td>
-                                                    <td class="py-2 px-4 text-right font-data-mono text-data-mono text-tertiary" x-text="peso(lineCommission(line, r.id))"></td>
+                                                    <td class="py-1.5 px-4 text-center font-data-mono text-data-mono text-xs text-on-surface-variant/70" x-text="line.sold"></td>
+                                                    <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-xs text-on-surface-variant/70" x-text="peso(lineSubtotal(line))"></td>
+                                                    <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-xs text-on-surface-variant/70" x-text="peso(lineCommission(line, r.id))"></td>
                                                 </tr>
                                             </template>
                                             <tr x-show="riderLines(r.id).length === 0">
-                                                <td colspan="5" class="py-3 px-4 text-center text-on-surface-variant italic">No products recorded</td>
+                                                <td colspan="5" class="py-3 px-4 text-center text-on-surface-variant/60 text-xs italic">No products recorded</td>
                                             </tr>
                                         </tbody>
                                     </table>
-                                    <!-- Repayments attributed to this rider (read-only) -->
+                                    <!-- Repayments attributed to this rider (read-only, muted) -->
                                     <div x-show="riderRepayments(r.id).length > 0"
-                                         class="border-t border-tertiary/20 bg-tertiary/5">
-                                        <div class="px-4 py-2 flex items-center gap-2 border-b border-tertiary/10">
-                                            <span class="material-symbols-outlined text-tertiary text-[14px]">payments</span>
-                                            <span class="font-label-caps text-[10px] text-tertiary uppercase">Repayments</span>
+                                         class="border-t border-outline-variant/10 bg-surface-container-low/20">
+                                        <div class="px-4 py-1.5 flex items-center gap-2 border-b border-outline-variant/10">
+                                            <span class="material-symbols-outlined text-on-surface-variant/50 text-[12px]">payments</span>
+                                            <span class="font-label-caps text-[9px] text-on-surface-variant/60 uppercase">Repayments</span>
                                         </div>
-                                        <table class="w-full text-left text-body-sm">
-                                            <thead class="bg-surface-container-low/20">
+                                        <table class="w-full text-left">
+                                            <thead class="bg-surface-container-low/10">
                                                 <tr>
-                                                    <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant uppercase">Payer</th>
-                                                    <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant uppercase text-center">Qty</th>
-                                                    <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant uppercase text-right">Amount</th>
-                                                    <th class="py-1.5 px-4 font-label-caps text-[9px] text-on-surface-variant uppercase text-right">Commission</th>
+                                                    <th class="py-1 px-4 font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Payer</th>
+                                                    <th class="py-1 px-4 font-label-caps text-[8px] text-on-surface-variant/50 uppercase text-center">Qty</th>
+                                                    <th class="py-1 px-4 font-label-caps text-[8px] text-on-surface-variant/50 uppercase text-right">Amount</th>
+                                                    <th class="py-1 px-4 font-label-caps text-[8px] text-on-surface-variant/50 uppercase text-right">Commission</th>
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y divide-outline-variant/10">
                                                 <template x-for="rp in riderRepayments(r.id)" :key="rp.payer + '-' + rp.product_key">
                                                     <tr>
-                                                        <td class="py-1.5 px-4" x-text="rp.payer + ' · ' + productName(rp.product_key)"></td>
-                                                        <td class="py-1.5 px-4 text-center font-data-mono text-data-mono" x-text="rp.qty"></td>
-                                                        <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-primary" x-text="peso(rp.amount)"></td>
-                                                        <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-tertiary" x-text="peso(repaymentCommission(rp))"></td>
+                                                        <td class="py-1 px-4 text-[11px] text-on-surface-variant/60" x-text="rp.payer + ' · ' + productName(rp.product_key)"></td>
+                                                        <td class="py-1 px-4 text-center font-data-mono text-data-mono text-[11px] text-on-surface-variant/60" x-text="rp.qty"></td>
+                                                        <td class="py-1 px-4 text-right font-data-mono text-data-mono text-[11px] text-on-surface-variant/60" x-text="peso(rp.amount)"></td>
+                                                        <td class="py-1 px-4 text-right font-data-mono text-data-mono text-[11px] text-on-surface-variant/60" x-text="peso(repaymentCommission(rp))"></td>
                                                     </tr>
                                                 </template>
                                             </tbody>
@@ -712,7 +718,7 @@
                                 <p class="font-data-mono text-data-mono text-secondary font-bold" x-text="peso(tithes())"></p>
                             </div>
                             <div class="bg-surface-container-low/50 rounded-lg p-3 border border-outline-variant/10">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Manual Offering</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Offering</p>
                                 <p class="font-data-mono text-data-mono text-primary font-bold" x-text="peso(manualOfferingNum())"></p>
                             </div>
                             <div class="bg-surface-container-low/50 rounded-lg p-3 border border-outline-variant/10">
@@ -729,21 +735,81 @@
                             class="px-5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors">
                         Back to Edit
                     </button>
-                    <div class="flex items-center gap-3">
-                        <div class="flex flex-col gap-1">
-                            <label class="font-label-caps text-label-caps text-on-surface-variant">ADMIN PIN</label>
-                            <input x-model="finalizePin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-                                   placeholder="Enter PIN"
-                                   @keydown.enter="confirmFinalize()"
-                                   class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent w-32">
-                        </div>
-                        <button type="button" @click="confirmFinalize()" :disabled="!finalizePin"
-                                class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
-                            <span class="material-symbols-outlined text-[20px]">check_circle</span>
-                            Confirm &amp; Finalize
-                        </button>
+                    <button type="button" @click="openPinModal()"
+                            class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95">
+                        <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                        Confirm &amp; Finalize
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ Security PIN Modal (opens on Confirm & Finalize) ============ -->
+        <div x-show="showPinModal" x-cloak
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/50 backdrop-blur-sm"
+             @keydown.escape.window="closePinModal()">
+            <div x-show="showPinModal"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95"
+                 @click.outside="closePinModal()"
+                 class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-outline-variant/30">
+                <!-- Header -->
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-on-secondary-container">lock</span>
+                    </div>
+                    <div>
+                        <h3 class="font-headline-sm text-headline-sm text-on-surface">Confirm Finalize</h3>
+                        <p class="font-body-sm text-body-sm text-on-surface-variant">Enter your PIN to finalize. After 3 failed attempts you will be logged out.</p>
                     </div>
                 </div>
+                <!-- Irreversibility reminder -->
+                <div class="mb-4 flex items-start gap-2 rounded-lg border border-error/30 bg-error-container/30 px-3 py-2">
+                    <span class="material-symbols-outlined text-error text-[18px] shrink-0 mt-0.5">lock</span>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant">
+                        This action <strong class="text-on-surface">permanently locks</strong> the record. No further edits are possible after finalization.
+                    </p>
+                </div>
+                <!-- PIN input -->
+                <form @submit.prevent="submitPin()">
+                    <div class="mb-4">
+                        <input
+                            type="password"
+                            inputmode="numeric"
+                            pattern="[0-9]*"
+                            maxlength="6"
+                            x-model="pinInput"
+                            x-ref="pinField"
+                            placeholder="••••"
+                            class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                            :class="pinError ? 'border-error ring-2 ring-error/30' : ''"
+                            autocomplete="off">
+                        <p x-show="pinError" x-text="pinError"
+                           class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1">
+                        </p>
+                        <p x-show="pinVerifying" class="mt-2 font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                            Verifying…
+                        </p>
+                    </div>
+                    <!-- Actions -->
+                    <div class="flex gap-3">
+                        <button type="button" @click="closePinModal()"
+                                class="flex-1 px-4 py-2.5 rounded-lg font-bold text-on-surface-variant hover:bg-surface-container transition-all">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                :disabled="pinVerifying || pinInput.length < 4"
+                                class="flex-1 bg-primary text-on-primary px-4 py-2.5 rounded-lg font-bold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                            Finalize
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -789,11 +855,18 @@
                 manualOffering: seed.manualOffering || '',
                 selectedRiderId: seed.selectedRiderId,
                 remittanceDate: seed.remittanceDate,
+                hasDraft: seed.hasDraft || false,
                 reviewOpen: false,
                 dateExists: false,
                 dateError: '',
                 dateChecking: false,
-                finalizePin: '',
+
+                // ---- PIN modal state (opens on Confirm & Finalize) ----
+                showPinModal: false,
+                pinInput: '',
+                pinError: '',
+                pinVerifying: false,
+                verifyPinUrl: '{{ verify_pin_url }}',
 
                 // ---- draft cache state ----
                 hasCache: false,
@@ -1159,11 +1232,25 @@
                     }
                 },
                 initCache() {
+                    // If a DB draft was loaded by the server, mark hasCache
+                    // so the "Clear Draft" button is visible even without
+                    // a localStorage entry.
+                    if (this.hasDraft) {
+                        this.hasCache = true;
+                    }
                     try {
                         const raw = localStorage.getItem(this._cacheKey());
-                        if (!raw) return;
+                        if (!raw) {
+                            this._lastSnapshot = JSON.stringify(this._extractCacheState());
+                            this._startAutoSave();
+                            return;
+                        }
                         const cache = JSON.parse(raw);
-                        if (!cache || !cache.savedAt) return;
+                        if (!cache || !cache.savedAt) {
+                            this._lastSnapshot = JSON.stringify(this._extractCacheState());
+                            this._startAutoSave();
+                            return;
+                        }
                         this._applyCacheState(cache);
                         this.hasCache = true;
                         this._lastSnapshot = JSON.stringify(this._extractCacheState());
@@ -1178,6 +1265,7 @@
                     } catch (err) {
                         // Corrupt cache — silently ignore
                         console.warn('Failed to restore remittance cache:', err);
+                        this._lastSnapshot = JSON.stringify(this._extractCacheState());
                     }
                     // Start the 2-second auto-save interval
                     this._startAutoSave();
@@ -1198,11 +1286,16 @@
                     }, 2000);
                 },
                 _clearCache() {
+                    if (this._autoSaveTimer) {
+                        clearInterval(this._autoSaveTimer);
+                        this._autoSaveTimer = null;
+                    }
                     try {
                         localStorage.removeItem(this._cacheKey());
                     } catch (err) { /* ignore */ }
                     this._lastSnapshot = null;
                     this.hasCache = false;
+                    this.hasDraft = false;
                 },
                 async clearDraft() {
                     this.showClearConfirm = false;
@@ -1271,6 +1364,10 @@
                         });
                         const data = await response.json();
                         if (response.ok && data.ok) {
+                            // Clear the localStorage cache so the DB draft
+                            // (now the source of truth) is loaded on the
+                            // next visit instead of a stale snapshot.
+                            this._clearCache();
                             window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
                         } else {
                             this.showToast(data.error || 'Failed to save draft.', 'error');
@@ -1284,15 +1381,11 @@
                         this.showToast(this.dateError || 'This date is not available for a new remittance.', 'error');
                         return;
                     }
-                    if (!this.finalizePin) {
-                        this.showToast('Please enter your PIN to finalize.', 'error');
-                        return;
-                    }
                     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
                     const csrfToken = csrfInput ? csrfInput.value : '';
                     const payload = {
                         mode: 'finalize',
-                        pin: this.finalizePin,
+                        pin: this.pinInput,
                         riders: this.riders,
                         expenses: this.expenses,
                         manualOffering: this.manualOfferingNum(),
@@ -1317,12 +1410,84 @@
                             this._clearCache();
                             window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
                         } else {
-                            this.showToast(data.error || 'Failed to finalize remittance.', 'error');
+                            this.pinError = data.error || 'Failed to finalize remittance.';
+                            this.pinVerifying = false;
                         }
                     } catch (err) {
-                        this.showToast('Network error: ' + err, 'error');
+                        this.pinError = 'Network error: ' + err;
+                        this.pinVerifying = false;
+                    }
+                },
+
+                // ---- PIN modal (opens on Confirm & Finalize) ----
+                openPinModal() {
+                    if (this.dateExists) {
+                        this.showToast(this.dateError || 'This date is not available for a new remittance.', 'error');
+                        return;
+                    }
+                    this.showPinModal = true;
+                    this.pinInput = '';
+                    this.pinError = '';
+                    this.pinVerifying = false;
+                    this.$nextTick(() => {
+                        if (this.$refs.pinField) this.$refs.pinField.focus();
+                    });
+                },
+                closePinModal() {
+                    this.showPinModal = false;
+                    this.pinInput = '';
+                    this.pinError = '';
+                    this.pinVerifying = false;
+                },
+                async submitPin() {
+                    if (this.pinInput.length < 4) {
+                        this.pinError = 'PIN must be at least 4 digits.';
+                        return;
+                    }
+                    this.pinVerifying = true;
+                    this.pinError = '';
+                    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                    const csrfToken = csrfInput ? csrfInput.value : '';
+
+                    try {
+                        // Step 1: verify the PIN (3-strikes logout enforced server-side).
+                        const verifyResp = await fetch(this.verifyPinUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken,
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ pin: this.pinInput }),
+                        });
+                        const verifyData = await verifyResp.json();
+
+                        // 3 failed attempts → server logged us out; redirect to login.
+                        if (verifyData.logged_out) {
+                            this.closePinModal();
+                            this.reviewOpen = false;
+                            window.location.href = verifyData.redirect || '{% url 'users:index' %}';
+                            return;
+                        }
+                        if (!verifyData.verified) {
+                            const left = verifyData.attempts_left;
+                            this.pinError = left !== undefined
+                                ? `Incorrect PIN. ${left} attempt${left === 1 ? '' : 's'} left before you are logged out.`
+                                : (verifyData.error || 'Incorrect PIN.');
+                            this.pinInput = '';
+                            this.$nextTick(() => {
+                                if (this.$refs.pinField) this.$refs.pinField.focus();
+                            });
+                            return;
+                        }
+
+                        // Step 2: PIN verified — POST the finalize payload
+                        // (PIN re-verified server-side as defence in depth).
+                        await this.confirmFinalize();
+                    } catch (err) {
+                        this.pinError = 'Network error: ' + err;
                     } finally {
-                        this.reviewOpen = false;
+                        this.pinVerifying = false;
                     }
                 },
             };
