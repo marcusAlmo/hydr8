@@ -23,6 +23,7 @@ class Customer(models.Model):
     address = models.TextField(null=True, blank=True)
     contact_number = models.CharField(max_length=20, null=True, blank=True)
     debt_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     borrowed_round_8gal = models.SmallIntegerField(default=0)
     borrowed_slim_8gal = models.SmallIntegerField(default=0)
     borrowed_other = models.SmallIntegerField(default=0)
@@ -79,6 +80,8 @@ class CreditLine(models.Model):
     remittance_rider_product = models.ForeignKey(
         'remittance.RemittanceRiderProductLine',
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name='credit_lines'
     )
     product = models.ForeignKey('core.Product', on_delete=models.PROTECT)
