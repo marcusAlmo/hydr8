@@ -18,11 +18,9 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 
-# Trusted origins for CSRF — the production domain(s).
-CSRF_TRUSTED_ORIGINS = env.list(
-    'CSRF_TRUSTED_ORIGINS',
-    default=['https://hydr8.npjn.store'],
-)
+# Trusted origins for CSRF — must be set via the environment in production.
+# In Coolify, add: CSRF_TRUSTED_ORIGINS=https://hydr8.npjn.store
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 # Production cache — Redis (the VPS already runs Redis on port 6379).
 # Used by django-ratelimit and the login lockout logic. The shared, atomic
