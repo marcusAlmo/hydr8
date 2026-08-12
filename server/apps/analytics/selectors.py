@@ -14,8 +14,8 @@ from django.db.models import Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from apps.customers.models import Customer
-from apps.remittance.models import Remittance, RiderCredit
+from apps.customers.models import CreditLine, Customer
+from apps.remittance.models import Remittance
 
 if TYPE_CHECKING:
     from apps.users.models import User
@@ -23,9 +23,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DASHBOARD_RECENT_LIMIT = 5
-_LONG_DEBT_AGE_DAYS = 30
-_CRITICAL_DEBT_AGE_DAYS = 45
-_LONG_DEBT_LIMIT = 5
+_DEBT_AGE_WARNING_DAYS = 30
+_DEBT_AGE_CRITICAL_DAYS = 45
+_OUTSTANDING_DEBT_LIMIT = 5
 
 
 def _fmt_peso(value: Decimal) -> str:
@@ -186,39 +186,37 @@ def _recent_remittances(user: "User") -> list[dict]:
     return rows
 
 
-def _long_running_debts(user: "User") -> list[dict]:
-    """Unpaid rider credits aged beyond the normal collection window."""
+def _outstanding_debts(user: "User") -> list[dict]:
+    """All unpaid customer credit lines, ordered by age (oldest first)."""
     today = timezone.localdate()
-    threshold = today - timedelta(days=_LONG_DEBT_AGE_DAYS)
 
     qs = (
-        RiderCredit.objects.for_user(user)
-        .filter(is_repaid=False, created_at__date__lte=threshold)
-        .select_related("customer", "rider")
-        .order_by("created_at")[:_LONG_DEBT_LIMIT]
+        CreditLine.objects.for_user(user)
+        .filter(qty_remaining__gt=0)
+        .select_related("customer", "product")
+        .order_by("created_at")[:_OUTSTANDING_DEBT_LIMIT]
     )
 
     rows: list[dict] = []
     for credit in qs:
         age = (today - credit.created_at.date()).days
-        outstanding = credit.amount - credit.total_repaid
-        severity = "critical" if age >= _CRITICAL_DEBT_AGE_DAYS else "warning"
+        outstanding = credit.qty_remaining * credit.unit_price_snapshot
+        if age >= _DEBT_AGE_CRITICAL_DAYS:
+            severity = "critical"
+        elif age >= _DEBT_AGE_WARNING_DAYS:
+            severity = "warning"
+        else:
+            severity = "normal"
 
-        customer_name = (
-            credit.customer.name
-            if credit.customer
-            else (credit.recipient_name or "Unknown")
-        )
-        rider_name = credit.rider.full_name if credit.rider else "Unknown"
-
-        # Display id (e.g. ``HY-0001``) for linking to the customer collect
-        # modal. Only set when the credit is tied to a Customer record.
+        customer_name = credit.customer.name if credit.customer else "Unknown"
         customer_id = f"HY-{credit.customer.pk:04d}" if credit.customer else ""
+        product_name = credit.product.name if credit.product else "—"
 
         rows.append({
             "customer": customer_name,
             "customer_id": customer_id,
-            "rider": rider_name,
+            "product": product_name,
+            "qty_remaining": credit.qty_remaining,
             "amount": _fmt_peso(outstanding),
             "age_days": age,
             "issued_on": credit.created_at.strftime("%b %d, %Y"),
@@ -235,6 +233,6 @@ def get_dashboard_context(user: "User") -> dict:
         "warning_banner": _warning_banner(user),
         "stats": _build_stats(user),
         "recent_remittances": _recent_remittances(user),
-        "long_running_debts": _long_running_debts(user),
+        "outstanding_debts": _outstanding_debts(user),
         "ai_insights": [],
     }

@@ -81,6 +81,14 @@ def _parse_display_value(key: str, display_value: str) -> str:
             raise ValidationError("Container limit cannot be negative.")
         return str(val)
 
+    if key == 'overdue_threshold_days':
+        if not raw.isdigit():
+            raise ValidationError("Overdue threshold must be a whole number of days.")
+        val = int(raw)
+        if val < 1:
+            raise ValidationError("Overdue threshold must be at least 1 day.")
+        return str(val)
+
     # Unknown key — store as-is (no conversion).
     return raw
 
@@ -99,6 +107,7 @@ def save_system_config(*, key: str, display_value: str, performed_by) -> SystemC
     if key not in (
         'lockscreen_timeout_minutes', 'tithe_rate',
         'approved_credit_limit', 'approved_container_limit',
+        'overdue_threshold_days',
     ):
         raise ValidationError(f"Unknown system config key: {key}")
 

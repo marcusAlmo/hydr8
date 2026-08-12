@@ -26,7 +26,7 @@
     </header>
 
     <!-- Slide-in Content Area — Alpine.js root -->
-    <div x-data='remittanceForm({{ alpine_seed|safe }})' x-init="checkDate()"
+    <div x-data='remittanceForm({{ alpine_seed|safe }})' x-init="initCache(); checkDate()"
          class="flex-1 overflow-y-auto custom-scrollbar bg-surface-container-low/50 relative">
 
         <!-- Page Description -->
@@ -40,7 +40,7 @@
                 <div class="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5">
                     <div class="flex flex-col sm:flex-row sm:items-center gap-4">
                         <div class="flex-1">
-                            <h3 class="font-headline-sm text-body-md font-bold text-on-surface mb-1">Backlog Remittance Date</h3>
+                            <h3 class="font-headline-sm text-body-md font-bold text-on-surface mb-1">Remittance Date</h3>
                             <p class="text-body-sm text-on-surface-variant/70">Choose the date this remittance is for. Only one remittance can be recorded per date.</p>
                         </div>
                         <div class="flex flex-col gap-1 min-w-[14rem]">
@@ -469,18 +469,65 @@
         <!-- Footer Buttons (full width) -->
         <div class="sticky bottom-0 z-30 bg-background/95 backdrop-blur border-t border-outline-variant/30 px-margin-page py-4">
             <div class="max-w-[1440px] mx-auto flex justify-between items-center gap-4">
-                <a href="{% url 'remittance:history' %}" class="px-6 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low hover:text-error hover:border-error/40 transition-all flex items-center gap-2">
-                    <span class="material-symbols-outlined text-[20px]">cancel</span>
-                    Cancel
-                </a>
+                <div class="flex items-center gap-3">
+                    <a href="{% url 'remittance:history' %}" class="px-6 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low hover:text-error hover:border-error/40 transition-all flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[20px]">cancel</span>
+                        Cancel
+                    </a>
+                    <button type="button" @click="showClearConfirm = true"
+                            x-show="hasCache"
+                            x-cloak
+                            class="px-4 py-2.5 rounded-lg border border-error/30 text-error font-medium hover:bg-error/5 hover:border-error/50 transition-all flex items-center gap-2"
+                            title="Delete saved draft and clear form">
+                        <span class="material-symbols-outlined text-[20px]">delete_sweep</span>
+                        Clear Draft
+                    </button>
+                </div>
                 <div class="flex items-center gap-4">
-                    <button type="button" class="px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors">
+                    <button type="button" @click="saveDraft()" :disabled="dateExists || dateChecking"
+                            class="px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                         Save as Draft
                     </button>
+                    {% if is_admin %}
                     <button type="button" @click="openReview()" :disabled="dateExists || dateChecking"
                             class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
                         <span class="material-symbols-outlined text-[20px]">fact_check</span>
                         Review &amp; Finalize
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ Clear Draft Confirmation Modal ============ -->
+        <div x-show="showClearConfirm" x-cloak
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
+             @keydown.escape.window="showClearConfirm = false">
+            <div @click.outside="showClearConfirm = false"
+                 class="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-error text-on-primary flex items-center gap-3">
+                    <span class="material-symbols-outlined">warning</span>
+                    <h3 class="font-headline-sm text-headline-sm">Clear Draft?</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-body-md text-on-surface">
+                        This will permanently delete the saved draft for
+                        <strong x-text="formatDate(remittanceDate)"></strong> and clear all
+                        form data on this page. This action cannot be undone.
+                    </p>
+                    <p class="text-body-sm text-on-surface-variant">
+                        The localStorage cache and any database draft record will be removed.
+                    </p>
+                </div>
+                <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/20 flex justify-end gap-3">
+                    <button type="button" @click="showClearConfirm = false"
+                            class="px-5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors">
+                        Keep Draft
+                    </button>
+                    <button type="button" @click="clearDraft()"
+                            class="px-6 py-2.5 rounded-lg bg-error text-on-primary font-semibold flex items-center gap-2 hover:bg-error/90 transition-all active:scale-95">
+                        <span class="material-symbols-outlined text-[20px]">delete_forever</span>
+                        Yes, Clear Draft
                     </button>
                 </div>
             </div>
@@ -666,11 +713,20 @@
                             class="px-5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors">
                         Back to Edit
                     </button>
-                    <button type="button" @click="confirmFinalize()"
-                            class="px-8 py-2.5 rounded-lg bg-tertiary text-on-primary font-semibold flex items-center gap-2 hover:bg-tertiary-container transition-all shadow-md active:scale-95">
-                        <span class="material-symbols-outlined text-[20px]">check_circle</span>
-                        Confirm &amp; Finalize
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="flex flex-col gap-1">
+                            <label class="font-label-caps text-label-caps text-on-surface-variant">ADMIN PIN</label>
+                            <input x-model="finalizePin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                                   placeholder="Enter PIN"
+                                   @keydown.enter="confirmFinalize()"
+                                   class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent w-32">
+                        </div>
+                        <button type="button" @click="confirmFinalize()" :disabled="!finalizePin"
+                                class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
+                            <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                            Confirm &amp; Finalize
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -719,6 +775,13 @@
                 dateExists: false,
                 dateError: '',
                 dateChecking: false,
+                finalizePin: '',
+
+                // ---- draft cache state ----
+                hasCache: false,
+                showClearConfirm: false,
+                _lastSnapshot: null,
+                _autoSaveTimer: null,
 
                 // ---- helpers ----
                 peso(n) {
@@ -742,8 +805,16 @@
                             this.dateExists = true;
                             this.dateError = data.error || 'Invalid date.';
                         } else if (data.exists) {
-                            this.dateExists = true;
-                            this.dateError = 'A remittance for ' + this.formatDate(iso) + ' already exists. Please choose another date.';
+                            // A draft exists — the user can continue editing
+                            // and re-save via "Save as Draft" (upsert).  Only
+                            // a FINALIZED record locks the date.
+                            if (data.status === 'DRAFT') {
+                                this.dateExists = false;
+                                this.dateError = '';
+                            } else {
+                                this.dateExists = true;
+                                this.dateError = 'A finalized remittance for ' + this.formatDate(iso) + ' already exists. Please choose another date.';
+                            }
                         } else {
                             this.dateExists = false;
                             this.dateError = '';
@@ -986,9 +1057,169 @@
                     setTimeout(() => { el.remove(); }, 4200);
                 },
 
+                // ---- draft cache (localStorage auto-save / restore) ----
+                _cacheKey() {
+                    return 'hydr8:remittance:draft';
+                },
+                /**
+                 * Extracts only the mutable user-input fields from the
+                 * form state.  Rider/product metadata (name, vehicle,
+                 * plate, commission rates, unit prices) is always fresh
+                 * from the server on page load — we only persist what
+                 * the user typed.
+                 */
+                _extractCacheState() {
+                    const riderInputs = {};
+                    for (const r of this.riders) {
+                        riderInputs[r.id] = {
+                            commission_override: r.commission_override || '',
+                            product_lines: (r.product_lines || []).map(l => ({
+                                product_key: l.product_key,
+                                sold: l.sold,
+                                credited: l.credited,
+                                borrowed: l.borrowed,
+                            })),
+                        };
+                    }
+                    return {
+                        remittanceDate: this.remittanceDate,
+                        selectedRiderId: this.selectedRiderId,
+                        manualOffering: this.manualOffering,
+                        expenses: (this.expenses || []).map(e => ({
+                            description: e.description,
+                            amount: e.amount,
+                            confirmed: e.confirmed,
+                        })),
+                        riderInputs,
+                        savedAt: new Date().toISOString(),
+                    };
+                },
+                /**
+                 * Merges cached rider inputs into the fresh seed riders.
+                 * Fresh metadata wins for display; cached values win for
+                 * quantities the user entered.  Riders/products that no
+                 * longer exist are silently dropped.
+                 */
+                _applyCacheState(cache) {
+                    if (cache.remittanceDate) this.remittanceDate = cache.remittanceDate;
+                    if (cache.selectedRiderId) this.selectedRiderId = cache.selectedRiderId;
+                    if (cache.manualOffering !== undefined) this.manualOffering = cache.manualOffering;
+                    if (Array.isArray(cache.expenses)) this.expenses = cache.expenses;
+
+                    if (cache.riderInputs) {
+                        for (const r of this.riders) {
+                            const cached = cache.riderInputs[r.id];
+                            if (!cached) continue;
+                            if (cached.commission_override !== undefined) {
+                                r.commission_override = cached.commission_override;
+                            }
+                            if (Array.isArray(cached.product_lines)) {
+                                // Build a lookup of cached lines by product_key
+                                const cachedLines = {};
+                                for (const cl of cached.product_lines) {
+                                    cachedLines[cl.product_key] = cl;
+                                }
+                                // Apply cached values to matching product lines
+                                for (const line of r.product_lines) {
+                                    const cl = cachedLines[line.product_key];
+                                    if (cl) {
+                                        line.sold = cl.sold;
+                                        line.credited = cl.credited;
+                                        line.borrowed = cl.borrowed;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                initCache() {
+                    try {
+                        const raw = localStorage.getItem(this._cacheKey());
+                        if (!raw) return;
+                        const cache = JSON.parse(raw);
+                        if (!cache || !cache.savedAt) return;
+                        this._applyCacheState(cache);
+                        this.hasCache = true;
+                        this._lastSnapshot = JSON.stringify(this._extractCacheState());
+                        // Notify the user that their previous session was restored
+                        const savedAt = new Date(cache.savedAt);
+                        const timeStr = savedAt.toLocaleTimeString('en-US', {
+                            hour: 'numeric', minute: '2-digit',
+                        });
+                        setTimeout(() => {
+                            this.showToast('Restored unsaved changes from ' + timeStr + '. Click "Clear Draft" to start over.', 'success');
+                        }, 300);
+                    } catch (err) {
+                        // Corrupt cache — silently ignore
+                        console.warn('Failed to restore remittance cache:', err);
+                    }
+                    // Start the 2-second auto-save interval
+                    this._startAutoSave();
+                },
+                _startAutoSave() {
+                    if (this._autoSaveTimer) clearInterval(this._autoSaveTimer);
+                    this._autoSaveTimer = setInterval(() => {
+                        try {
+                            const snapshot = JSON.stringify(this._extractCacheState());
+                            if (snapshot !== this._lastSnapshot) {
+                                localStorage.setItem(this._cacheKey(), snapshot);
+                                this._lastSnapshot = snapshot;
+                                this.hasCache = true;
+                            }
+                        } catch (err) {
+                            // localStorage might be full or disabled — silently skip
+                        }
+                    }, 2000);
+                },
+                _clearCache() {
+                    try {
+                        localStorage.removeItem(this._cacheKey());
+                    } catch (err) { /* ignore */ }
+                    this._lastSnapshot = null;
+                    this.hasCache = false;
+                },
+                async clearDraft() {
+                    this.showClearConfirm = false;
+                    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                    const csrfToken = csrfInput ? csrfInput.value : '';
+                    try {
+                        const response = await fetch('{% url 'remittance:clear_draft' %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken,
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ remittanceDate: this.remittanceDate }),
+                        });
+                        const data = await response.json();
+                        if (!response.ok || !data.ok) {
+                            this.showToast(data.error || 'Failed to clear draft.', 'error');
+                            return;
+                        }
+                    } catch (err) {
+                        this.showToast('Network error: ' + err, 'error');
+                        return;
+                    }
+                    // Clear the localStorage cache
+                    this._clearCache();
+                    // Reset the form to its initial seed state
+                    this.expenses = [];
+                    this.manualOffering = '';
+                    for (const r of this.riders) {
+                        r.commission_override = '';
+                        for (const line of r.product_lines) {
+                            line.sold = 0;
+                            line.credited = 0;
+                            line.borrowed = 0;
+                        }
+                    }
+                    this.showToast('Draft cleared. Form reset to empty.', 'success');
+                },
+
                 // ---- finalize review ----
                 openReview() { if (this.dateExists) return; this.reviewOpen = true; },
-                async confirmFinalize() {
+                async saveDraft() {
                     if (this.dateExists) {
                         this.showToast(this.dateError || 'This date is not available for a new remittance.', 'error');
                         return;
@@ -996,6 +1227,7 @@
                     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
                     const csrfToken = csrfInput ? csrfInput.value : '';
                     const payload = {
+                        mode: 'draft',
                         riders: this.riders,
                         expenses: this.expenses,
                         manualOffering: this.manualOfferingNum(),
@@ -1015,6 +1247,50 @@
                         });
                         const data = await response.json();
                         if (response.ok && data.ok) {
+                            window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
+                        } else {
+                            this.showToast(data.error || 'Failed to save draft.', 'error');
+                        }
+                    } catch (err) {
+                        this.showToast('Network error: ' + err, 'error');
+                    }
+                },
+                async confirmFinalize() {
+                    if (this.dateExists) {
+                        this.showToast(this.dateError || 'This date is not available for a new remittance.', 'error');
+                        return;
+                    }
+                    if (!this.finalizePin) {
+                        this.showToast('Please enter your PIN to finalize.', 'error');
+                        return;
+                    }
+                    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                    const csrfToken = csrfInput ? csrfInput.value : '';
+                    const payload = {
+                        mode: 'finalize',
+                        pin: this.finalizePin,
+                        riders: this.riders,
+                        expenses: this.expenses,
+                        manualOffering: this.manualOfferingNum(),
+                        titheRate: this.titheRate,
+                        remittanceDate: this.remittanceDate,
+                    };
+
+                    try {
+                        const response = await fetch('{% url 'remittance:create' %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken,
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(payload),
+                        });
+                        const data = await response.json();
+                        if (response.ok && data.ok) {
+                            // Finalize succeeded — clear the localStorage cache
+                            // so the next visit starts fresh.
+                            this._clearCache();
                             window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
                         } else {
                             this.showToast(data.error || 'Failed to finalize remittance.', 'error');

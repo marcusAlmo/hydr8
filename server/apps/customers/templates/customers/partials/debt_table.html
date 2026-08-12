@@ -1,0 +1,205 @@
+{% comment %}
+Debt table — searchable, sortable list of active debtors.
+Expects context:
+  - debt_rows: list of { id, name, initials, debt_balance, age,
+                         days_overdue, days_overdue_class, borrowed_total,
+                         status, anomaly_badge }
+  - debt_pagination: { showing_from, showing_to, total, total_display,
+                       current_page, total_pages, has_previous, has_next,
+                       previous_page_number, next_page_number }
+  - debt_sort_state: { field, direction, next_dir } — drives the active sort
+    indicator and the direction the next header click requests.
+  - debt_search_query: current search string (preserved in the input)
+
+Column headers issue HTMX GETs to the debt table partial endpoint,
+swapping ``#debt-table`` in place. The whole partial is wrapped in
+``#debt-table`` so the swap replaces the search row too.
+{% endcomment %}
+<div id="debt-table" class="flex flex-col gap-4">
+
+    <!-- Search -->
+    <div class="flex items-center justify-between gap-4">
+        <div class="relative max-w-sm w-full">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+            <input
+                type="text"
+                id="debtSearch"
+                name="q"
+                value="{{ debt_search_query|default:'' }}"
+                placeholder="Search debtor by name..."
+                class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                hx-get="{% url 'customers:debt_table' %}"
+                hx-trigger="keyup changed delay:300ms, search"
+                hx-target="#debt-table"
+                hx-swap="outerHTML"
+                hx-include="this"
+                hx-vals='{"sort": "{{ debt_sort_state.field }}", "dir": "{{ debt_sort_state.direction }}"}'
+                hx-preserve="true"
+            >
+        </div>
+        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">
+            {{ debt_pagination.total_display }} debtor{{ debt_pagination.total|pluralize }}
+        </span>
+    </div>
+
+    <!-- Debtors table -->
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:debt_table' %}?sort=name&dir={% if debt_sort_state.field == 'name' %}{{ debt_sort_state.next_dir }}{% else %}asc{% endif %}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                                hx-target="#debt-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if debt_sort_state.field == 'name' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Customer
+                                <span class="material-symbols-outlined text-[14px] {% if debt_sort_state.field != 'name' %}opacity-0{% endif %}">{% if debt_sort_state.field == 'name' and debt_sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:debt_table' %}?sort=debt_balance&dir={% if debt_sort_state.field == 'debt_balance' %}{{ debt_sort_state.next_dir }}{% else %}desc{% endif %}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                                hx-target="#debt-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if debt_sort_state.field == 'debt_balance' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Debt Balance
+                                <span class="material-symbols-outlined text-[14px] {% if debt_sort_state.field != 'debt_balance' %}opacity-0{% endif %}">{% if debt_sort_state.field == 'debt_balance' and debt_sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:debt_table' %}?sort=age&dir={% if debt_sort_state.field == 'age' %}{{ debt_sort_state.next_dir }}{% else %}desc{% endif %}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                                hx-target="#debt-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if debt_sort_state.field == 'age' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Age
+                                <span class="material-symbols-outlined text-[14px] {% if debt_sort_state.field != 'age' %}opacity-0{% endif %}">{% if debt_sort_state.field == 'age' and debt_sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:debt_table' %}?sort=days_overdue&dir={% if debt_sort_state.field == 'days_overdue' %}{{ debt_sort_state.next_dir }}{% else %}desc{% endif %}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                                hx-target="#debt-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if debt_sort_state.field == 'days_overdue' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Days Overdue
+                                <span class="material-symbols-outlined text-[14px] {% if debt_sort_state.field != 'days_overdue' %}opacity-0{% endif %}">{% if debt_sort_state.field == 'days_overdue' and debt_sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
+                            <button
+                                hx-get="{% url 'customers:debt_table' %}?sort=borrowed_total&dir={% if debt_sort_state.field == 'borrowed_total' %}{{ debt_sort_state.next_dir }}{% else %}desc{% endif %}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                                hx-target="#debt-table"
+                                hx-swap="outerHTML"
+                                class="flex items-center gap-1 {% if debt_sort_state.field == 'borrowed_total' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
+                                Unreturned Containers
+                                <span class="material-symbols-outlined text-[14px] {% if debt_sort_state.field != 'borrowed_total' %}opacity-0{% endif %}">{% if debt_sort_state.field == 'borrowed_total' and debt_sort_state.direction == 'desc' %}arrow_upward{% else %}arrow_downward{% endif %}</span>
+                            </button>
+                        </th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Collect</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                    {% for row in debt_rows %}
+                    <tr class="hover:bg-surface-container-low transition-colors group border-l-4 {% if row.status == 'blacklisted' %}border-l-error{% elif row.status == 'flagged' %}border-l-[#D97706]{% else %}border-l-transparent{% endif %}">
+                        <!-- Customer -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">{{ row.initials }}</div>
+                                <div class="flex flex-col gap-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ row.name }}</span>
+                                        {% if row.anomaly_badge %}
+                                        <span class="font-label-caps text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider {% if row.status == 'blacklisted' %}bg-error text-on-primary{% else %}bg-[#D97706]/15 text-[#D97706]{% endif %}">{{ row.anomaly_badge }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="font-data-mono text-on-surface-variant text-[11px]">{{ row.id }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <!-- Debt balance -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-error font-bold">{{ row.debt_balance }}</span>
+                        </td>
+                        <!-- Age (based on oldest active credit line) -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="text-on-surface-variant font-bold">{{ row.age }}d</span>
+                        </td>
+                        <!-- Days overdue -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="{{ row.days_overdue_class }} font-bold">{{ row.days_overdue }}d</span>
+                        </td>
+                        <!-- Unreturned containers -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if row.borrowed_total > 0 %}
+                            <span class="inline-flex items-center gap-1.5">
+                                <span class="material-symbols-outlined text-[16px] text-on-surface-variant">water_full</span>
+                                <span class="text-on-surface font-bold">{{ row.borrowed_total }}</span>
+                            </span>
+                            {% else %}
+                            <span class="text-on-surface-variant/50">—</span>
+                            {% endif %}
+                        </td>
+                        <!-- Collect button -->
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    hx-get="{% url 'customers:collect' row.id %}"
+                                    hx-target="#modal-root"
+                                    hx-swap="innerHTML"
+                                    class="px-3 py-1 bg-primary text-on-primary text-[11px] font-bold rounded hover:bg-primary-container transition-colors">COLLECT</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="py-12 px-6 text-center text-on-surface-variant font-body-sm">
+                            <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">payments</span>
+                            No active debtors. All accounts are settled.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                Showing {{ debt_pagination.showing_from }}–{{ debt_pagination.showing_to }} of {{ debt_pagination.total_display }} debtors
+            </span>
+            <div class="flex items-center gap-1">
+                {% if debt_pagination.has_previous %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Previous page"
+                        hx-get="{% url 'customers:debt_table' %}?page={{ debt_pagination.previous_page_number }}&sort={{ debt_sort_state.field }}&dir={{ debt_sort_state.direction }}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                        hx-target="#debt-table"
+                        hx-swap="outerHTML">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {% endif %}
+                <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ debt_pagination.current_page }}</span>
+                <span class="px-2 text-on-surface-variant text-xs font-data-mono">/ {{ debt_pagination.total_pages }}</span>
+                {% if debt_pagination.has_next %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Next page"
+                        hx-get="{% url 'customers:debt_table' %}?page={{ debt_pagination.next_page_number }}&sort={{ debt_sort_state.field }}&dir={{ debt_sort_state.direction }}{% if debt_search_query %}&q={{ debt_search_query|urlencode }}{% endif %}"
+                        hx-target="#debt-table"
+                        hx-swap="outerHTML">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

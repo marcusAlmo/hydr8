@@ -115,14 +115,14 @@ Expects context:
             <!-- Financial Summary (asymmetric 6/3/3) -->
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
                 <!-- Debt Balance (hero) -->
-                <div class="md:col-span-6 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 border-t-2 {% if customer.has_debt %}border-t-error{% else %}border-t-tertiary{% endif %}">
+                <div class="md:col-span-6 bg-surface-container-low rounded-xl p-4 border border-outline-variant/20 border-t-2 {% if customer.is_overdue %}border-t-error{% elif customer.has_debt %}border-t-[#D97706]{% else %}border-t-tertiary{% endif %}">
                     <div class="flex items-center gap-2 mb-2">
-                        <span class="material-symbols-outlined {% if customer.has_debt %}text-error{% else %}text-tertiary{% endif %} text-[20px]">dangerous</span>
+                        <span class="material-symbols-outlined {% if customer.is_overdue %}text-error{% elif customer.has_debt %}text-[#D97706]{% else %}text-tertiary{% endif %} text-[20px]">dangerous</span>
                         <span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Outstanding Debt</span>
                     </div>
                     <div class="font-data-mono text-3xl font-bold {{ customer.debt_class }}">{{ customer.debt_balance }}</div>
                     <div class="font-body-sm text-body-sm text-on-surface-variant mt-1">
-                        {% if customer.has_debt %}Action required — overdue balance{% else %}No outstanding balance{% endif %}
+                        {% if customer.has_debt and customer.is_overdue %}Action required — overdue balance ({{ customer.overdue_threshold_days }}d+){% elif customer.has_debt %}Outstanding balance — not yet overdue{% else %}No outstanding balance{% endif %}
                     </div>
                 </div>
                 <!-- Payable Amount -->

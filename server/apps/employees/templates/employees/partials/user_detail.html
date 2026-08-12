@@ -548,35 +548,61 @@ function userDetailDrawer(seedData) {
             return r ? 'Last ' + r.label : 'Last 14D';
         },
 
-        // --- Filter helpers ---
-        rangeLength() {
+        // --- Filter helpers (calendar-date based) ---
+        // The seed is sparse (one entry per day that has a remittance),
+        // so we filter by real ISO date instead of slicing by array index.
+        // ``this.seed.dates`` is an array of 'YYYY-MM-DD' strings aligned
+        // with ``labels`` / ``performance`` / ``commissions``.
+        _activeRangeBounds() {
             if (this.dateRange === 'custom') {
                 if (this.customFrom && this.customTo) {
-                    const from = new Date(this.customFrom);
-                    const to = new Date(this.customTo);
-                    const diff = Math.round((to - from) / 86400000) + 1;
-                    return Math.max(1, Math.min(diff, this.seed.labels.length));
+                    // Inclusive on both ends.  Normalize to YYYY-MM-DD.
+                    const from = this.customFrom;
+                    const to = this.customTo;
+                    if (from <= to) return { from, to };
+                    return { from: to, to: from };
                 }
-                return this.seed.labels.length;
+                // No custom bounds yet → show everything.
+                return null;
             }
-            return { '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] || 14;
+            const days = { '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] || 14;
+            const today = new Date();
+            const fromD = new Date(today);
+            fromD.setDate(fromD.getDate() - (days - 1));
+            const pad = (n) => String(n).padStart(2, '0');
+            const from = `${fromD.getFullYear()}-${pad(fromD.getMonth() + 1)}-${pad(fromD.getDate())}`;
+            const to = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+            return { from, to };
         },
 
-        sliceStart() {
-            return this.seed.labels.length - this.rangeLength();
+        _dateInRange(iso) {
+            const b = this._activeRangeBounds();
+            if (!b) return true;
+            return iso >= b.from && iso <= b.to;
+        },
+
+        _filteredIndices() {
+            const dates = this.seed.dates || [];
+            const idxs = [];
+            for (let i = 0; i < dates.length; i++) {
+                if (this._dateInRange(dates[i])) idxs.push(i);
+            }
+            return idxs;
         },
 
         filteredLabels() {
-            return this.seed.labels.slice(this.sliceStart());
+            const idxs = this._filteredIndices();
+            return idxs.map(i => this.seed.labels[i]);
         },
 
         filteredSeries(field) {
-            return this.seed[field].slice(this.sliceStart());
+            const idxs = this._filteredIndices();
+            return idxs.map(i => this.seed[field][i]);
         },
 
         filteredCommissions() {
             if (!this.commissionsDaily || !this.commissionsDaily.length) return [];
-            return this.commissionsDaily.slice(this.sliceStart());
+            return this.commissionsDaily.filter(c => this._dateInRange(c.iso_date));
         },
 
         // --- MAC (Min / Avg / Max) helpers ---

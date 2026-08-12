@@ -20,8 +20,16 @@ from .selectors import (
     get_remittance_history_context,
     get_remittance_row,
     remittance_exists_for_date,
+    remittance_status_for_date,
 )
-from .services import create_and_finalize_remittance, update_remittance_paid_status
+from .services import (
+    create_remittance,
+    delete_draft_remittance,
+    finalize_remittance,
+    is_admin_user,
+    save_remittance_draft,
+    update_remittance_paid_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +62,8 @@ def add_remittance_view(request):
         "remittanceDate": context["default_date"],
     }).replace("'", "&#39;")
 
+    context["is_admin"] = is_admin_user(request.user)
+
     return render(request, "remittance/add_remittance.html", context)
 
 
@@ -61,13 +71,37 @@ def add_remittance_view(request):
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='30/m', method='POST', block=True)
 def create_remittance_view(request):
-    """HTMX/JSON endpoint — creates and finalizes a remittance from the
-    Alpine.js form payload.
+    """HTMX/JSON endpoint — creates a remittance from the Alpine.js form
+    payload.
+
+    The ``mode`` field in the JSON body controls the outcome:
+      - ``"draft"``    — saves as a draft (staff and admin can do this).
+      - ``"finalize"`` — saves and immediately finalizes; requires the
+                         Admin role and a valid ``pin``.
+
+    For ``finalize`` mode the PIN is verified *before* the remittance is
+    created so a wrong PIN leaves nothing behind.
     """
     try:
         body = json.loads(request.body)
     except (ValueError, TypeError):
         return JsonResponse({"ok": False, "error": "Invalid request."}, status=400)
+
+    mode = body.get("mode", "draft")
+
+    # --- Guard: only admins can finalize --------------------------------
+    if mode == "finalize":
+        if not is_admin_user(request.user):
+            return JsonResponse(
+                {"ok": False, "error": "Only administrators can finalize remittances."},
+                status=403,
+            )
+        if not request.user.check_pin(body.get("pin", "")):
+            logger.info("[%s] finalize PIN mismatch", request.user.id)
+            return JsonResponse(
+                {"ok": False, "error": "Incorrect PIN."},
+                status=400,
+            )
 
     remittance_date = date.today()
     remittance_date_str = body.get("remittanceDate")
@@ -82,14 +116,27 @@ def create_remittance_view(request):
         return JsonResponse({"ok": False, "error": "Remittance date cannot be in the future."}, status=400)
 
     try:
-        create_and_finalize_remittance(
-            performed_by=request.user,
-            riders_data=body.get("riders", []) or [],
-            expenses_data=body.get("expenses", []) or [],
-            manual_offering=body.get("manualOffering", "0"),
-            tithe_rate=body.get("titheRate", "0.10"),
-            remittance_date=remittance_date,
-        )
+        if mode == "finalize":
+            create_remittance(
+                performed_by=request.user,
+                riders_data=body.get("riders", []) or [],
+                expenses_data=body.get("expenses", []) or [],
+                manual_offering=body.get("manualOffering", "0"),
+                tithe_rate=body.get("titheRate", "0.10"),
+                remittance_date=remittance_date,
+                finalize=True,
+            )
+        else:
+            # Draft mode uses the upsert so a staff member can save,
+            # refresh, edit, and save again without "already exists" errors.
+            save_remittance_draft(
+                performed_by=request.user,
+                riders_data=body.get("riders", []) or [],
+                expenses_data=body.get("expenses", []) or [],
+                manual_offering=body.get("manualOffering", "0"),
+                tithe_rate=body.get("titheRate", "0.10"),
+                remittance_date=remittance_date,
+            )
     except ValidationError as e:
         logger.info("[%s] create remittance validation error: %s", request.user.id, e)
         return JsonResponse({"ok": False, "error": error_message(e)}, status=400)
@@ -116,7 +163,8 @@ def check_remittance_date_view(request):
         return JsonResponse({"ok": False, "error": "Invalid date format."}, status=400)
 
     exists = remittance_exists_for_date(request.user, target_date)
-    return JsonResponse({"ok": True, "exists": exists})
+    status = remittance_status_for_date(request.user, target_date)
+    return JsonResponse({"ok": True, "exists": exists, "status": status})
 
 
 @login_required
@@ -133,6 +181,7 @@ def remittance_history_view(request):
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     context["remittances"] = recent["remittances"]
+    context["is_admin"] = is_admin_user(request.user)
     context["pagination"] = {
         "showing": f"Showing {shown} of {total} records",
         "current_page": 1,
@@ -178,7 +227,7 @@ def update_paid_status_view(request, remittance_id: int):
 
     row_html = render_to_string(
         "remittance/partials/remittance_row.html",
-        {"rem": row},
+        {"rem": row, "is_admin": is_admin_user(request.user)},
         request=request,
     )
     toast_html = render_to_string(
@@ -192,3 +241,115 @@ def update_paid_status_view(request, remittance_id: int):
         request=request,
     )
     return HttpResponse(row_html + toast_html)
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def finalize_remittance_view(request, remittance_id: int):
+    """HTMX endpoint — finalizes a DRAFT remittance after PIN verification.
+
+    Any user with the ``Admin`` role (or superuser) may finalize a draft
+    prepared by any staff member.  The PIN is verified against the
+    *current* user's stored PIN hash.
+
+    On success, returns the refreshed row partial plus a success toast.
+    On failure, returns the unchanged row partial plus an error toast so
+    the row is not lost from the table.
+    """
+    pin = request.POST.get("pin", "")
+    admin = is_admin_user(request.user)
+
+    try:
+        finalize_remittance(
+            performed_by=request.user,
+            remittance_id=remittance_id,
+            pin=pin,
+        )
+    except ValidationError as exc:
+        logger.info("[%s] finalize error remittance_id=%s: %s",
+                    request.user.id, remittance_id, error_message(exc))
+        row = get_remittance_row(request.user, remittance_id)
+        row_html = (
+            render_to_string(
+                "remittance/partials/remittance_row.html",
+                {"rem": row, "is_admin": admin},
+                request=request,
+            )
+            if row
+            else ""
+        )
+        toast_html = render_to_string(
+            "components/toasts/toast.html",
+            {
+                "id": int(timezone.now().timestamp() * 1000),
+                "message": error_message(exc),
+                "type": "error",
+                "duration": 6000,
+            },
+            request=request,
+        )
+        return HttpResponse(row_html + toast_html, status=400)
+
+    row = get_remittance_row(request.user, remittance_id)
+    if row is None:
+        return toast_for_exception(
+            request, ValidationError("Remittance not found.")
+        )
+
+    row_html = render_to_string(
+        "remittance/partials/remittance_row.html",
+        {"rem": row, "is_admin": admin},
+        request=request,
+    )
+    toast_html = render_to_string(
+        "components/toasts/toast.html",
+        {
+            "id": int(timezone.now().timestamp() * 1000),
+            "message": "Remittance finalized.",
+            "type": "success",
+            "duration": 4000,
+        },
+        request=request,
+    )
+    return HttpResponse(row_html + toast_html)
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def clear_draft_view(request):
+    """JSON endpoint — deletes a DRAFT remittance for a given date.
+
+    Called by the "Clear Draft" button on the Add Remittance page.  This
+    removes the DB draft (if any) so the user can start fresh.  The
+    client-side localStorage cache is cleared separately by the JS.
+
+    Accepts a JSON body: ``{"remittanceDate": "2026-08-12"}``
+
+    Returns ``{"ok": true, "deleted": bool}`` on success or
+    ``{"ok": false, "error": "..."}`` on failure.
+    """
+    try:
+        body = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "Invalid request."}, status=400)
+
+    remittance_date = date.today()
+    date_str = body.get("remittanceDate")
+    if date_str:
+        try:
+            remittance_date = date.fromisoformat(str(date_str))
+        except (ValueError, TypeError):
+            return JsonResponse({"ok": False, "error": "Invalid date."}, status=400)
+
+    try:
+        deleted = delete_draft_remittance(
+            performed_by=request.user,
+            remittance_date=remittance_date,
+        )
+    except ValidationError as exc:
+        logger.info("[%s] clear draft error: %s", request.user.id, error_message(exc))
+        return JsonResponse({"ok": False, "error": error_message(exc)}, status=400)
+
+    return JsonResponse({"ok": True, "deleted": deleted})

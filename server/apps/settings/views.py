@@ -38,6 +38,7 @@ _SYSTEM_CONFIG_KEYS = (
     'tithe_rate',
     'approved_credit_limit',
     'approved_container_limit',
+    'overdue_threshold_days',
 )
 
 

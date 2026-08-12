@@ -323,16 +323,31 @@ def _role_card(request_user: "UserType", role: Role) -> dict:
 
 
 def _driver_detail_context(request_user: "UserType", user: User) -> dict:
-    """Builds the driver expanded report with real remittance + credit data."""
+    """Builds the driver expanded report with real remittance + credit data.
+
+    The trend seed covers a 90-day window so the client-side date-range
+    filter (7D/14D/30D/custom) always has data to slice.  Each entry
+    carries an ``iso_date`` (YYYY-MM-DD) so the Alpine component can
+    filter by real calendar date instead of by array index — the prior
+    index-based slicing broke because the seed is sparse (one entry per
+    day that actually has a remittance, not one per calendar day).
+
+    The three stat cards remain a fixed 30-day summary (computed from
+    the 30-day subset of the same query) so their "(30D)" labels stay
+    accurate regardless of the active chart filter.
+    """
     today = timezone.now().date()
-    start = today - timedelta(days=29)
+    # 90-day window for the trend seed (charts + daily table).
+    seed_start = today - timedelta(days=89)
+    # 30-day window for the summary stat cards.
+    stat_start = today - timedelta(days=29)
 
     product_lines = (
         RemittanceRiderProductLine.objects
         .for_user(request_user)
         .filter(
             remittance_rider__rider=user,
-            remittance_rider__remittance__date__gte=start,
+            remittance_rider__remittance__date__gte=seed_start,
             remittance_rider__remittance__date__lte=today,
         )
         .select_related("remittance_rider__remittance", "product")
@@ -372,22 +387,34 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
         commission = float(entry["commission"])
         cumulative += commission
         date_label = d.strftime("%b %d")
+        iso_date = d.isoformat()
         commissions_daily.append(
             {
                 "date": date_label,
+                "iso_date": iso_date,
                 "units": entry["units"],
                 "rate": f"₱{avg_rate:.2f}",
                 "amount": _format_peso(commission),
                 "amount_raw": commission,
             }
         )
-        performance_trend.append({"date": date_label, "units": entry["units"]})
-        commission_trend.append({"date": date_label, "cumulative": round(cumulative, 2)})
+        performance_trend.append({"date": date_label, "iso_date": iso_date, "units": entry["units"]})
+        commission_trend.append({"date": date_label, "iso_date": iso_date, "cumulative": round(cumulative, 2)})
 
-    total_commission = round(sum(c["amount_raw"] for c in commissions_daily), 2)
-    total_units = sum(c["units"] for c in commissions_daily)
-    days_count = len(commissions_daily) or 1
-    avg_daily = round(total_commission / days_count, 2)
+    # --- 30-day stat-card summary (fixed window, independent of chart filter)
+    stat_commission = 0.0
+    stat_units = 0
+    stat_days = 0
+    for d, entry in by_date.items():
+        if d < stat_start:
+            continue
+        stat_commission += float(entry["commission"])
+        stat_units += entry["units"]
+        stat_days += 1
+    total_commission = round(stat_commission, 2)
+    total_units = stat_units
+    days_count = stat_days or 1
+    avg_daily = round(stat_commission / days_count, 2)
 
     unpaid_credits = (
         RiderCredit.objects
@@ -432,6 +459,7 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
 
     trends_seed = json.dumps(
         {
+            "dates": [p["iso_date"] for p in performance_trend],
             "labels": [p["date"] for p in performance_trend],
             "performance": [p["units"] for p in performance_trend],
             "commissions": [c["cumulative"] for c in commission_trend],

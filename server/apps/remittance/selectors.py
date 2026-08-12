@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from django.db.models import Q, Sum
 
 from apps.core.models import Product, SystemConfig
-from apps.customers.models import Customer
+from apps.customers.models import CreditPayment, Customer
 from apps.users.models import User, DriverCommission
 from apps.users.presentation import avatar_classes, driver_code, initials
 from .models import Remittance, RemittanceRiderProductLine
@@ -75,10 +75,61 @@ def _active_riders_qs(user: "UserType"):
     return qs.order_by("first_name", "last_name", "username")
 
 
-def list_riders_for_remittance(user: "UserType") -> list[dict]:
-    """Returns active riders with per-product commission rates and empty
-    product lines, ready for Alpine.js to hydrate.
+def _rider_repayments_for_date(
+    user: "UserType",
+    riders_qs,
+    remittance_date: date,
+) -> dict[str, list[dict]]:
+    """Returns a mapping of ``rider_id -> [repayment_dict, ...]`` for
+    CreditPayments collected on ``remittance_date`` that are attributed
+    to an active rider (via ``CreditLine.care_of``) and not yet linked
+    to a Remittance.
+
+    Each repayment dict is shaped for the Alpine.js form::
+
+        {"payer": str, "product_key": str, "qty": int, "amount": float}
     """
+    rider_ids = [r.pk for r in riders_qs]
+    if not rider_ids:
+        return {}
+
+    qs = (
+        CreditPayment.objects
+        .filter(
+            company_id=getattr(user, "company_id", None),
+            remittance__isnull=True,
+            created_at__date=remittance_date,
+            credit_line__care_of_id__in=rider_ids,
+        )
+        .select_related("credit_line__customer", "credit_line__product")
+        .order_by("created_at")
+    )
+
+    by_rider: dict[str, list[dict]] = {}
+    for cp in qs:
+        rider_id = str(cp.credit_line.care_of_id)
+        by_rider.setdefault(rider_id, []).append({
+            "payer": cp.credit_line.customer.name,
+            "product_key": str(cp.credit_line.product_id),
+            "qty": cp.containers_paid,
+            "amount": float(cp.amount),
+        })
+    return by_rider
+
+
+def list_riders_for_remittance(
+    user: "UserType",
+    remittance_date: date | None = None,
+) -> list[dict]:
+    """Returns active riders with per-product commission rates, empty
+    product lines, and auto-populated repayments, ready for Alpine.js
+    to hydrate.
+
+    ``remittance_date`` defaults to today.  Repayments are CreditPayments
+    collected on that date, attributed to each rider via
+    ``CreditLine.care_of``, and not yet linked to a Remittance.
+    """
+    remittance_date = remittance_date or date.today()
     products = list_products_for_remittance(user)
     product_keys = [p["key"] for p in products]
     riders_qs = _active_riders_qs(user)
@@ -94,6 +145,9 @@ def list_riders_for_remittance(user: "UserType") -> list[dict]:
             rate_map[(str(row["driver_id"]), str(row["product_id"]))] = float(
                 row["rate_per_unit"]
             )
+
+    # Auto-populate repayments collected on the remittance date.
+    repayments_by_rider = _rider_repayments_for_date(user, riders_qs, remittance_date)
 
     riders: list[dict] = []
     for idx, rider in enumerate(riders_qs):
@@ -119,26 +173,27 @@ def list_riders_for_remittance(user: "UserType") -> list[dict]:
                 }
                 for pk in product_keys
             ],
-            "repayments": [],
+            "repayments": repayments_by_rider.get(rider_id, []),
         })
     return riders
 
 
 def get_add_remittance_context(user: "UserType") -> dict:
     """Builds the full context for the Add Remittance page."""
+    default_date = date.today()
     products = list_products_for_remittance(user)
-    riders = list_riders_for_remittance(user)
+    riders = list_riders_for_remittance(user, remittance_date=default_date)
     company_id = getattr(getattr(user, "company", None), "id", None)
-    default_date = date.today().isoformat()
 
     return {
         "today_date": datetime.now().strftime("%A, %b %d, %Y"),
-        "default_date": default_date,
+        "default_date": default_date.isoformat(),
         "products": products,
         "riders": riders,
         "rider_position": f"1 of {len(riders)}" if riders else "0 of 0",
         "summary": {
             "total_sales": "₱0.00",
+            "total_repayments": "₱0.00",
             "net_remittance": "₱0.00",
             "tithes": "₱0.00",
             "total_expenses": "₱0.00",
@@ -154,6 +209,24 @@ def get_add_remittance_context(user: "UserType") -> dict:
 def remittance_exists_for_date(user: "UserType", target_date: date) -> bool:
     """Returns True if a remittance already exists for the given date."""
     return Remittance.objects.for_user(user).filter(date=target_date).exists()
+
+
+def remittance_status_for_date(user: "UserType", target_date: date) -> str | None:
+    """Returns the status ('DRAFT' or 'FINALIZED') of a remittance for the
+    given date, or ``None`` if no remittance exists.
+
+    Used by the check-date endpoint so the Add Remittance form can
+    distinguish between a draft (user can continue editing / re-save)
+    and a finalized record (date is locked).
+    """
+    rem = (
+        Remittance.objects
+        .for_user(user)
+        .filter(date=target_date)
+        .only("status")
+        .first()
+    )
+    return rem.status if rem else None
 
 
 def _remittance_row(rem: Remittance) -> dict:
@@ -178,6 +251,8 @@ def _remittance_row(rem: Remittance) -> dict:
         "tithes_paid": rem.tithes_paid,
         "offering_paid": rem.offering_paid,
         "unpaid": not (rem.tithes_paid and rem.offering_paid),
+        "status": rem.status,
+        "is_draft": rem.status == Remittance.StatusChoices.DRAFT,
     }
 
 

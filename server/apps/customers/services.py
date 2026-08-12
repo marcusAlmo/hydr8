@@ -16,7 +16,7 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.users.models import User
 
-from .models import BorrowedContainer, Customer, CreditLine
+from .models import BorrowedContainer, CreditPayment, Customer, CreditLine
 from .selectors import _parse_display_id
 
 if TYPE_CHECKING:
@@ -277,3 +277,165 @@ def delete_customer(*, customer: Customer, performed_by: "UserType") -> None:
     logger.info(
         "[%s] Soft-deleted Customer id=%s", performed_by.id, customer.id
     )
+
+
+def _parse_int(value, field_label: str) -> int:
+    """Parses a non-negative integer, raising ValidationError on bad input."""
+    try:
+        qty = int(value)
+    except (ValueError, TypeError):
+        raise ValidationError(f"{field_label} must be a whole number.")
+    if qty < 0:
+        raise ValidationError(f"{field_label} cannot be negative.")
+    return qty
+
+
+@transaction.atomic
+def record_customer_collection(
+    *,
+    customer_id: str,
+    performed_by: "UserType",
+    returns: list[dict],
+    payments: list[dict],
+) -> dict:
+    """Records a customer collection — container returns and/or credit payments.
+
+    ``returns`` is a list of ``{"borrowed_id": <pk>, "qty": <int>}`` dicts.
+    ``payments`` is a list of ``{"credit_line_id": <pk>, "qty_paid": <int>,
+    "amount": <str|Decimal>}`` dicts.
+
+    For each return, the matching ``BorrowedContainer.qty_returned`` is
+    incremented and the aggregate counter on ``Customer`` is decremented.
+    For each payment, a ``CreditPayment`` row is created, the
+    ``CreditLine.qty_remaining`` is decremented, and the ``Customer.debt_balance``
+    is reduced.
+
+    Returns a summary dict:
+        {"returns_recorded": int, "payments_recorded": int, "total_collected": Decimal}
+
+    Raises ``ValidationError`` if the customer doesn't exist, items don't
+    belong to the customer, quantities are invalid, or nothing was submitted.
+    """
+    customer = _resolve_customer(customer_id, performed_by)
+    company = getattr(performed_by, "company", None)
+
+    # --- Parse & validate returns ------------------------------------------
+    parsed_returns: list[tuple[BorrowedContainer, int]] = []
+    for entry in returns:
+        raw_id = (entry.get("borrowed_id") or "").strip()
+        if not raw_id:
+            continue
+        try:
+            borrowed_pk = int(raw_id)
+        except (ValueError, TypeError):
+            raise ValidationError("Invalid borrowed container reference.")
+
+        qty = _parse_int(entry.get("qty", 0), "Return quantity")
+        if qty == 0:
+            continue
+
+        borrowed = (
+            BorrowedContainer.objects
+            .filter(pk=borrowed_pk, customer=customer, company=company)
+            .first()
+        )
+        if borrowed is None:
+            raise ValidationError(
+                "Borrowed container not found for this customer."
+            )
+        if qty > borrowed.qty_remaining:
+            raise ValidationError(
+                f"Cannot return {qty} containers — only "
+                f"{borrowed.qty_remaining} outstanding for {borrowed.container_label}."
+            )
+        parsed_returns.append((borrowed, qty))
+
+    # --- Parse & validate payments -----------------------------------------
+    parsed_payments: list[tuple[CreditLine, int, Decimal]] = []
+    for entry in payments:
+        raw_id = (entry.get("credit_line_id") or "").strip()
+        if not raw_id:
+            continue
+        try:
+            cl_pk = int(raw_id)
+        except (ValueError, TypeError):
+            raise ValidationError("Invalid credit line reference.")
+
+        qty_paid = _parse_int(entry.get("qty_paid", 0), "Quantity paid")
+        amount = _to_decimal(entry.get("amount", 0))
+        if amount < 0:
+            raise ValidationError("Payment amount cannot be negative.")
+        if qty_paid == 0 and amount == 0:
+            continue
+
+        credit_line = (
+            CreditLine.objects
+            .filter(pk=cl_pk, customer=customer, company=company)
+            .first()
+        )
+        if credit_line is None:
+            raise ValidationError(
+                "Credit line not found for this customer."
+            )
+        if qty_paid > credit_line.qty_remaining:
+            raise ValidationError(
+                f"Cannot pay {qty_paid} units — only "
+                f"{credit_line.qty_remaining} remaining."
+            )
+        parsed_payments.append((credit_line, qty_paid, amount))
+
+    if not parsed_returns and not parsed_payments:
+        raise ValidationError(
+            "Nothing to record — enter a return quantity or payment amount."
+        )
+
+    # --- Apply returns -----------------------------------------------------
+    returns_recorded = 0
+    for borrowed, qty in parsed_returns:
+        field = _CONTAINER_FIELDS[borrowed.container_key]
+        BorrowedContainer.objects.filter(pk=borrowed.pk).update(
+            qty_returned=F("qty_returned") + qty
+        )
+        Customer.objects.filter(pk=customer.pk).update(
+            **{field: F(field) - qty}
+        )
+        returns_recorded += qty
+
+    # --- Apply payments ----------------------------------------------------
+    payments_recorded = 0
+    total_collected = Decimal("0.00")
+    for credit_line, qty_paid, amount in parsed_payments:
+        CreditPayment.objects.create(
+            company=company,
+            credit_line=credit_line,
+            remittance=None,
+            containers_paid=qty_paid,
+            amount=amount,
+            recorded_by=performed_by,
+        )
+        CreditLine.objects.filter(pk=credit_line.pk).update(
+            qty_remaining=F("qty_remaining") - qty_paid
+        )
+        total_collected += amount
+        payments_recorded += qty_paid
+
+    if total_collected > 0:
+        Customer.objects.filter(pk=customer.pk).update(
+            debt_balance=F("debt_balance") - total_collected
+        )
+
+    customer.refresh_from_db()
+    logger.info(
+        "[%s] Recorded collection for Customer id=%s: "
+        "returns=%d payments=%d collected=%s",
+        performed_by.id,
+        customer.id,
+        returns_recorded,
+        payments_recorded,
+        total_collected,
+    )
+    return {
+        "returns_recorded": returns_recorded,
+        "payments_recorded": payments_recorded,
+        "total_collected": total_collected,
+    }

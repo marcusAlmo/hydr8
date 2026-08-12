@@ -11,10 +11,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Min, Q, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.settings.selectors import get_overdue_threshold_days
 from apps.users.models import User
 from apps.users.presentation import driver_code as user_driver_code
 from apps.users.presentation import initials as user_initials
@@ -50,6 +51,29 @@ _DB_SORT_MAP: dict[str, str] = {
     "borrowed_total": "borrowed_total",  # annotated
     "payable_amount": "debt_balance",     # same value as debt_balance
     "last_credit": "last_credit_at",      # direction inverted below
+}
+
+# ---------------------------------------------------------------------------
+# Sort mapping for the debt-management table HTMX partial.
+# ---------------------------------------------------------------------------
+DEBT_SORT_FIELD_MAP: dict[str, str] = {
+    "name": "name",
+    "debt_balance": "debt_balance",
+    "age": "oldest_credit_at",            # annotated (min active CreditLine.created_at)
+    "days_overdue": "last_credit_at",      # direction inverted below
+    "borrowed_total": "borrowed_total",    # annotated
+}
+DEBT_DEFAULT_SORT = "debt_balance"
+DEBT_DEFAULT_DIR = "desc"
+DEBT_PER_PAGE = 25
+
+# Maps debt sort field names to actual DB column/annotation names for DB-side sorting.
+_DEBT_DB_SORT_MAP: dict[str, str] = {
+    "name": "name",
+    "debt_balance": "debt_balance",
+    "age": "oldest_credit_at",             # annotated
+    "days_overdue": "last_credit_at",       # direction inverted below
+    "borrowed_total": "borrowed_total",     # annotated
 }
 
 
@@ -188,47 +212,37 @@ def _customer_row(customer: Customer) -> dict:
     }
 
 
-def _debt_row(customer: Customer) -> dict:
-    """Converts a ``Customer`` into the debt-management row shape."""
+def _debt_row(customer: Customer, overdue_threshold: int = 7) -> dict:
+    """Converts a ``Customer`` into the debt-management row shape.
+
+    ``overdue_threshold`` is the configured number of days after which
+    a debt is considered overdue (from SystemConfig). It drives the
+    ``days_overdue_class`` severity coloring.
+
+    ``customer.oldest_credit_at`` is expected to be annotated on the
+    queryset by ``get_debt_table_context`` — it is the min ``created_at``
+    among the customer's active credit lines (``qty_remaining > 0``).
+    The ``age`` field is the number of days since that date.
+    """
     days_overdue = _days_since(customer.last_credit_at)
-    last_payment = _last_payment_dt(customer)
-    last_payment_at = _days_ago(last_payment)
+    oldest_credit_at = getattr(customer, "oldest_credit_at", None)
+    age = _days_since(oldest_credit_at) if oldest_credit_at else 0
 
-    if customer.status == Customer.Status.BLACKLISTED or days_overdue > 90:
-        suggested_action = "Send final demand"
-        action_class = "bg-error text-on-primary"
-    elif days_overdue > 7 or customer.status == Customer.Status.FLAGGED:
-        suggested_action = "Call to collect"
-        action_class = "bg-primary text-on-primary"
-    else:
-        suggested_action = "Monitor"
-        action_class = "bg-surface-container text-on-surface-variant"
-
-    if days_overdue > 30:
+    if days_overdue > overdue_threshold:
         days_class = "text-error"
-    elif days_overdue > 7:
-        days_class = "text-[#D97706]"
     else:
         days_class = "text-on-surface-variant"
-
-    if not last_payment or _days_since(last_payment) > 30:
-        last_payment_class = "text-error"
-    elif _days_since(last_payment) > 7:
-        last_payment_class = "text-[#D97706]"
-    else:
-        last_payment_class = "text-on-surface-variant"
 
     return {
         "id": _display_id(customer),
         "name": customer.name,
         "initials": _customer_initials(customer.name),
         "debt_balance": _format_peso(customer.debt_balance),
+        "age": age,
         "days_overdue": days_overdue,
         "days_overdue_class": days_class,
-        "last_payment_at": last_payment_at,
-        "last_payment_class": last_payment_class,
-        "suggested_action": suggested_action,
-        "action_class": action_class,
+        "is_overdue": days_overdue > overdue_threshold,
+        "borrowed_total": _customer_borrowed_total(customer),
         "status": customer.status,
         "anomaly_badge": _customer_anomaly_badge(customer.status),
     }
@@ -376,11 +390,12 @@ def _customer_stats(user: "UserType") -> list[dict]:
     ]
 
 
-def _debt_stats_and_rows(user: "UserType") -> tuple[list[dict], list[dict]]:
+def _debt_stats(user: "UserType") -> list[dict]:
+    """Summary stat cards for the debt-management tab."""
+    threshold = get_overdue_threshold_days(user)
     debtors = (
         Customer.objects.for_user(user)
         .filter(deleted_at__isnull=True, debt_balance__gt=0)
-        .order_by("-debt_balance")
     )
     debtor_count = debtors.count()
     total_debt = (
@@ -388,13 +403,14 @@ def _debt_stats_and_rows(user: "UserType") -> tuple[list[dict], list[dict]]:
         or Decimal("0.00")
     )
 
-    rows = [_debt_row(c) for c in debtors]
-    overdue_30_count = sum(1 for r in rows if r["days_overdue"] > 30)
-    overdue_30_amount = sum(
-        c.debt_balance for c in debtors if _days_since(c.last_credit_at) > 30
+    # Stats are computed across the full debtor set (not the paginated page).
+    debtors_list = list(debtors.only("last_credit_at", "debt_balance"))
+    overdue_count = sum(1 for c in debtors_list if _days_since(c.last_credit_at) > threshold)
+    overdue_amount = sum(
+        c.debt_balance for c in debtors_list if _days_since(c.last_credit_at) > threshold
     )
     avg_days = (
-        round(sum(r["days_overdue"] for r in rows) / debtor_count)
+        round(sum(_days_since(c.last_credit_at) for c in debtors_list) / debtor_count)
         if debtor_count
         else 0
     )
@@ -411,11 +427,11 @@ def _debt_stats_and_rows(user: "UserType") -> tuple[list[dict], list[dict]]:
             "col_span": "md:col-span-6",
         },
         {
-            "key": "overdue_30",
-            "label": "Overdue 30+ Days",
-            "value": str(overdue_30_count),
+            "key": "overdue",
+            "label": f"Overdue {threshold}+ Days",
+            "value": str(overdue_count),
             "value_size": "4xl",
-            "subtitle": _format_peso(overdue_30_amount) + " at risk",
+            "subtitle": _format_peso(overdue_amount) + " at risk",
             "icon": "schedule",
             "accent": "warning",
             "col_span": "md:col-span-3",
@@ -431,7 +447,7 @@ def _debt_stats_and_rows(user: "UserType") -> tuple[list[dict], list[dict]]:
             "col_span": "md:col-span-3",
         },
     ]
-    return stats, rows
+    return stats
 
 
 def _ranking_context(user: "UserType") -> dict:
@@ -581,10 +597,79 @@ def get_customer_table_context(
     }
 
 
+def get_debt_table_context(
+    user: "UserType",
+    sort_field: str = DEBT_DEFAULT_SORT,
+    direction: str = DEBT_DEFAULT_DIR,
+    query: str = "",
+    page: int = 1,
+) -> dict:
+    """Returns the debt-management table partial context.
+
+    Filters to customers with ``debt_balance > 0``. When ``query`` is
+    non-empty, filters by ``name__icontains``. Uses DB-side sorting and
+    real pagination (``DEBT_PER_PAGE``).
+    """
+    next_dir = "desc" if direction == "asc" else "asc"
+
+    qs = (
+        Customer.objects.for_user(user)
+        .filter(deleted_at__isnull=True, debt_balance__gt=0)
+    )
+
+    # Apply search filter
+    query = (query or "").strip()
+    if query:
+        qs = qs.filter(name__icontains=query)
+
+    # Annotate borrowed_total and oldest_credit_at for sorting/display.
+    # oldest_credit_at = min created_at among active credit lines
+    # (qty_remaining > 0), used to compute the "age" of the debt.
+    qs = qs.annotate(
+        borrowed_total=F("borrowed_round_8gal") + F("borrowed_slim_8gal") + F("borrowed_other"),
+        oldest_credit_at=Min(
+            "credit_lines__created_at",
+            filter=Q(credit_lines__qty_remaining__gt=0),
+        ),
+    )
+
+    # DB-side sorting
+    db_sort = _DEBT_DB_SORT_MAP.get(sort_field, _DEBT_DB_SORT_MAP[DEBT_DEFAULT_SORT])
+    if sort_field == "days_overdue":
+        # Invert direction: days_overdue asc = last_credit_at desc (recent = fewer days)
+        if direction == "asc":
+            qs = qs.order_by(F("last_credit_at").desc(nulls_last=True))
+        else:
+            qs = qs.order_by(F("last_credit_at").asc(nulls_last=True))
+    else:
+        if direction == "desc":
+            db_sort = f"-{db_sort}"
+        qs = qs.order_by(db_sort)
+
+    # Real pagination
+    paginator = Paginator(qs, DEBT_PER_PAGE)
+    page_obj = paginator.get_page(page)
+
+    threshold = get_overdue_threshold_days(user)
+    rows = [_debt_row(c, overdue_threshold=threshold) for c in page_obj.object_list]
+
+    return {
+        "debt_rows": rows,
+        "debt_pagination": _pagination_from_page(page_obj),
+        "debt_sort_state": {
+            "field": sort_field,
+            "direction": direction,
+            "next_dir": next_dir,
+        },
+        "debt_search_query": query,
+    }
+
+
 def get_customer_list_context(user: "UserType") -> dict:
     """Returns the full Customers page context for all three tabs."""
     table_context = get_customer_table_context(user)
-    debt_stats, debt_rows = _debt_stats_and_rows(user)
+    debt_stats = _debt_stats(user)
+    debt_table_context = get_debt_table_context(user)
     ranking_context = _ranking_context(user)
 
     return {
@@ -594,17 +679,29 @@ def get_customer_list_context(user: "UserType") -> dict:
         "customers": table_context["customers"],
         "pagination": table_context["pagination"],
         "sort_state": table_context["sort_state"],
-        "debt_count": len(debt_rows),
+        "search_query": table_context["search_query"],
+        "debt_count": debt_table_context["debt_pagination"]["total"],
         "debt_stats": debt_stats,
-        "debt_rows": debt_rows,
-        "debt_pagination": _pagination(1, len(debt_rows)),
+        "debt_rows": debt_table_context["debt_rows"],
+        "debt_pagination": debt_table_context["debt_pagination"],
+        "debt_sort_state": debt_table_context["debt_sort_state"],
+        "debt_search_query": debt_table_context["debt_search_query"],
         **ranking_context,
     }
 
 
-def get_customer_detail_context(customer: Customer) -> dict:
-    """Returns the detail modal context for a single customer."""
+def get_customer_detail_context(customer: Customer, user: "UserType | None" = None) -> dict:
+    """Returns the detail modal context for a single customer.
+
+    When ``user`` is provided, the configurable overdue threshold is read
+    from SystemConfig and used to compute ``is_overdue`` — whether the
+    customer's last credit is older than the threshold. This drives the
+    "Action required — overdue balance" indicator in the modal.
+    """
     row = _customer_row(customer)
+    threshold = get_overdue_threshold_days(user) if user is not None else 7
+    days_since_credit = _days_since(customer.last_credit_at)
+    is_overdue = row["has_debt"] and days_since_credit > threshold
     row.update(
         {
             "member_since": customer.created_at.strftime("%b %Y"),
@@ -612,6 +709,8 @@ def get_customer_detail_context(customer: Customer) -> dict:
             "last_payment_at": _days_ago(_last_payment_dt(customer)),
             "status_badge_class": _customer_status_badge_class(customer.status),
             "status_label": _customer_status_label(customer.status),
+            "is_overdue": is_overdue,
+            "overdue_threshold_days": threshold,
             "can_delete": (
                 _customer_borrowed_total(customer) == 0 and not row["has_debt"]
             ),

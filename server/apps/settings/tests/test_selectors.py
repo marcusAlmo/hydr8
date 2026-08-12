@@ -32,12 +32,13 @@ class GetSettingsContextTests(TestCase):
         tab_ids = {t['id'] for t in ctx['tabs']}
         self.assertEqual(tab_ids, {'system-config', 'company', 'profile', 'ai-model'})
 
-    def test_system_config_has_four_rows(self):
+    def test_system_config_has_five_rows(self):
         ctx = get_settings_context(self.user)
         keys = [row['key'] for row in ctx['system_config']]
         self.assertEqual(keys, [
             'lockscreen_timeout_minutes', 'tithe_rate',
             'approved_credit_limit', 'approved_container_limit',
+            'overdue_threshold_days',
         ])
 
     def test_tithe_rate_displayed_as_percentage(self):
@@ -102,5 +103,5 @@ class GetSettingsContextTests(TestCase):
         """If SystemConfig rows are missing, defaults are used (no crash)."""
         SystemConfig.objects.filter(company=self.company).delete()
         ctx = get_settings_context(self.user)
-        # Should still render all 4 rows with default values.
-        self.assertEqual(len(ctx['system_config']), 4)
+        # Should still render all 5 rows with default values.
+        self.assertEqual(len(ctx['system_config']), 5)

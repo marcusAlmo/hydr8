@@ -61,6 +61,15 @@ SYSTEM_CONFIG_METADATA: dict[str, dict[str, Any]] = {
         'type': 'number',
         'highlight': True,  # operational ceiling
     },
+    'overdue_threshold_days': {
+        'label': 'Overdue Threshold (days)',
+        'description': 'Number of days after which an unpaid credit or '
+                       'unreturned container is considered overdue. '
+                       'Drives the "Action required" indicator on customer '
+                       'profiles and the debt-management severity styling.',
+        'type': 'number',
+        'highlight': True,  # operational threshold
+    },
 }
 
 # Raw default values used when a key is missing from the DB (defensive —
@@ -71,6 +80,7 @@ SYSTEM_CONFIG_DEFAULTS: dict[str, str] = {
     'tithe_rate': '0.10',
     'approved_credit_limit': '3000.00',
     'approved_container_limit': '20',
+    'overdue_threshold_days': '7',
 }
 
 # Mapping between raw lockscreen minutes and the display select options.
@@ -205,6 +215,7 @@ def _build_system_config(company_id: int | None) -> list[dict[str, Any]]:
         'tithe_rate',
         'approved_credit_limit',
         'approved_container_limit',
+        'overdue_threshold_days',
     ):
         raw = _get_config_value(key, company_id)
         rows.append(_format_system_config_row(key, raw))
@@ -311,3 +322,42 @@ def get_settings_context(user) -> dict[str, Any]:
         'profile': _build_profile_context(user),
         'ai_model': _build_ai_model_context(company_id),
     }
+
+
+# ---------------------------------------------------------------------------
+# Domain helpers — read individual config values for use by other apps.
+# ---------------------------------------------------------------------------
+
+def get_overdue_threshold_days(user) -> int:
+    """Returns the configured overdue threshold in days for the user's tenant.
+
+    Reads the ``overdue_threshold_days`` SystemConfig key, preferring the
+    tenant-scoped row, then the global row, then the hardcoded default (7).
+    Never raises — callers can use this directly in selectors.
+    """
+    company_id = getattr(getattr(user, 'company', None), 'id', None)
+    raw = _get_config_value('overdue_threshold_days', company_id)
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        val = int(SYSTEM_CONFIG_DEFAULTS['overdue_threshold_days'])
+    return val if val > 0 else 1
+
+
+def get_lockscreen_timeout_minutes(user) -> int:
+    """Returns the configured lockscreen idle timeout in minutes.
+
+    Reads the ``lockscreen_timeout_minutes`` SystemConfig key, preferring
+    the tenant-scoped row, then the global row, then the hardcoded default
+    (5).  A value of ``0`` means "Never" — the lock screen is disabled.
+
+    Never raises — callers can use this directly.  Returns ``0`` when the
+    timeout is disabled.
+    """
+    company_id = getattr(getattr(user, 'company', None), 'id', None)
+    raw = _get_config_value('lockscreen_timeout_minutes', company_id)
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        val = int(SYSTEM_CONFIG_DEFAULTS['lockscreen_timeout_minutes'])
+    return max(val, 0)

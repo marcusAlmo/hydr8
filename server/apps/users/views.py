@@ -1,3 +1,4 @@
+import json
 import logging
 from urllib.parse import quote
 
@@ -10,7 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
 from django.urls import reverse
 from django.utils import timezone
@@ -31,11 +32,13 @@ from .services import (
     change_user_password,
     check_login_lockout,
     create_user_account,
+    generate_delete_challenge,
     get_client_ip,
     onboard_user,
     record_failed_login,
     reset_failed_login,
     set_temporary_password,
+    soft_delete_user,
 )
 
 logger = logging.getLogger(__name__)
@@ -353,10 +356,22 @@ def edit_user_view(request, user_id):
     form.fields['role'].queryset = get_roles_for_user(request.user)
     roles = get_roles_for_user(request.user)
 
+    # Generate a one-time delete-confirmation challenge and stash it in the
+    # session so the delete endpoint can verify it on POST. Regenerated on
+    # every edit-form load so it cannot be replayed across sessions.
+    delete_challenge = generate_delete_challenge()
+    request.session[f'delete_challenge:{target_user.pk}'] = delete_challenge
+
+    # Prevent self-deletion in the UI — hide the delete button for the
+    # current user's own edit form.
+    can_delete = _can_change_user(request.user) and request.user.pk != target_user.pk
+
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
         'roles': roles,
+        'delete_challenge': delete_challenge,
+        'can_delete': can_delete,
     })
 
 
@@ -396,11 +411,104 @@ def edit_user_submit_view(request, user_id):
         if context is None:
             return HttpResponse("User not found.", status=404)
         return render(request, 'employees/partials/user_detail.html', context)
+    # Re-render the form with errors — preserve the delete challenge so the
+    # delete panel stays functional after a failed save.
+    delete_challenge = request.session.get(f'delete_challenge:{target_user.pk}', generate_delete_challenge())
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
         'roles': get_roles_for_user(request.user),
+        'delete_challenge': delete_challenge,
+        'can_delete': _can_change_user(request.user) and request.user.pk != target_user.pk,
     })
+
+
+# ---------------------------------------------------------------------------
+# Delete user (soft-delete) — admin action on the edit user form.
+# ---------------------------------------------------------------------------
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
+def delete_user_view(request, user_id):
+    """
+    HTMX endpoint — soft-deletes a user after verifying the typed
+    delete-confirmation challenge matches the one issued when the edit form
+    was rendered.
+
+    On success, returns a confirmation partial and triggers a refresh of the
+    employees directory table so the deleted user disappears immediately.
+    On failure (wrong challenge, self-delete, already deleted), re-renders
+    the edit form with an error message.
+    """
+    if not _can_change_user(request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    target_user = get_user_by_id(request.user, user_id)
+    if target_user is None:
+        return HttpResponse("User not found.", status=404)
+
+    session_key = f'delete_challenge:{target_user.pk}'
+    expected_challenge = request.session.get(session_key, '')
+    typed_challenge = (request.POST.get('delete_challenge', '') or '').strip()
+
+    if not expected_challenge:
+        # No challenge was issued (stale form / session expired). Regenerate
+        # one and re-render the edit form with a fresh challenge + error.
+        delete_challenge = generate_delete_challenge()
+        request.session[session_key] = delete_challenge
+        form = EditUserForm(instance=target_user)
+        form.fields['role'].queryset = get_roles_for_user(request.user)
+        return render(request, 'users/partials/edit_user_form.html', {
+            'form': form,
+            'target_user': target_user,
+            'roles': get_roles_for_user(request.user),
+            'delete_challenge': delete_challenge,
+            'can_delete': request.user.pk != target_user.pk,
+            'delete_error': "The delete session expired. Please retry the delete confirmation.",
+        })
+
+    if typed_challenge != expected_challenge:
+        # Wrong code — re-render the edit form with the same challenge and
+        # an error so the user can retry without reloading the whole form.
+        form = EditUserForm(instance=target_user)
+        form.fields['role'].queryset = get_roles_for_user(request.user)
+        return render(request, 'users/partials/edit_user_form.html', {
+            'form': form,
+            'target_user': target_user,
+            'roles': get_roles_for_user(request.user),
+            'delete_challenge': expected_challenge,
+            'can_delete': request.user.pk != target_user.pk,
+            'delete_error': "The code you entered does not match. Please type it exactly as shown.",
+        })
+
+    try:
+        soft_delete_user(user=target_user, performed_by=request.user)
+    except ValidationError as exc:
+        logger.warning("[%s] Failed to delete User id=%s: %s",
+                       request.user.id, target_user.id, error_message(exc))
+        form = EditUserForm(instance=target_user)
+        form.fields['role'].queryset = get_roles_for_user(request.user)
+        return render(request, 'users/partials/edit_user_form.html', {
+            'form': form,
+            'target_user': target_user,
+            'roles': get_roles_for_user(request.user),
+            'delete_challenge': expected_challenge,
+            'can_delete': request.user.pk != target_user.pk,
+            'delete_error': str(exc),
+        })
+
+    # Clear the spent challenge so it cannot be replayed.
+    request.session.pop(session_key, None)
+
+    # Confirmation partial — swaps into the drawer content area. Trigger a
+    # refresh of the directory table so the deleted user vanishes from the
+    # list, search, and suggestions immediately.
+    response = render(request, 'users/partials/user_deleted_confirm.html', {
+        'deleted_user': target_user,
+    })
+    response['HX-Trigger'] = '{"refreshUsersTable": ""}'
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -688,4 +796,75 @@ def screen_lock_submit_view(request):
             'pin_error': "Incorrect PIN.",
             'attempts_left': 3 - attempts,
         },
+    )
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='5/15m', method='POST', block=True)
+def screen_lock_verify_view(request):
+    """JSON endpoint — verifies the PIN to dismiss the idle lock-screen overlay.
+
+    Used by the Alpine.js lock-screen overlay in ``base.html``.  The
+    overlay arms itself client-side after the configured idle timeout
+    (``lockscreen_timeout_minutes`` SystemConfig) and posts the user's
+    PIN here.
+
+    Returns JSON::
+
+        {"verified": true}                          # on success
+        {"verified": false, "attempts_left": 2}     # on wrong PIN
+        {"verified": false, "logged_out": true,
+         "redirect": "/users/"}                     # after 3 failures
+
+    After 3 failed attempts the user is logged out (session destroyed)
+    and the client redirects to the login page — matching the rule on
+    the standalone screen-lock page.
+
+    Shares the ``pin_attempts`` session counter with
+    ``screen_lock_submit_view`` so the two flows cannot be used to
+    bypass the 3-attempt ceiling.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+    except (ValueError, TypeError):
+        return JsonResponse(
+            {"verified": False, "error": "Invalid request."}, status=400,
+        )
+
+    pin = str(body.get("pin", "")).strip()
+    if not pin:
+        return JsonResponse(
+            {"verified": False, "error": "PIN is required."}, status=400,
+        )
+
+    user = request.user
+    attempts = request.session.get('pin_attempts', 0)
+
+    if user.check_pin(pin):
+        request.session.pop('pin_attempts', None)
+        request.session.pop('screen_locked', None)
+        logger.info("[%s] Lock-screen overlay unlocked via PIN.", user.id)
+        return JsonResponse({"verified": True})
+
+    attempts += 1
+    request.session['pin_attempts'] = attempts
+
+    if attempts >= 3:
+        logger.warning(
+            "[%s] Lock-screen overlay PIN exceeded 3 attempts; logging out.",
+            user.id,
+        )
+        auth_logout(request)
+        return JsonResponse(
+            {
+                "verified": False,
+                "logged_out": True,
+                "redirect": reverse('users:index'),
+            },
+        )
+
+    logger.info("[%s] Lock-screen overlay PIN failed (attempt %s).", user.id, attempts)
+    return JsonResponse(
+        {"verified": False, "attempts_left": 3 - attempts},
     )

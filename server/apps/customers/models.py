@@ -197,7 +197,15 @@ class BorrowedContainer(models.Model):
 
 class CreditPayment(models.Model):
     credit_line = models.ForeignKey(CreditLine, on_delete=models.PROTECT, related_name='payments')
-    remittance = models.ForeignKey('remittance.Remittance', on_delete=models.PROTECT, related_name='credit_payments')
+    remittance = models.ForeignKey(
+        'remittance.Remittance',
+        on_delete=models.PROTECT,
+        related_name='credit_payments',
+        null=True,
+        blank=True,
+        help_text='The rider remittance this payment was collected through, if any. '
+                  'Null for counter collections recorded via the Collect modal.',
+    )
     containers_paid = models.SmallIntegerField()
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     company = models.ForeignKey(

@@ -5,6 +5,7 @@ import string
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from apps.users.models import Role, User
 
@@ -177,3 +178,45 @@ def onboard_user(*, user: User, new_password: str, new_pin: str) -> None:
     user.force_password_change = False
     user.save(update_fields=["password", "password_expires_at", "pin", "pin_expires_at", "force_password_change", "updated_at"])
     logger.info("User onboarded. user_id=%s", user.id)
+
+
+# ---------------------------------------------------------------------------
+# Soft-delete — admin action on the edit user form.
+# ---------------------------------------------------------------------------
+
+# Delete-confirmation challenge — exactly 8 alphanumeric characters.
+DELETE_CHALLENGE_LENGTH = 8
+_DELETE_CHALLENGE_ALPHABET = string.ascii_letters + string.digits
+
+
+def generate_delete_challenge() -> str:
+    """
+    Generates a cryptographically-secure 8-character alphanumeric challenge
+    string. The user must retype this exact code to confirm a destructive
+    delete operation, adding friction against accidental deletion.
+    """
+    return "".join(
+        secrets.choice(_DELETE_CHALLENGE_ALPHABET)
+        for _ in range(DELETE_CHALLENGE_LENGTH)
+    )
+
+
+def soft_delete_user(*, user: User, performed_by) -> None:
+    """
+    Soft-deletes a user by setting ``deleted_at`` to the current timestamp
+    and deactivating the account. The row is preserved for audit/history;
+    all read-side selectors filter ``deleted_at__isnull=True`` so the user
+    disappears from the directory, search, suggestions, and rider lists.
+
+    Raises ``ValidationError`` if the user is already soft-deleted or if the
+    actor attempts to delete their own account.
+    """
+    if user.deleted_at is not None:
+        raise ValidationError("This user has already been deleted.")
+    if performed_by.pk == user.pk:
+        raise ValidationError("You cannot delete your own account.")
+
+    user.deleted_at = timezone.now()
+    user.is_active = False
+    user.save(update_fields=["deleted_at", "is_active", "updated_at"])
+    logger.info("[%s] Soft-deleted User id=%s", performed_by.id, user.id)

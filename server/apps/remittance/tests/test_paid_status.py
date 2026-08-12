@@ -251,7 +251,6 @@ class RemittanceHistoryPageRenderTests(TestCase):
     def test_history_page_renders_with_row_partial(self):
         response = self.client.get("/remittance/history/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Actions")
         self.assertContains(response, "rem-row")
         self.assertContains(response, "remittanceRow")
-        self.assertContains(response, "update_paid_status")
+        self.assertContains(response, "paid-status/")

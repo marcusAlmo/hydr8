@@ -17,7 +17,6 @@ Expects context:
                     <th class="py-3 px-4">Total Sales</th>
                     <th class="py-3 px-4">Net Profit</th>
                     <th class="py-3 px-4">Tithes</th>
-                    <th class="py-3 px-4">Action</th>
                 </tr>
             </thead>
             <tbody class="font-data-mono text-sm">
@@ -27,13 +26,10 @@ Expects context:
                     <td class="py-3 px-4">{{ rem.total_sales }}</td>
                     <td class="py-3 px-4 text-tertiary">{{ rem.net_profit }}</td>
                     <td class="py-3 px-4 {% if rem.tithes_status == 'unpaid' %}text-error{% else %}text-tertiary-container{% endif %}">{{ rem.tithes }}</td>
-                    <td class="py-3 px-4">
-                        <a href="{% url 'remittance:history' %}" class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</a>
-                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="py-6 px-4 text-center text-on-surface-variant font-body-sm">Nothing yet</td>
+                    <td colspan="4" class="py-6 px-4 text-center text-on-surface-variant font-body-sm">Nothing yet</td>
                 </tr>
                 {% endfor %}
             </tbody>

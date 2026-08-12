@@ -10,6 +10,9 @@ from apps.core.views import error_message
 from .selectors import (
     DEFAULT_DIR,
     DEFAULT_SORT,
+    DEBT_DEFAULT_DIR,
+    DEBT_DEFAULT_SORT,
+    DEBT_SORT_FIELD_MAP,
     SORT_FIELD_MAP,
     get_customer_by_display_id,
     get_customer_collect_context,
@@ -17,6 +20,7 @@ from .selectors import (
     get_customer_edit_context,
     get_customer_list_context,
     get_customer_table_context,
+    get_debt_table_context,
     get_record_borrowed_context,
     get_record_debt_context,
 )
@@ -24,6 +28,7 @@ from .services import (
     create_customer,
     delete_customer,
     record_customer_borrowed,
+    record_customer_collection,
     record_customer_debt,
     update_customer,
 )
@@ -82,13 +87,31 @@ def customer_table_view(request):
 
 @login_required
 @require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def debt_table_view(request):
+    """HTMX endpoint — returns the sorted/filtered debt-management table partial."""
+    sort_field = request.GET.get("sort", DEBT_DEFAULT_SORT)
+    sort_field = sort_field if sort_field in DEBT_SORT_FIELD_MAP else DEBT_DEFAULT_SORT
+    direction = request.GET.get("dir", DEBT_DEFAULT_DIR)
+    direction = direction if direction in ("asc", "desc") else DEBT_DEFAULT_DIR
+    query = request.GET.get("q", "")
+    try:
+        page = int(request.GET.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    context = get_debt_table_context(request.user, sort_field, direction, query, page)
+    return render(request, "customers/partials/debt_table.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_detail_view(request, customer_id: str):
     """HTMX endpoint — returns the customer detail modal partial."""
     customer = get_customer_by_display_id(request.user, customer_id)
     if customer is None:
         return HttpResponse("Customer not found.", status=404)
-    context = get_customer_detail_context(customer)
+    context = get_customer_detail_context(customer, user=request.user)
     return render(request, "customers/partials/detail_modal.html", context)
 
 
@@ -140,6 +163,9 @@ def customer_edit_submit_view(request, customer_id: str):
     )
 
 
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_collect_view(request, customer_id: str):
     """HTMX endpoint — returns the collect modal partial grouped by rider."""
     customer = get_customer_by_display_id(request.user, customer_id)
@@ -147,6 +173,69 @@ def customer_collect_view(request, customer_id: str):
         return HttpResponse("Customer not found.", status=404)
     context = get_customer_collect_context(customer)
     return render(request, "customers/partials/collect_modal.html", context)
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def customer_collect_submit_view(request, customer_id: str):
+    """HTMX endpoint — records a customer collection (returns + payments)."""
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+
+    # Parse prefixed POST fields into structured lists.
+    #   returned_BC-{pk}  → container return quantity
+    #   qty_paid_CL-{pk}   → units paid on a credit line
+    #   amount_paid_CL-{pk}→ peso amount paid on a credit line
+    returns: list[dict] = []
+    payments: list[dict] = []
+    for key, value in request.POST.items():
+        if key.startswith("returned_BC-"):
+            returns.append({
+                "borrowed_id": key[len("returned_BC-"):],
+                "qty": value,
+            })
+        elif key.startswith("qty_paid_CL-"):
+            cl_id = key[len("qty_paid_CL-"):]
+            payments.append({
+                "credit_line_id": cl_id,
+                "qty_paid": value,
+                "amount": request.POST.get(f"amount_paid_CL-{cl_id}", "0"),
+            })
+
+    try:
+        result = record_customer_collection(
+            customer_id=customer_id,
+            performed_by=request.user,
+            returns=returns,
+            payments=payments,
+        )
+    except ValidationError as e:
+        return render(
+            request,
+            "customers/partials/form_error.html",
+            {"message": error_message(e)},
+            status=400,
+        )
+
+    parts = []
+    if result["returns_recorded"] > 0:
+        parts.append(f"{result['returns_recorded']} container(s) returned")
+    if result["total_collected"] > 0:
+        parts.append(f"₱{result['total_collected']} collected")
+    message = (
+        f"Recorded {' and '.join(parts)} for {customer_id}."
+        if parts
+        else "No changes recorded."
+    )
+    response = render(
+        request,
+        "customers/partials/form_success.html",
+        {"message": message},
+    )
+    response["HX-Redirect"] = "/customers/"
+    return response
 
 
 @login_required

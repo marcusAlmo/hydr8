@@ -454,7 +454,7 @@
                             <th class="px-6 py-3 font-bold text-right">Tithes</th>
                             <th class="px-6 py-3 font-bold text-center">Tithes Paid</th>
                             <th class="px-6 py-3 font-bold text-center">Offering Paid</th>
-                            <th class="px-6 py-3 font-bold text-center">Actions</th>
+                            <th class="px-6 py-3"></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
@@ -502,6 +502,19 @@
 {% block extra_body %}
     <script>
         /**
+         * Re-initialise Alpine on HTMX-swapped content so x-model / x-show
+         * bindings on freshly-inserted rows (e.g. after a paid-status POST)
+         * work without a full page reload.  Without this, the swapped-in
+         * <tr> has dead x-model bindings and checkbox toggles never update
+         * the dirty flag, so Confirm/Cancel never re-appear.
+         */
+        document.body.addEventListener('htmx:afterSwap', (e) => {
+            if (window.Alpine && e.detail.target) {
+                window.Alpine.initTree(e.detail.target);
+            }
+        });
+
+        /**
          * remittanceRow — per-row Alpine component that tracks the dirty
          * state between the DB-backed original values and the current
          * checkbox state.  When either flag is mutated, the "Confirm"
@@ -513,9 +526,19 @@
                 origOffering: seed.offering_paid,
                 tithesPaid: seed.tithes_paid,
                 offeringPaid: seed.offering_paid,
+                saving: false,
+                // --- Draft finalize state ---
+                isDraft: seed.is_draft || false,
+                showFinalize: false,
+                finalizePin: '',
+                finalizing: false,
                 get dirty() {
-                    return this.tithesPaid !== this.origTithes
-                        || this.offeringPaid !== this.origOffering;
+                    return !this.saving
+                        && (this.tithesPaid !== this.origTithes
+                            || this.offeringPaid !== this.origOffering);
+                },
+                confirm() {
+                    this.saving = true;
                 },
                 cancel() {
                     this.tithesPaid = this.origTithes;

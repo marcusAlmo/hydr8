@@ -117,6 +117,9 @@
     <div id="ai-chat-root"></div>
     {% include "components/toasts/toast_container.html" %}
 
+    <!-- Idle lock-screen overlay (blurred backdrop + PIN prompt) -->
+    {% include "components/lock_screen_overlay.html" %}
+
     <!-- Global Floating AI Chat Widget (draggable, reusable on every page) -->
     {% include "components/ai/chat_widget.html" %}
 

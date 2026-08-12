@@ -17,6 +17,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.customers.models import CreditPayment
 from apps.users.models import User, DriverCommission
 
 from .models import Expense, Remittance, RemittanceRider, RemittanceRiderProductLine
@@ -49,8 +50,124 @@ def _active_riders_qs(user: "UserType"):
     return qs
 
 
+def _collect_rider_repayments(
+    performed_by: "UserType",
+    active_riders,
+    remittance_date: date,
+) -> dict[int, list[tuple[CreditPayment, "Product", Decimal]]]:
+    """Returns a mapping of ``rider.pk -> [(credit_payment, product, commission_rate), ...]``
+    for CreditPayments collected on ``remittance_date`` that are attributed
+    to an active rider (via ``CreditLine.care_of``) and not yet linked to
+    a Remittance.
+
+    The commission rate is looked up from ``DriverCommission`` for the
+    (rider, product) pair, defaulting to 0.00.
+    """
+    rider_ids = [r.pk for r in active_riders]
+    if not rider_ids:
+        return {}
+
+    company_id = getattr(performed_by, "company_id", None)
+    payments = list(
+        CreditPayment.objects
+        .filter(
+            company_id=company_id,
+            remittance__isnull=True,
+            created_at__date=remittance_date,
+            credit_line__care_of_id__in=rider_ids,
+        )
+        .select_related("credit_line__product")
+        .order_by("created_at")
+    )
+    if not payments:
+        return {}
+
+    # Pre-fetch commission rates for the (rider, product) pairs involved.
+    product_ids = {cp.credit_line.product_id for cp in payments}
+    rate_map: dict[tuple[int, int], Decimal] = {}
+    if rider_ids and product_ids:
+        for row in (
+            DriverCommission.objects
+            .filter(driver_id__in=rider_ids, product_id__in=product_ids)
+            .values("driver_id", "product_id", "rate_per_unit")
+        ):
+            rate_map[(row["driver_id"], row["product_id"])] = Decimal(row["rate_per_unit"])
+
+    by_rider: dict[int, list[tuple[CreditPayment, Product, Decimal]]] = {}
+    for cp in payments:
+        rider_id = cp.credit_line.care_of_id
+        product = cp.credit_line.product
+        rate = rate_map.get((rider_id, product.id), Decimal("0.00"))
+        by_rider.setdefault(rider_id, []).append((cp, product, rate))
+    return by_rider
+
+
+def _unlink_credit_payments(remittance: Remittance) -> int:
+    """Unlinks all CreditPayments from a Remittance (sets ``remittance=None``).
+
+    Used before deleting a DRAFT remittance so the PROTECT FK does not
+    block the delete.  Returns the count of unlinked payments.
+    """
+    count = CreditPayment.objects.filter(remittance=remittance).update(remittance=None)
+    if count:
+        logger.info(
+            "Unlinked %s CreditPayments from Remittance id=%s",
+            count,
+            remittance.id,
+        )
+    return count
+
+
 @transaction.atomic
-def create_and_finalize_remittance(
+def create_remittance(
+    *,
+    performed_by: "UserType",
+    riders_data: list[dict],
+    expenses_data: list[dict],
+    manual_offering,
+    tithe_rate,
+    remittance_date=None,
+    finalize: bool = False,
+) -> Remittance:
+    """Creates a daily remittance from the client payload.
+
+    When ``finalize`` is ``False`` (the default), the remittance is saved
+    as a **draft** — it must be finalized later by an administrator via
+    :func:`finalize_remittance`.  When ``finalize`` is ``True``, the
+    remittance is created and immediately marked as finalized.
+
+    Raises ``ValidationError`` if a remittance already exists for the
+    date, a rider or product cannot be resolved, or any financial total
+    is negative.
+    """
+    company = getattr(performed_by, "company", None)
+    remittance_date = remittance_date or date.today()
+
+    existing = Remittance.objects.filter(company=company, date=remittance_date).first()
+    if existing is not None:
+        if existing.status == Remittance.StatusChoices.FINALIZED:
+            raise ValidationError(
+                f"A finalized remittance for {remittance_date} already exists."
+            )
+        raise ValidationError(
+            f"A draft for {remittance_date} already exists. "
+            "Use 'Save as Draft' to update it or 'Clear Draft' to remove it."
+        )
+
+    return _build_remittance(
+        performed_by=performed_by,
+        company=company,
+        remittance_date=remittance_date,
+        riders_data=riders_data,
+        expenses_data=expenses_data,
+        manual_offering=manual_offering,
+        tithe_rate=tithe_rate,
+        finalize=finalize,
+    )
+
+
+@transaction.atomic
+def save_remittance_draft(
     *,
     performed_by: "UserType",
     riders_data: list[dict],
@@ -59,19 +176,106 @@ def create_and_finalize_remittance(
     tithe_rate,
     remittance_date=None,
 ) -> Remittance:
-    """Creates a finalized daily remittance from the client payload.
+    """Creates or replaces a DRAFT remittance for the given date.
 
-    Raises ``ValidationError`` if the date is already finalized, a rider or
-    product cannot be resolved, or any financial total is negative.
+    This is the **upsert** variant of :func:`create_remittance` used by
+    the "Save as Draft" button so that a staff member can save, refresh,
+    edit, and save again without hitting a "already exists" error.
+
+    If a DRAFT already exists for ``(company, date)``, it is deleted
+    (cascade to riders, product lines, expenses) and a fresh draft is
+    created from the current payload.  If a FINALIZED remittance exists,
+    a ``ValidationError`` is raised — finalized records are immutable.
+
+    Returns the newly created :class:`Remittance` instance.
     """
     company = getattr(performed_by, "company", None)
     remittance_date = remittance_date or date.today()
 
-    if Remittance.objects.filter(company=company, date=remittance_date).exists():
-        raise ValidationError(
-            f"A remittance for {remittance_date} has already been finalized."
+    existing = Remittance.objects.filter(company=company, date=remittance_date).first()
+    if existing is not None:
+        if existing.status == Remittance.StatusChoices.FINALIZED:
+            raise ValidationError(
+                f"A finalized remittance for {remittance_date} already exists "
+                "and cannot be overwritten."
+            )
+        # Delete the existing draft (cascade removes children) so we can
+        # create a fresh one with the latest form data.
+        existing.delete()
+        logger.info(
+            "[%s] Replaced existing DRAFT for date=%s",
+            performed_by.id,
+            remittance_date,
         )
 
+    return _build_remittance(
+        performed_by=performed_by,
+        company=company,
+        remittance_date=remittance_date,
+        riders_data=riders_data,
+        expenses_data=expenses_data,
+        manual_offering=manual_offering,
+        tithe_rate=tithe_rate,
+        finalize=False,
+    )
+
+
+@transaction.atomic
+def delete_draft_remittance(
+    *,
+    performed_by: "UserType",
+    remittance_date=None,
+) -> bool:
+    """Deletes a DRAFT remittance for the given date.
+
+    Used by the "Clear Draft" button to manually discard a saved draft
+    and its child records (riders, product lines, expenses).
+
+    If no remittance exists for the date, this is a no-op (returns
+    ``False``).  If a FINALIZED remittance exists, raises
+    ``ValidationError`` — finalized records must never be deleted.
+
+    Returns ``True`` if a draft was deleted, ``False`` if nothing was
+    found.
+    """
+    company = getattr(performed_by, "company", None)
+    remittance_date = remittance_date or date.today()
+
+    existing = Remittance.objects.filter(company=company, date=remittance_date).first()
+    if existing is None:
+        return False
+
+    if existing.status == Remittance.StatusChoices.FINALIZED:
+        raise ValidationError(
+            "Cannot delete a finalized remittance. "
+            "Finalized records are immutable."
+        )
+
+    existing.delete()
+    logger.info(
+        "[%s] Cleared DRAFT remittance for date=%s",
+        performed_by.id,
+        remittance_date,
+    )
+    return True
+
+
+def _build_remittance(
+    *,
+    performed_by: "UserType",
+    company,
+    remittance_date,
+    riders_data: list[dict],
+    expenses_data: list[dict],
+    manual_offering,
+    tithe_rate,
+    finalize: bool = False,
+) -> Remittance:
+    """Shared core that creates a Remittance row and all child records.
+
+    Called by :func:`create_remittance` (new date) and
+    :func:`save_remittance_draft` (upsert after deleting the prior draft).
+    """
     # --- Resolve products referenced by the payload ------------------------
     product_ids: set[str] = set()
     for rider in riders_data:
@@ -91,9 +295,9 @@ def create_and_finalize_remittance(
         date=remittance_date,
         company=company,
         created_by=performed_by,
-        status=Remittance.StatusChoices.FINALIZED,
-        finalized_by=performed_by,
-        finalized_at=timezone.now(),
+        status=Remittance.StatusChoices.FINALIZED if finalize else Remittance.StatusChoices.DRAFT,
+        finalized_by=performed_by if finalize else None,
+        finalized_at=timezone.now() if finalize else None,
         tithe_rate_snapshot=_to_decimal(tithe_rate),
         offering_amount=_to_decimal(manual_offering),
     )
@@ -275,5 +479,69 @@ def update_remittance_paid_status(
         remittance.id,
         tithes_paid,
         offering_paid,
+    )
+    return remittance
+
+
+def is_admin_user(user: "UserType") -> bool:
+    """Returns True if the user has the Admin role (or is a superuser)."""
+    return bool(
+        user.is_superuser
+        or (getattr(user, "role", None) is not None and user.role.name == "Admin")
+    )
+
+
+@transaction.atomic
+def finalize_remittance(
+    *,
+    performed_by: "UserType",
+    remittance_id: int,
+    pin: str,
+) -> Remittance:
+    """Finalizes a DRAFT remittance.
+
+    Requires the ``Admin`` role (or superuser) and a valid PIN.  The PIN
+    is verified against ``performed_by.check_pin`` so any admin can
+    finalize a draft prepared by any staff member.
+
+    Raises ``ValidationError`` if:
+      - the user is not an admin
+      - the PIN is incorrect
+      - the remittance does not exist (or is outside the user's tenant)
+      - the remittance is already finalized
+
+    Returns the refreshed :class:`Remittance` instance.
+    """
+    if not is_admin_user(performed_by):
+        raise ValidationError("Only administrators can finalize remittances.")
+
+    if not performed_by.check_pin(pin or ""):
+        raise ValidationError("Incorrect PIN.")
+
+    remittance = (
+        Remittance.objects
+        .for_user(performed_by)
+        .select_related("created_by")
+        .filter(id=remittance_id)
+        .first()
+    )
+    if remittance is None:
+        raise ValidationError("Remittance not found.")
+
+    if remittance.status == Remittance.StatusChoices.FINALIZED:
+        raise ValidationError("Remittance is already finalized.")
+
+    remittance.status = Remittance.StatusChoices.FINALIZED
+    remittance.finalized_by = performed_by
+    remittance.finalized_at = timezone.now()
+    remittance.save(
+        update_fields=["status", "finalized_by", "finalized_at", "updated_at"]
+    )
+
+    logger.info(
+        "[%s] Finalized Remittance id=%s (created_by=%s)",
+        performed_by.id,
+        remittance.id,
+        remittance.created_by_id,
     )
     return remittance
