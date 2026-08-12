@@ -88,6 +88,7 @@ def _build_list_context(*, user, page: int) -> dict:
     return {
         "today_date": datetime.now().strftime("%A, %b %d, %Y"),
         "logs": page_obj.object_list,
+        "total": data["total"],
         "action_filters": action_filters,
         "stats": stats,
         "pagination": pagination,

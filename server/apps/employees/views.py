@@ -6,7 +6,11 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from .selectors import get_employee_directory_context, get_user_detail_context
+from .selectors import (
+    get_employee_directory_context,
+    get_roles_permissions_context,
+    get_user_detail_context,
+)
 
 logger = logging.getLogger(__name__)
 

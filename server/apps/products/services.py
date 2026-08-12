@@ -76,6 +76,76 @@ def _tenant_drivers(user: "UserType") -> list:
 
 # --- Product catalogue mutations -----------------------------------------
 
+def create_product(
+    *,
+    name: str,
+    variation: str | None,
+    price: str | Decimal,
+    category: str = "WATER",
+    description: str | None = None,
+    performed_by: "UserType",
+) -> Product:
+    """Creates a new tenant-scoped product in the catalogue.
+
+    Raises ``ValidationError`` if the name is empty, the price is invalid,
+    or an active product with the same name and variation already exists.
+    """
+    name = name.strip().title()
+    if not name:
+        raise ValidationError("Product name cannot be empty.")
+
+    if variation is not None:
+        variation = variation.strip()
+        if variation:
+            variation = variation.title()
+        else:
+            variation = None
+
+    try:
+        price_decimal = Decimal(str(price))
+    except (InvalidOperation, ValueError) as e:
+        raise ValidationError(f"Invalid price value: {e}") from e
+    if price_decimal < 0:
+        raise ValidationError("Price cannot be negative.")
+
+    company = (
+        None
+        if performed_by.is_superuser or performed_by.company_id is None
+        else performed_by.company
+    )
+
+    conflict = (
+        Product.objects
+        .filter(
+            company=company,
+            name=name,
+            variation=variation,
+            deactivated_at__isnull=True,
+            deleted_at__isnull=True,
+        )
+        .exists()
+    )
+    if conflict:
+        raise ValidationError(
+            "A product with this name and variation already exists."
+        )
+
+    product = Product.create(
+        name=name,
+        variation=variation,
+        price=price_decimal,
+        category=category,
+        description=description,
+        company=company,
+        is_default=False,
+    )
+    logger.info(
+        "[%s] Created product id=%s name=%s company=%s",
+        performed_by.id, product.id, product.name, product.company_id,
+    )
+    return product
+
+
 def update_product(
     *,
     product_id: int,

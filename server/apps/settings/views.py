@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
@@ -73,16 +74,22 @@ def settings_view(request):
 #   - 10/m for sensitive credential changes (username, password)
 
 def _success_response(request, message: str) -> HttpResponse:
-    """Returns a success toast partial for OOB swap into #toast-container."""
-    return render(request, "settings/partials/success_toast.html", {
+    """Returns the shared success toast component for OOB swap into #toast-container."""
+    return render(request, "components/toasts/toast.html", {
+        "id": int(timezone.now().timestamp() * 1000),
         "message": message,
+        "type": "success",
+        "duration": 4000,
     })
 
 
 def _error_response(request, message: str, status: int = 400) -> HttpResponse:
-    """Returns an error toast partial for OOB swap into #toast-container."""
-    return render(request, "settings/partials/error_toast.html", {
+    """Returns the shared error toast component for OOB swap into #toast-container."""
+    return render(request, "components/toasts/toast.html", {
+        "id": int(timezone.now().timestamp() * 1000),
         "message": message,
+        "type": "error",
+        "duration": 6000,
     }, status=status)
 
 

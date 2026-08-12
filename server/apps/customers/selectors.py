@@ -171,6 +171,7 @@ def _customer_row(customer: Customer) -> dict:
             if customer.credit_limit and customer.credit_limit > 0
             else "Not set"
         ),
+        "credit_limit_value": customer.credit_limit,
     }
 
 
@@ -656,3 +657,8 @@ def get_record_borrowed_context(user: "UserType") -> dict:
             {"key": "other", "label": "Other"},
         ],
     }
+
+
+def get_customer_edit_context(customer: Customer) -> dict:
+    """Returns the edit modal context for a single customer."""
+    return {"customer": _customer_row(customer)}

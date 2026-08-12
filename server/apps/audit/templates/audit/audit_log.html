@@ -9,7 +9,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps header + content so the date range filter
      in the header drives the action chips, search, and records table. -->
-<div x-data='auditLogPage({{ logs_json|safe }}, {{ action_counts_json|safe }})'
+<div x-data='auditLogPage({{ logs_json|safe }}, {{ action_counts_json|safe }}, {{ total }})'
      class="flex-1 flex flex-col overflow-hidden">
 
     <!-- TopNavBar -->
@@ -79,6 +79,22 @@
                                 >
                             </div>
                         </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <input
+                                    type="time"
+                                    x-model="customFromTime"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                            <div>
+                                <input
+                                    type="time"
+                                    x-model="customToTime"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                        </div>
                         <div class="flex justify-end gap-2 pt-1">
                             <button @click="customRangeOpen = false" class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors">Cancel</button>
                             <button @click="applyCustomRange()" class="px-3 py-1.5 bg-primary text-on-primary text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all">Apply</button>
@@ -118,8 +134,19 @@
             {% endfor %}
         </div>
 
+        <!-- Empty state -->
+        <div x-show="total === 0" x-cloak class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 flex flex-col items-center justify-center gap-4 mb-6">
+            <div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center">
+                <span class="material-symbols-outlined text-outline-variant text-[40px]">receipt_long</span>
+            </div>
+            <div class="text-center max-w-md">
+                <h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-1">No audit log entries yet</h3>
+                <p class="font-body-md text-body-md text-on-surface-variant">System changes, logins, and data mutations will appear here as they happen.</p>
+            </div>
+        </div>
+
         <!-- Filters & Search -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div x-show="total > 0" x-cloak class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div class="flex items-center flex-wrap gap-2">
                 <!-- Action filter chips (Alpine-driven) -->
                 <template x-for="f in actionFilters" :key="f.value">
@@ -158,7 +185,7 @@
         </div>
 
         <!-- Audit Log Table -->
-        <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+        <div x-show="total > 0" x-cloak class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
             <div class="overflow-x-auto custom-scrollbar">
                 <table class="w-full text-left border-collapse">
                     <thead>
@@ -292,15 +319,18 @@
 
     <!-- Alpine component definition -->
     <script>
-        function auditLogPage(logsData, actionCounts) {
+        function auditLogPage(logsData, actionCounts, total) {
             return {
                 logs: logsData,
+                total: total,
                 searchQuery: '',
                 actionFilter: '',
                 dateRange: 'all',
                 customRangeOpen: false,
                 customFrom: '',
                 customTo: '',
+                customFromTime: '00:00',
+                customToTime: '23:59',
                 dateRanges: [
                     { key: 'today', label: 'Today' },
                     { key: '7d',    label: '7D'   },
@@ -334,8 +364,10 @@
                         return ts >= cutoff;
                     }
                     if (this.dateRange === 'custom' && this.customFrom && this.customTo) {
-                        const from = new Date(this.customFrom + 'T00:00:00');
-                        const to   = new Date(this.customTo   + 'T23:59:59');
+                        const fromTime = this.customFromTime || '00:00';
+                        const toTime = this.customToTime || '23:59';
+                        const from = new Date(this.customFrom + 'T' + fromTime + ':00');
+                        const to   = new Date(this.customTo   + 'T' + toTime   + ':00');
                         return ts >= from && ts <= to;
                     }
                     return true;
@@ -387,6 +419,8 @@
                     this.dateRange = 'all';
                     this.customFrom = '';
                     this.customTo = '';
+                    this.customFromTime = '00:00';
+                    this.customToTime = '23:59';
                     this.customRangeOpen = false;
                 },
 

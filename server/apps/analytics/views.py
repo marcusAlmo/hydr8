@@ -1,172 +1,18 @@
-from datetime import datetime
+import logging
+from typing import TYPE_CHECKING
 
-from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import render
+from django.views.decorators.http import require_http_methods
+from django_ratelimit.decorators import ratelimit
 
+from .selectors import get_dashboard_context
 
-def _mock_dashboard_data() -> dict:
-    """
-    Mock data for the dashboard prototype.
+if TYPE_CHECKING:
+    pass
 
-    This is a temporary fixture used to validate the dashboard layout and
-    summary cards with the client before backend services are implemented.
-    Once the real selectors/services are ready, replace this function with
-    actual queries — the template already consumes these context keys.
-    """
-    return {
-        # --- Top bar ---
-        "today_date": datetime.now().strftime("%A, %b %d, %Y"),
-
-        # --- Warning banner ---
-        "warning_banner": {
-            "show": True,
-            "title": "No remittance for today yet",
-            "message": "Operations are running but no financial data has been logged for this period.",
-            "cta_text": "Create Today's Remittance",
-        },
-
-        # --- Summary cards (asymmetric 6/3/3 grid) ---
-        "stats": [
-            {
-                "key": "today_sales",
-                "label": "Today's Total Sales",
-                "value": "₱12,458.50",
-                "value_size": "4xl",
-                "trend": "+14.2% from yesterday",
-                "trend_direction": "up",
-                "icon": "analytics",
-                "accent": "primary",
-                "col_span": "md:col-span-6",
-            },
-            {
-                "key": "outstanding_debt",
-                "label": "Outstanding Debt",
-                "value": "₱28,940.12",
-                "value_size": "2xl",
-                "subtitle": "Total Unpaid Credits",
-                "icon": "dangerous",
-                "accent": "error",
-                "col_span": "md:col-span-3",
-            },
-            {
-                "key": "unreturned_containers",
-                "label": "Unreturned Containers",
-                "value": "47",
-                "value_size": "2xl",
-                "icon": "water_damage",
-                "accent": "tertiary",
-                "col_span": "md:col-span-3",
-            },
-        ],
-
-        # --- Recent remittances table ---
-        "recent_remittances": [
-            {
-                "date": "Oct 24, 2023",
-                "total_sales": "₱14,200.00",
-                "net_profit": "₱3,450.00",
-                "tithes": "₱345.00",
-                "tithes_status": "unpaid",
-                "has_warning": True,
-            },
-            {
-                "date": "Oct 23, 2023",
-                "total_sales": "₱11,850.00",
-                "net_profit": "₱2,900.00",
-                "tithes": "₱290.00",
-                "tithes_status": "paid",
-                "has_warning": False,
-            },
-            {
-                "date": "Oct 22, 2023",
-                "total_sales": "₱15,100.00",
-                "net_profit": "₱4,100.00",
-                "tithes": "₱410.00",
-                "tithes_status": "unpaid",
-                "has_warning": True,
-            },
-            {
-                "date": "Oct 21, 2023",
-                "total_sales": "₱9,900.00",
-                "net_profit": "₱1,800.00",
-                "tithes": "₱180.00",
-                "tithes_status": "paid",
-                "has_warning": False,
-            },
-        ],
-
-        # --- Long-running debts (unpaid rider-issued credits) ---
-        "long_running_debts": [
-            {
-                "customer": "Aling Nena's Sari-Sari",
-                "rider": "Rider Dela Cruz",
-                "amount": "₱1,850.00",
-                "age_days": 62,
-                "issued_on": "Jun 11, 2023",
-                "severity": "critical",
-            },
-            {
-                "customer": "Kuya Ramon Store",
-                "rider": "Rider Santos",
-                "amount": "₱920.00",
-                "age_days": 48,
-                "issued_on": "Jun 25, 2023",
-                "severity": "critical",
-            },
-            {
-                "customer": "Brgy. 7 Mini Mart",
-                "rider": "Rider Dela Cruz",
-                "amount": "₱1,200.00",
-                "age_days": 35,
-                "issued_on": "Jul 08, 2023",
-                "severity": "warning",
-            },
-            {
-                "customer": "Tita Linda's Eatery",
-                "rider": "Rider Bautista",
-                "amount": "₱640.00",
-                "age_days": 31,
-                "issued_on": "Jul 12, 2023",
-                "severity": "warning",
-            },
-        ],
-
-        # --- AI Insights panel ---
-        "ai_insights": [
-            {
-                "tags": [
-                    {"label": "Rider Performance", "variant": "primary"},
-                    {"label": "Efficiency", "variant": "primary"},
-                ],
-                "html": (
-                    "<strong class=\"font-bold\">Rider Dela Cruz</strong> contributed "
-                    "<span class=\"text-primary font-bold\">38%</span> of today's gross revenue. "
-                    "His route optimization has decreased fuel cost by 12%."
-                ),
-                "variant": "primary",
-            },
-            {
-                "tags": [
-                    {"label": "Inventory Alert", "variant": "error"},
-                ],
-                "html": (
-                    "Alkaline 5L stock is <span class=\"text-error font-bold\">Critically Low</span>. "
-                    "Based on velocity, you will stock out by 2 PM tomorrow."
-                ),
-                "variant": "error",
-            },
-            {
-                "tags": [
-                    {"label": "Trend Analysis", "variant": "neutral"},
-                ],
-                "html": (
-                    "Credit defaults have risen by <span class=\"text-error font-bold\">5%</span> this week. "
-                    "Suggest tightening credit terms for new customers."
-                ),
-                "variant": "primary",
-            },
-        ],
-    }
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -195,17 +41,12 @@ _INSIGHT_VARIANT_CLASSES = {
 }
 
 
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
 @login_required
-def dashboard_view(request):
-    """
-    Renders the main analytics dashboard.
-
-    Currently uses mock data (``_mock_dashboard_data``) to prototype the
-    layout and summary cards for client approval.  When backend services
-    are ready, swap the mock call for real selector functions that return
-    the same context shape.
-    """
-    context = _mock_dashboard_data()
+def dashboard_view(request: HttpRequest) -> HttpResponse:
+    """Renders the main analytics dashboard from live operational data."""
+    context = get_dashboard_context(request.user)
 
     # Pre-compute accent classes so the template stays clean.
     for stat in context["stats"]:

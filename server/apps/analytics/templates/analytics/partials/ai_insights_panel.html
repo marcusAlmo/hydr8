@@ -4,7 +4,7 @@ Expects context:
   - ai_insights: list of { card_class, tags: [{ label, class }], html }
 {% endcomment %}
 <div class="lg:col-span-1">
-    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm h-full flex flex-col hover:shadow-md transition-shadow">
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm h-full min-h-[28rem] flex flex-col hover:shadow-md transition-shadow">
         <div class="ai-shimmer p-4 text-white flex items-center justify-between" style="background: linear-gradient(90deg, #006591, #35af80, #006591); background-size: 200% auto; animation: shimmer 4s linear infinite;">
             <style>
                 @keyframes shimmer {
@@ -24,7 +24,7 @@ Expects context:
                     <span class="material-symbols-outlined text-primary text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">construction</span>
                     <p class="font-headline-sm text-headline-sm text-on-surface font-bold mb-2">Coming Soon</p>
                     <p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
-                        AI-powered insights are being trained on your operations data. The cards behind this preview are mockups.
+                        AI-powered insights are being trained on your operations data.
                     </p>
                 </div>
             </div>

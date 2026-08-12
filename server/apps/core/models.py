@@ -49,10 +49,17 @@ class Product(models.Model):
             models.Index(fields=['company', 'deactivated_at']),
         ]
 
+    @property
+    def is_active(self) -> bool:
+        return self.deactivated_at is None and self.deleted_at is None
+
     @classmethod
     def create(cls, **kwargs):
-        name = str(kwargs['name']).title()
-        variation = str(kwargs['variation']).title()
+        if 'name' in kwargs:
+            kwargs['name'] = str(kwargs['name']).title()
+        if 'variation' in kwargs and kwargs.get('variation') is not None:
+            kwargs['variation'] = str(kwargs['variation']).title()
+        return cls.objects.create(**kwargs)
 
     def __str__(self):
         return f"{self.name} - {self.variation}"

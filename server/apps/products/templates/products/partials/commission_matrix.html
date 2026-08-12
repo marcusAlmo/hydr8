@@ -62,7 +62,7 @@ Expects context:
                 <div class="relative">
                     <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant font-data-mono">₱</span>
                     <input type="number" step="0.01" min="0" placeholder="0.00" x-model="bulkRate"
-                           class="w-20 h-9 pl-6 pr-2 rounded-lg border border-outline-variant text-sm font-data-mono bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                           class="w-28 h-9 pl-6 pr-2 rounded-lg border border-outline-variant text-sm font-data-mono bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
                 </div>
                 <button @click="applyBulkToProduct()"
                         :disabled="!bulkProduct || bulkRate === ''"
@@ -92,18 +92,6 @@ Expects context:
                                 <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center"
                                     :class="col.border_class">
                                     <span x-text="col.label"></span>
-                                    <div class="mt-2 flex items-center justify-center gap-1">
-                                        <div class="relative">
-                                            <span class="absolute left-1.5 top-1/2 -translate-y-1/2 text-[10px] text-on-surface-variant font-data-mono">₱</span>
-                                            <input type="number" step="0.01" min="0" placeholder="Set"
-                                                   class="w-14 h-6 pl-5 pr-1 text-[10px] border border-outline-variant rounded bg-surface-container-lowest focus:ring-1 focus:ring-primary focus:border-transparent outline-none font-data-mono">
-                                        </div>
-                                        <button class="bg-on-surface-variant text-on-primary p-0.5 rounded transition-transform active:scale-95 hover:bg-primary"
-                                                title="Apply to all drivers"
-                                                @click="setColumnForAll(col.id, $event)">
-                                            <span class="material-symbols-outlined text-[12px]">done_all</span>
-                                        </button>
-                                    </div>
                                 </th>
                             </template>
                         </tr>
@@ -384,19 +372,6 @@ function commissionMatrix(cfg) {
             this.pendingAction = {
                 bulk: { productId: this.bulkProduct, rate: this.bulkRate }
             };
-            this.openPinModal();
-        },
-
-        // --- Per-column "set all" (the small done_all button in each header) ---
-        // Same as applyBulkToProduct but triggered from a column header.
-        setColumnForAll(productKey, event) {
-            const input = event.target.closest('th').querySelector('input');
-            const value = input ? input.value : '';
-            if (!value) return;
-            this.pendingAction = {
-                bulk: { productId: productKey, rate: value }
-            };
-            if (input) input.value = '';
             this.openPinModal();
         },
 

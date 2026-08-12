@@ -6,6 +6,7 @@ app_name = "products"
 
 urlpatterns = [
     path("", views.products_pricing_view, name="list"),
+    path("create/", views.product_create_view, name="create"),
     path("verify-pin/", views.verify_pin_view, name="verify_pin"),
     path("save/", views.products_save_view, name="save"),
     path("commission/save/", views.commission_save_view, name="commission_save"),

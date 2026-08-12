@@ -5,24 +5,29 @@ from django import forms
 from django.forms.forms import NON_FIELD_ERRORS
 from django.forms.utils import ErrorList
 from django.shortcuts import redirect, render
-from django.contrib.auth import login as auth_login
+from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.template.response import TemplateResponse
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from apps.users.models import User
+from django.db import transaction
+
+from apps.users.models import Role, User
 from apps.users.signals import login_failed
 from .selectors import get_roles_for_user, get_user_by_id
 from .services import (
     change_user_password,
     check_login_lockout,
+    create_user_account,
     get_client_ip,
+    onboard_user,
     record_failed_login,
     reset_failed_login,
     set_temporary_password,
@@ -131,11 +136,11 @@ def login_view(request):
             reset_failed_login(ip=ip, username=username)
             logger.info("[%s] Login success. ip=%s", user.id, ip)
 
-            # If the user was issued a temporary password, force a password
-            # change before they can access the app.
-            if user.force_password_change:
+            # If the user has no PIN or was issued a temporary password, force
+            # onboarding (password + PIN setup) before they can access the app.
+            if not user.pin or user.force_password_change:
                 response = HttpResponse()
-                response['HX-Redirect'] = reverse('users:password_change')
+                response['HX-Redirect'] = reverse('users:onboarding')
                 return response
 
             safe_next = _safe_next_url(next_url, request)
@@ -367,3 +372,188 @@ def edit_user_submit_view(request, user_id):
         'target_user': target_user,
         'roles': get_roles_for_user(request.user),
     })
+
+
+# ---------------------------------------------------------------------------
+# Onboarding — first-time setup of password and PIN.
+# ---------------------------------------------------------------------------
+
+class OnboardingForm(forms.Form):
+    """Form for setting a new password and PIN during onboarding."""
+
+    new_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+            'placeholder': 'Enter new password',
+            'autocomplete': 'new-password',
+        }),
+        min_length=8,
+    )
+    confirm_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+            'placeholder': 'Confirm new password',
+            'autocomplete': 'new-password',
+        }),
+        min_length=8,
+    )
+    pin = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+            'placeholder': 'Enter 4-6 digit PIN',
+            'autocomplete': 'new-password',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+        }),
+        min_length=4,
+        max_length=6,
+    )
+    confirm_pin = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+            'placeholder': 'Confirm PIN',
+            'autocomplete': 'new-password',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+        }),
+        min_length=4,
+        max_length=6,
+    )
+
+    def clean_pin(self):
+        pin = self.cleaned_data.get('pin', '')
+        if not pin.isdigit():
+            raise ValidationError("PIN must contain only digits.")
+        return pin
+
+    def clean(self):
+        cleaned = super().clean()
+        pw1 = cleaned.get('new_password', '')
+        pw2 = cleaned.get('confirm_password', '')
+        if pw1 and pw2 and pw1 != pw2:
+            self.add_error('confirm_password', "Passwords do not match.")
+        p1 = cleaned.get('pin', '')
+        p2 = cleaned.get('confirm_pin', '')
+        if p1 and p2 and p1 != p2:
+            self.add_error('confirm_pin', "PINs do not match.")
+        return cleaned
+
+
+def _needs_onboarding(user) -> bool:
+    """Returns True if the user still needs to set a password or PIN."""
+    if not user.pin or user.force_password_change:
+        return True
+    now = timezone.now()
+    return (
+        (user.password_expires_at is not None and user.password_expires_at < now)
+        or (user.pin_expires_at is not None and user.pin_expires_at < now)
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key='user', rate='60/m', method='GET', block=True)
+def onboarding_view(request):
+    """Renders the first-time onboarding page (password + PIN)."""
+    if not _needs_onboarding(request.user):
+        return redirect('analytics:dashboard')
+    form = OnboardingForm()
+    return render(request, 'users/onboarding.html', {'form': form})
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def onboarding_submit_view(request):
+    """HTMX endpoint — completes onboarding by setting password and PIN."""
+    if not _needs_onboarding(request.user):
+        return redirect('analytics:dashboard')
+
+    form = OnboardingForm(request.POST)
+    if form.is_valid():
+        onboard_user(
+            user=request.user,
+            new_password=form.cleaned_data['new_password'],
+            new_pin=form.cleaned_data['pin'],
+        )
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('analytics:dashboard')
+        return response
+
+    return render(request, 'users/partials/onboarding_form.html', {'form': form})
+
+
+# ---------------------------------------------------------------------------
+# Screen lock — require PIN to re-enter, 3 attempts then logout.
+# ---------------------------------------------------------------------------
+
+class ScreenLockForm(forms.Form):
+    """Form for unlocking the screen with the user's PIN."""
+
+    pin = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full px-4 py-3 bg-surface-container-low border border-outline-variant/30 rounded-xl text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+            'placeholder': 'Enter PIN',
+            'autocomplete': 'off',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+            'maxlength': '6',
+        }),
+        min_length=4,
+        max_length=6,
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key='user', rate='60/m', method='GET', block=True)
+def screen_lock_view(request):
+    """Renders the screen lock overlay and marks the session as locked."""
+    request.session['screen_locked'] = True
+    return render(request, 'users/screen_lock.html', {'form': ScreenLockForm()})
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='60/m', method='POST', block=True)
+def screen_lock_submit_view(request):
+    """
+    HTMX endpoint — verifies the PIN to unlock the screen.
+    Allows up to 3 attempts; after that the user is logged out and
+    redirected to the login page, which deletes the session.
+    """
+    form = ScreenLockForm(request.POST)
+    if not form.is_valid():
+        return render(request, 'users/partials/screen_lock_form.html', {'form': form})
+
+    raw_pin = form.cleaned_data['pin']
+    user = request.user
+
+    attempts = request.session.get('pin_attempts', 0)
+    if user.check_pin(raw_pin):
+        request.session.pop('pin_attempts', None)
+        request.session.pop('screen_locked', None)
+        logger.info("[%s] Screen unlocked via PIN.", user.id)
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('analytics:dashboard')
+        return response
+
+    attempts += 1
+    request.session['pin_attempts'] = attempts
+
+    if attempts >= 3:
+        logger.warning("[%s] Screen lock PIN exceeded 3 attempts; logging out.", user.id)
+        auth_logout(request)
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('users:index')
+        return response
+
+    return render(
+        request,
+        'users/partials/screen_lock_form.html',
+        {
+            'form': form,
+            'pin_error': "Incorrect PIN.",
+            'attempts_left': 3 - attempts,
+        },
+    )

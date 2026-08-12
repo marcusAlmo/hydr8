@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Screen Locked | Hydr8</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&amp;family=Geist+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-primary": "#89ceff",
+                    "surface-dim": "#cfdaf2",
+                    "tertiary": "#006c4a",
+                    "primary-fixed": "#c9e6ff",
+                    "on-secondary-container": "#54647a",
+                    "primary": "#006591",
+                    "on-tertiary-fixed-variant": "#005137",
+                    "secondary": "#505f76",
+                    "inverse-surface": "#263143",
+                    "surface-variant": "#d8e3fb",
+                    "primary-container": "#0ea5e9",
+                    "secondary-container": "#d0e1fb",
+                    "on-primary-fixed-variant": "#004c6e",
+                    "tertiary-fixed-dim": "#68dba9",
+                    "on-primary-container": "#003751",
+                    "surface-container": "#e7eeff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-fixed": "#0b1c30",
+                    "error": "#ba1a1a",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "background": "#f9f9ff",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-container": "#003c27",
+                    "tertiary-fixed": "#85f8c4",
+                    "surface-container-low": "#f0f3ff",
+                    "surface-bright": "#f9f9ff",
+                    "on-tertiary-fixed": "#002114",
+                    "on-error": "#ffffff",
+                    "tertiary-container": "#35af80",
+                    "on-error-container": "#93000a",
+                    "surface-container-high": "#dee8ff",
+                    "on-surface": "#111c2d",
+                    "surface-container-highest": "#d8e3fb",
+                    "surface": "#f9f9ff",
+                    "primary-fixed-dim": "#89ceff",
+                    "secondary-fixed-dim": "#b7c8e1",
+                    "error-container": "#ffdad6",
+                    "outline": "#6e7881",
+                    "surface-tint": "#006591",
+                    "outline-variant": "#bec8d2",
+                    "on-primary-fixed": "#001e2f",
+                    "inverse-on-surface": "#ecf1ff",
+                    "on-background": "#111c2d",
+                    "on-secondary-fixed-variant": "#38485d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-page": "1.5rem",
+                    "gutter": "1rem",
+                    "stack-dense": "0.25rem",
+                    "stack-compact": "0.5rem",
+                    "container-max": "1440px"
+            },
+            "fontFamily": {
+                    "data-mono": ["Geist Mono"],
+                    "headline-sm": ["Geist"],
+                    "label-caps": ["Geist"],
+                    "body-sm": ["Geist"],
+                    "headline-md": ["Geist"],
+                    "headline-lg": ["Geist"],
+                    "body-md": ["Geist"]
+            },
+            "fontSize": {
+                    "data-mono": ["14px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["30px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-xlg": ["60px", {"lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        .abyss-bg {
+            background-color: #0F172A;
+        }
+
+        [x-cloak] { display: none !important; }
+    </style>
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body class="bg-background font-body-md text-on-background selection:bg-primary-container selection:text-on-primary-container">
+<div class="min-h-screen flex">
+<!-- Left Panel (Abyss) -->
+<div class="hidden md:flex flex-col justify-center items-center w-1/2 abyss-bg relative overflow-hidden">
+<div class="absolute inset-0 opacity-20 pointer-events-none">
+<div class="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-primary rounded-full blur-[120px]"></div>
+<div class="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-tertiary rounded-full blur-[120px]"></div>
+</div>
+<div class="relative z-10 flex flex-col items-center text-center space-y-2">
+<h1 class="font-headline-lg text-headline-xlg font-black tracking-tight text-primary-fixed">
+                    Hydr8
+                </h1>
+<p class="font-body-md text-body-md text-secondary-fixed-dim uppercase tracking-[0.2em] opacity-80">
+                    Water. Delivered. Managed.
+                </p>
+</div>
+<div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
+</div>
+<!-- Right Panel (Screen Lock Surface) -->
+<div class="flex-1 flex flex-col justify-center px-margin-page py-12 bg-surface-bright">
+<div class="md:hidden flex flex-col items-center mb-12">
+<h1 class="font-headline-lg text-headline-lg font-black text-primary">Hydr8</h1>
+<p class="font-body-sm text-body-sm text-outline tracking-wider">Water. Delivered. Managed.</p>
+</div>
+<div class="mx-auto w-full max-w-[400px]">
+<div class="bg-surface-container-lowest p-8 border border-outline-variant shadow-sm rounded-lg">
+<!-- Header with lock icon -->
+<div class="flex items-start gap-3 mb-6">
+<div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-secondary text-[22px]">screen_lock_portrait</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface">Screen Locked</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                        Enter your PIN to unlock. After 3 failed attempts, you will be logged out.
+                    </p>
+</div>
+</div>
+<!-- Form -->
+<div
+    hx-post="{% url 'users:screen_lock_submit' %}"
+    hx-target="#screen-lock-form-container"
+    hx-swap="outerHTML"
+>
+<div id="screen-lock-form-container">
+{% include "users/partials/screen_lock_form.html" %}
+</div>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-outline-variant/30 text-center">
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                        Internal Enterprise System. Unauthorized access is prohibited.
+                    </p>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>

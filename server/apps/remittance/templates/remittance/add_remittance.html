@@ -7,6 +7,7 @@
 {% endblock %}
 
 {% block content %}
+    {% csrf_token %}
     <!-- Top Nav Bar -->
     <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background border-b border-outline-variant/30 z-10">
         <div class="flex items-center gap-3">
@@ -29,7 +30,7 @@
     </header>
 
     <!-- Slide-in Content Area — Alpine.js root -->
-    <div x-data='remittanceForm({{ alpine_seed|safe }})'
+    <div x-data='remittanceForm({{ alpine_seed|safe }})' x-init="checkDate()"
          class="flex-1 overflow-y-auto custom-scrollbar bg-surface-container-low/50 relative">
 
         <!-- Page Description -->
@@ -37,6 +38,25 @@
 
         <!-- Two-column workspace: left = inputs, right = sticky rider commission panel -->
         <div class="max-w-[1440px] mx-auto p-margin-page pb-24 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Remittance Date -->
+            <div class="lg:col-span-12">
+                <div class="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div class="flex-1">
+                            <h3 class="font-headline-sm text-body-md font-bold text-on-surface mb-1">Backlog Remittance Date</h3>
+                            <p class="text-body-sm text-on-surface-variant/70">Choose the date this remittance is for. Only one remittance can be recorded per date.</p>
+                        </div>
+                        <div class="flex flex-col gap-1 min-w-[14rem]">
+                            <label for="remittance-date" class="font-label-caps text-label-caps text-on-surface-variant">REMITTANCE DATE</label>
+                            <input id="remittance-date" x-model="remittanceDate" @change="checkDate()" type="date" max="{{ default_date }}"
+                                   class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <p x-show="dateExists" x-cloak class="text-error text-body-sm font-medium" x-text="dateError"></p>
+                            <p x-show="!dateExists && remittanceDate" x-cloak class="text-on-surface-variant text-body-sm" x-text="formatDate(remittanceDate)"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- ============ FULL-WIDTH SUMMARY KPI CARD ============ -->
             <div class="lg:col-span-12">
@@ -446,8 +466,8 @@
                     <button type="button" class="px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors">
                         Save as Draft
                     </button>
-                    <button type="button" @click="openReview()"
-                            class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95">
+                    <button type="button" @click="openReview()" :disabled="dateExists || dateChecking"
+                            class="px-8 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100">
                         <span class="material-symbols-outlined text-[20px]">fact_check</span>
                         Review &amp; Finalize
                     </button>
@@ -467,7 +487,7 @@
                         <span class="material-symbols-outlined">fact_check</span>
                         <div>
                             <h3 class="font-headline-sm text-headline-sm">Finalize Remittance — Review</h3>
-                            <p class="text-body-sm opacity-80" x-text="'{{ today_date }}'"></p>
+                            <p class="text-body-sm opacity-80" x-text="formatDate(remittanceDate)"></p>
                         </div>
                     </div>
                     <button type="button" @click="reviewOpen = false" class="p-1.5 hover:bg-on-primary/10 rounded-lg transition-colors">
@@ -683,12 +703,46 @@
                 titheRate: seed.titheRate,
                 manualOffering: seed.manualOffering || '',
                 selectedRiderId: seed.selectedRiderId,
+                remittanceDate: seed.remittanceDate,
                 reviewOpen: false,
+                dateExists: false,
+                dateError: '',
+                dateChecking: false,
 
                 // ---- helpers ----
                 peso(n) {
                     const v = Number(n) || 0;
                     return '₱' + v.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                },
+                formatDate(iso) {
+                    if (!iso) return '';
+                    const [y, m, d] = iso.split('-').map(Number);
+                    const dt = new Date(y, m - 1, d);
+                    return dt.toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'});
+                },
+                async checkDate() {
+                    const iso = this.remittanceDate;
+                    if (!iso) { this.dateExists = false; this.dateError = ''; return; }
+                    this.dateChecking = true;
+                    try {
+                        const response = await fetch('{% url 'remittance:check_date' %}?date=' + encodeURIComponent(iso));
+                        const data = await response.json();
+                        if (!response.ok) {
+                            this.dateExists = true;
+                            this.dateError = data.error || 'Invalid date.';
+                        } else if (data.exists) {
+                            this.dateExists = true;
+                            this.dateError = 'A remittance for ' + this.formatDate(iso) + ' already exists. Please choose another date.';
+                        } else {
+                            this.dateExists = false;
+                            this.dateError = '';
+                        }
+                    } catch (err) {
+                        this.dateExists = false;
+                        this.dateError = 'Unable to verify the selected date. Please try again.';
+                    } finally {
+                        this.dateChecking = false;
+                    }
                 },
                 productName(key) {
                     const p = this.products.find(p => p.key === key);
@@ -880,11 +934,43 @@
                 },
 
                 // ---- finalize review ----
-                openReview() { this.reviewOpen = true; },
-                confirmFinalize() {
-                    // Placeholder: in production this would POST to the finalize endpoint.
-                    alert('Remittance finalized successfully! (Mock — backend not yet wired.)');
-                    this.reviewOpen = false;
+                openReview() { if (this.dateExists) return; this.reviewOpen = true; },
+                async confirmFinalize() {
+                    if (this.dateExists) {
+                        alert(this.dateError || 'This date is not available for a new remittance.');
+                        return;
+                    }
+                    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+                    const csrfToken = csrfInput ? csrfInput.value : '';
+                    const payload = {
+                        riders: this.riders,
+                        expenses: this.expenses,
+                        manualOffering: this.manualOfferingNum(),
+                        titheRate: this.titheRate,
+                        remittanceDate: this.remittanceDate,
+                    };
+
+                    try {
+                        const response = await fetch('{% url 'remittance:create' %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken,
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify(payload),
+                        });
+                        const data = await response.json();
+                        if (response.ok && data.ok) {
+                            window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
+                        } else {
+                            alert(data.error || 'Failed to finalize remittance.');
+                        }
+                    } catch (err) {
+                        alert('Network error: ' + err);
+                    } finally {
+                        this.reviewOpen = false;
+                    }
                 },
             };
         }

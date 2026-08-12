@@ -463,8 +463,10 @@ def get_roles_permissions_context(request_user: "UserType") -> dict:
     """Returns the roles & permissions tab context."""
     roles = [
         _role_card(request_user, role)
-        for role in Role.objects.for_user(request_user).active().order_by("name")
+        for role in Role.objects.for_user(request_user).active()
     ]
+    _ROLE_ORDER = {"admin": 0, "staff": 1, "driver": 2}
+    roles.sort(key=lambda r: _ROLE_ORDER.get(r["key"], 99))
     return {
         "modules": _MODULES,
         "roles": roles,

@@ -172,7 +172,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                                 {% else %}
                                 <button @click.stop class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">VIEW</button>
                                 {% endif %}
-                                <button @click.stop class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">EDIT</button>
+                                <button @click.stop hx-get="{% url 'customers:edit' customer.id %}" hx-target="#modal-root" hx-swap="innerHTML" class="px-3 py-1 bg-surface-container text-on-surface-variant text-[11px] font-bold rounded hover:bg-surface-container-highest transition-colors">EDIT</button>
                             </div>
                         </td>
                     </tr>

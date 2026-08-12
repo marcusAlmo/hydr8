@@ -1,4 +1,4 @@
-<div id="toast-{{ id|default:timestamp|default:1000 }}" 
+<div id="toast-{{ id|default:1000 }}" 
      class="toast toast-{{ type|default:'success' }}" 
      hx-swap-oob="beforeend:#toast-container"
      x-data="{ show: true }"

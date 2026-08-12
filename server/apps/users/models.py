@@ -20,6 +20,12 @@ class RoleQuerySet(TenantQuerySet):
         """Returns default roles ordered by their names in alphabetical order."""
         return self.filter(is_default=True).order_by('name')
 
+    def for_user(self, user):
+        """Tenant-scoped roles, including shared platform default roles."""
+        if user.is_superuser or not hasattr(user, 'company_id') or user.company_id is None:
+            return self.all()
+        return self.filter(models.Q(company_id=user.company_id) | models.Q(company_id__isnull=True))
+
 class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.CharField(max_length=255, default='', blank=True)
@@ -82,6 +88,16 @@ class User(AbstractUser):
         default=False,
         help_text="When True, the user must change their password on next login.",
     )
+    password_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date after which the user's password is considered expired.",
+    )
+    pin_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date after which the user's PIN is considered expired.",
+    )
 
     # We will let AbstractUser handle username, email, first_name, last_name, password, is_active, is_staff, is_superuser, last_login, date_joined
 
@@ -92,6 +108,11 @@ class User(AbstractUser):
     class Meta:
         db_table = 'users_user'
 
+    def set_password(self, raw_password: str) -> None:
+        """Hashes the raw password and records its 90-day expiry."""
+        super().set_password(raw_password)
+        self.password_expires_at = timezone.now() + timedelta(days=90)
+
     def set_pin(self, raw_pin: str) -> None:
         """Hashes the raw PIN and stores it in the pin field."""
         if not raw_pin:
@@ -101,6 +122,7 @@ class User(AbstractUser):
             raise ValueError("PIN must contain only digits.")
             
         self.pin = make_password(str(raw_pin))
+        self.pin_expires_at = timezone.now() + timedelta(days=90)
 
     def check_pin(self, raw_pin: str) -> bool:
         """Verifies a raw PIN against the stored hash safely."""

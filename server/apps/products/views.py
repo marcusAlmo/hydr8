@@ -4,7 +4,7 @@ import logging
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
@@ -12,6 +12,7 @@ from .selectors import get_products_pricing_context
 from .services import (
     activate_product,
     bulk_set_commission_rates,
+    create_product,
     deactivate_product,
     delete_product,
     save_commission_matrix,
@@ -85,6 +86,37 @@ def _forbidden() -> HttpResponse:
 # ---------------------------------------------------------------------------
 # Page render
 # ---------------------------------------------------------------------------
+
+@login_required
+@require_http_methods(["GET", "POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def product_create_view(request):
+    """Renders the Add Product form and handles creation.
+
+    Staff/superusers only.  On a successful POST, the user is redirected
+    back to the Products & Pricing list so the new product is visible.
+    """
+    if not _is_admin_or_staff(request.user):
+        return _forbidden()
+
+    if request.method == "GET":
+        return render(request, "products/create_product.html")
+
+    try:
+        create_product(
+            name=request.POST.get("name", ""),
+            variation=request.POST.get("variation", "") or None,
+            price=request.POST.get("price", ""),
+            category=request.POST.get("category", "WATER"),
+            description=request.POST.get("description", "") or None,
+            performed_by=request.user,
+        )
+    except (ValidationError, ValueError, TypeError) as e:
+        logger.info("[%s] product_create validation error: %s", request.user.id, e)
+        return render(request, "products/create_product.html", {"error": str(e)}, status=400)
+
+    return redirect("products:list")
+
 
 @login_required
 @require_http_methods(["GET"])

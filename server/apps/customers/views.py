@@ -12,6 +12,7 @@ from .selectors import (
     get_customer_by_display_id,
     get_customer_collect_context,
     get_customer_detail_context,
+    get_customer_edit_context,
     get_customer_list_context,
     get_customer_table_context,
     get_record_borrowed_context,
@@ -22,6 +23,7 @@ from .services import (
     delete_customer,
     record_customer_borrowed,
     record_customer_debt,
+    update_customer,
 )
 
 
@@ -86,6 +88,51 @@ def customer_detail_view(request, customer_id: str):
 @login_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="60/m", method="GET", block=True)
+def customer_edit_view(request, customer_id: str):
+    """HTMX endpoint — returns the edit-customer modal partial."""
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+    context = get_customer_edit_context(customer)
+    return render(request, "customers/partials/edit_customer_modal.html", context)
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def customer_edit_submit_view(request, customer_id: str):
+    """HTMX endpoint — updates an existing customer."""
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+
+    try:
+        update_customer(
+            customer=customer,
+            name=request.POST.get("name", ""),
+            contact_number=request.POST.get("contact_number", ""),
+            address=request.POST.get("address", ""),
+            credit_limit=request.POST.get("credit_limit", ""),
+            performed_by=request.user,
+        )
+    except ValidationError as e:
+        return render(
+            request,
+            "customers/partials/form_error.html",
+            {"message": " ".join(e.messages)},
+            status=400,
+        )
+
+    return render(
+        request,
+        "customers/partials/form_success.html",
+        {"message": f"Customer {customer_id} updated."},
+    )
+
+
 def customer_collect_view(request, customer_id: str):
     """HTMX endpoint — returns the collect modal partial grouped by rider."""
     customer = get_customer_by_display_id(request.user, customer_id)

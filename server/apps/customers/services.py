@@ -100,6 +100,36 @@ def create_customer(
     return customer
 
 
+def update_customer(
+    *,
+    customer: Customer,
+    name: str,
+    contact_number: str = "",
+    address: str = "",
+    credit_limit="",
+    performed_by: "UserType",
+) -> Customer:
+    """Updates an existing customer record."""
+    name = (name or "").strip()
+    if not name:
+        raise ValidationError("Customer name is required.")
+
+    customer.name = name
+    customer.contact_number = contact_number.strip() or None
+    customer.address = address.strip() or None
+    customer.credit_limit = _to_decimal(credit_limit)
+    customer.full_clean()
+    customer.save(
+        update_fields=["name", "contact_number", "address", "credit_limit", "updated_at"]
+    )
+    logger.info(
+        "[%s] Updated Customer id=%s",
+        performed_by.id,
+        customer.id,
+    )
+    return customer
+
+
 def record_customer_debt(
     *,
     customer_id: str,

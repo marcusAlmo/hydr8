@@ -205,14 +205,8 @@ def get_products_pricing_context(user: "UserType") -> dict:
         "default_count": sum(1 for p in products if p["is_default"]),
         "total_count": len(products),
 
-        # --- AI pricing insight (mock — replaced by Gemma 2B WebGPU later) ---
-        "ai_insight": {
-            "product_name": "Alkaline Water",
-            "region": "South Laguna",
-            "delta_pct": "8%",
-            "adjustment": "+₱2.00",
-            "impact": "₱4,960",
-        },
+            # --- AI pricing insight (placeholder for future Gemma 2B integration) ---
+        "ai_insight": None,
 
         # --- Commissions tab ---
         "product_columns": columns,

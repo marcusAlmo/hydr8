@@ -1,0 +1,47 @@
+<form
+    hx-post="{% url 'users:screen_lock_submit' %}"
+    hx-target="#screen-lock-form-container"
+    hx-swap="outerHTML"
+    class="space-y-4"
+>
+    {% csrf_token %}
+
+    <div class="space-y-2" x-data="{ show: false }">
+        <label class="block font-label-caps text-xs font-bold text-on-surface-variant uppercase tracking-wider" for="id_pin">PIN</label>
+        <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[20px]">pin</span>
+            <input
+                class="w-full pl-10 pr-11 py-3 bg-transparent border border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg transition-all duration-200 outline-none font-body-md text-on-surface text-sm"
+                id="id_pin"
+                name="pin"
+                placeholder="Enter PIN"
+                required
+                minlength="4"
+                maxlength="6"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                :type="show ? 'text' : 'password'"
+            >
+            <button type="button" @click="show = !show" class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
+                <span class="material-symbols-outlined text-[20px]" x-show="!show" aria-hidden="true">visibility</span>
+                <span class="material-symbols-outlined text-[20px]" x-show="show" x-cloak aria-hidden="true">visibility_off</span>
+            </button>
+        </div>
+        {% if pin_error %}
+        <p class="text-xs text-error font-medium mt-1">{{ pin_error }}</p>
+        {% endif %}
+    </div>
+
+    {% if attempts_left is not None %}
+    <p class="font-body-sm text-body-sm text-on-surface-variant text-center">
+        Attempts remaining: <span class="font-semibold text-error">{{ attempts_left }}</span>
+    </p>
+    {% endif %}
+
+    <div class="flex flex-col gap-3 pt-2">
+        <button class="w-full bg-primary hover:bg-primary/90 text-on-primary py-3 px-4 font-semibold text-sm rounded-lg transition-all active:scale-[0.98] shadow-sm flex items-center justify-center gap-2 cursor-pointer" type="submit">
+            <span>Unlock</span>
+            <span class="material-symbols-outlined text-[20px]">lock_open</span>
+        </button>
+    </div>
+</form>

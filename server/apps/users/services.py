@@ -4,8 +4,9 @@ import string
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
-from apps.users.models import User
+from apps.users.models import Role, User
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +48,51 @@ def set_temporary_password(user: User) -> str:
     raw_password = generate_temporary_password()
     user.set_password(raw_password)
     user.force_password_change = True
-    user.save(update_fields=["password", "force_password_change", "updated_at"])
+    user.save(update_fields=["password", "password_expires_at", "force_password_change", "updated_at"])
     logger.info(
         "Temporary password generated. user_id=%s force_change=True",
         user.id,
     )
     return raw_password
+
+
+def create_user_account(
+    *,
+    username: str,
+    first_name: str,
+    last_name: str,
+    email: str,
+    role: Role,
+    company_id: int | None,
+    performed_by,
+) -> User:
+    """
+    Creates a new active user in the same tenant as the requester,
+    assigns the requested role, and flags them for onboarding.
+    The caller is expected to set a temporary password immediately.
+    """
+    if User.objects.filter(username=username, deleted_at__isnull=True).exists():
+        raise ValidationError("A user with that username already exists.")
+
+    with transaction.atomic():
+        user = User(
+            username=username,
+            first_name=first_name or "",
+            last_name=last_name or "",
+            email=email or "",
+            role=role,
+            company_id=company_id,
+            is_active=True,
+            is_staff=(role.name in ("Admin", "Staff")),
+        )
+        user.set_unusable_password()
+        try:
+            user.save()
+        except IntegrityError as exc:
+            raise ValidationError("A user with that username already exists.") from exc
+
+    logger.info("[%s] Created User id=%s", performed_by.id, user.id)
+    return user
 
 
 def change_user_password(user: User, new_password: str) -> None:
@@ -62,7 +102,7 @@ def change_user_password(user: User, new_password: str) -> None:
     """
     user.set_password(new_password)
     user.force_password_change = False
-    user.save(update_fields=["password", "force_password_change", "updated_at"])
+    user.save(update_fields=["password", "password_expires_at", "force_password_change", "updated_at"])
     logger.info(
         "Password changed by user. user_id=%s force_change=False",
         user.id,
@@ -125,3 +165,15 @@ def check_login_lockout(*, ip: str, username: str) -> None:
         raise ValidationError(
             "Too many failed attempts. Please try again in 1 minute."
         )
+
+
+def onboard_user(*, user: User, new_password: str, new_pin: str) -> None:
+    """
+    Sets the user's password and PIN during first-time onboarding.
+    Clears the force_password_change flag.
+    """
+    user.set_password(new_password)
+    user.set_pin(new_pin)
+    user.force_password_change = False
+    user.save(update_fields=["password", "password_expires_at", "pin", "pin_expires_at", "force_password_change", "updated_at"])
+    logger.info("User onboarded. user_id=%s", user.id)

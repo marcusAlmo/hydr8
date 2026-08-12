@@ -31,6 +31,10 @@ Expects context:
                         <button class="text-primary group-hover:bg-primary/10 px-2 py-1 rounded transition-colors">Details</button>
                     </td>
                 </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="py-6 px-4 text-center text-on-surface-variant font-body-sm">Nothing yet</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
