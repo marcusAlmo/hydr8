@@ -9,7 +9,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps header + content so the date range filter
      in the header drives the action chips, search, and records table. -->
-<div x-data='auditLogPage({{ logs_json|safe }})'
+<div x-data='auditLogPage({{ logs_json|safe }}, {{ action_counts_json|safe }})'
      class="flex-1 flex flex-col overflow-hidden">
 
     <!-- TopNavBar -->
@@ -183,7 +183,7 @@
                             hx-swap="innerHTML">
                             <!-- Timestamp -->
                             <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
-                                {{ entry.timestamp }}
+                                {{ entry.timestamp|date:"Y-m-d H:i:s" }}
                             </td>
                             <!-- Actor -->
                             <td class="px-4 py-3 whitespace-nowrap">
@@ -213,7 +213,7 @@
                             <td class="px-4 py-3 max-w-[220px]">
                                 <div class="flex flex-col gap-0.5">
                                     <span class="font-sans text-on-surface text-xs font-medium truncate" title="{{ entry.object_repr }}">{{ entry.object_repr }}</span>
-                                    <span class="text-[10px] text-on-surface-variant/70 font-data-mono">{{ entry.content_type }}</span>
+                                    <span class="text-[10px] text-on-surface-variant/70 font-data-mono">{{ entry.content_type_str }}</span>
                                 </div>
                             </td>
                             <!-- Changes summary -->
@@ -250,17 +250,29 @@
             <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
                 <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
                     Showing <span class="text-primary font-data-mono font-bold" x-text="filteredCount()"></span>
-                    of <span class="font-data-mono">{{ logs|length }}</span> entries
-                    <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered</span>
+                    of <span class="font-data-mono">{{ pagination.total_display }}</span> entries
+                    <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered on page</span>
                 </span>
                 <div class="flex items-center gap-1">
-                    <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Previous page">
+                    {% if pagination.has_previous %}
+                    <a href="?page={{ pagination.previous_page_number }}" class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Previous page">
+                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </a>
+                    {% else %}
+                    <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
                         <span class="material-symbols-outlined text-[18px]">chevron_left</span>
                     </button>
-                    <button class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</button>
-                    <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Next page">
+                    {% endif %}
+                    <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.next_page_number }}" class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Next page">
+                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </a>
+                    {% else %}
+                    <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
                     </button>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -280,7 +292,7 @@
 
     <!-- Alpine component definition -->
     <script>
-        function auditLogPage(logsData) {
+        function auditLogPage(logsData, actionCounts) {
             return {
                 logs: logsData,
                 searchQuery: '',
@@ -296,11 +308,11 @@
                     { key: 'all',   label: 'All'  },
                 ],
                 actionFilters: [
-                    { value: '',  label: 'All Actions' },
-                    { value: '0', label: 'Create'      },
-                    { value: '1', label: 'Update'      },
-                    { value: '2', label: 'Delete'      },
-                    { value: '3', label: 'Access'      },
+                    { value: '',  label: 'All Actions', count: actionCounts.total },
+                    { value: '0', label: 'Create',      count: actionCounts['0']  },
+                    { value: '1', label: 'Update',      count: actionCounts['1']  },
+                    { value: '2', label: 'Delete',      count: actionCounts['2']  },
+                    { value: '3', label: 'Access',      count: actionCounts['3']  },
                 ],
 
                 // --- Filter predicates -----------------------------------------
@@ -353,8 +365,9 @@
                     ).length;
                 },
                 actionCount(value) {
-                    if (!value) return this.logs.length;
-                    return this.logs.filter(e => String(e.action) === value).length;
+                    if (!value) return this.actionFilters[0].count;
+                    const f = this.actionFilters.find(f => f.value === value);
+                    return f ? f.count : 0;
                 },
 
                 // --- Actions ---------------------------------------------------

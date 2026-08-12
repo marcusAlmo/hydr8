@@ -43,7 +43,7 @@ Expects context:
                         <span class="font-data-mono text-[10px] text-on-surface-variant">#{{ entry.id }}</span>
                     </div>
                     <h3 class="font-headline-sm text-headline-sm font-bold text-on-surface truncate">{{ entry.object_repr }}</h3>
-                    <p class="text-xs text-on-surface-variant font-data-mono">{{ entry.content_type }} · pk={{ entry.object_pk }}</p>
+                    <p class="text-xs text-on-surface-variant font-data-mono">{{ entry.content_type_str }} · pk={{ entry.object_pk }}</p>
                 </div>
             </div>
             <button
@@ -80,7 +80,7 @@ Expects context:
                 <!-- Timestamp -->
                 <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
                     <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Timestamp</div>
-                    <div class="font-data-mono text-xs text-on-surface">{{ entry.timestamp }}</div>
+                    <div class="font-data-mono text-xs text-on-surface">{{ entry.timestamp|date:"Y-m-d H:i:s" }}</div>
                 </div>
 
                 <!-- IP Address -->

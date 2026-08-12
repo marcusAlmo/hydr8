@@ -1,0 +1,11 @@
+{% comment %}
+Success toast — returned by Settings HTMX POST endpoints on success.
+
+Uses the shared toast component with an OOB swap into #toast-container
+(the toast auto-dismisses via Alpine.js after 4 seconds).
+
+Expects context:
+  - message: str — toast message text
+{% endcomment %}
+{% now "U" as ts %}
+{% include "components/toasts/toast.html" with id=ts timestamp=ts message=message type="success" duration=4000 %}

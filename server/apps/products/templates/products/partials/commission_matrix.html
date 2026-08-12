@@ -14,7 +14,7 @@ Features:
 Expects context:
   - product_columns: list of { key, label, border_class }
   - riders: list of { id, name, initials, avatar_bg, avatar_text,
-                      driver_code, rate_cells: [{ product_key, rate }] }
+                      driver_code, rate_cells: [{ product_id, rate }] }
   - page_size: int — riders per page
   - rider_count: int — total rider count (pre-pagination)
 {% endcomment %}
@@ -23,7 +23,11 @@ Expects context:
         riders: {{ riders_json|safe }},
         productColumns: {{ product_columns_json|safe }},
         pageSize: {{ page_size }},
-        totalCount: {{ rider_count }}
+        totalCount: {{ rider_count }},
+        saveUrl: '{% url 'products:commission_save' %}',
+        bulkSetUrl: '{% url 'products:commission_bulk_set' %}',
+        verifyPinUrl: '{% url 'products:verify_pin' %}',
+        csrfToken: '{{ csrf_token }}'
      })">
 
     <!-- Section header -->
@@ -49,8 +53,8 @@ Expects context:
             <select x-model="bulkProduct"
                     class="flex-1 min-w-0 h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface font-body-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
                 <option value="">Select a product…</option>
-                <template x-for="col in productColumns" :key="col.key">
-                    <option :value="col.key" x-text="col.label"></option>
+                <template x-for="col in productColumns" :key="col.id">
+                    <option :value="col.id" x-text="col.label"></option>
                 </template>
             </select>
             <!-- Rate input -->
@@ -84,7 +88,7 @@ Expects context:
                                 Driver / Product
                                 <div class="mt-1 font-body-sm text-body-sm text-on-surface-variant/70 normal-case tracking-normal font-normal">Set column</div>
                             </th>
-                            <template x-for="col in productColumns" :key="col.key">
+                            <template x-for="col in productColumns" :key="col.id">
                                 <th class="p-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-center"
                                     :class="col.border_class">
                                     <span x-text="col.label"></span>
@@ -96,7 +100,7 @@ Expects context:
                                         </div>
                                         <button class="bg-on-surface-variant text-on-primary p-0.5 rounded transition-transform active:scale-95 hover:bg-primary"
                                                 title="Apply to all drivers"
-                                                @click="setColumnForAll(col.key, $event)">
+                                                @click="setColumnForAll(col.id, $event)">
                                             <span class="material-symbols-outlined text-[12px]">done_all</span>
                                         </button>
                                     </div>
@@ -120,16 +124,16 @@ Expects context:
                                     </div>
                                 </td>
                                 <!-- Per-product rate cells -->
-                                <template x-for="cell in rider.rate_cells" :key="cell.product_key">
+                                <template x-for="cell in rider.rate_cells" :key="cell.product_id">
                                     <td class="p-4">
                                         <div class="flex items-center justify-center gap-1">
                                             <span class="text-xs text-on-surface-variant font-data-mono">₱</span>
                                             <input
                                                 type="number" step="0.01" min="0"
                                                 :value="cell.rate"
-                                                @input="markDirty(rider.id, cell.product_key, $event.target.value)"
+                                                @input="markDirty(rider.id, cell.product_id, $event.target.value)"
                                                 class="w-16 h-8 text-center font-data-mono text-data-mono border-transparent hover:border-outline-variant focus:border-primary focus:ring-0 rounded bg-transparent outline-none"
-                                                :aria-label="'Commission rate for ' + rider.name + ' — ' + cell.product_key">
+                                                :aria-label="'Commission rate for ' + rider.name + ' — ' + cell.product_id">
                                         </div>
                                     </td>
                                 </template>
@@ -215,6 +219,74 @@ Expects context:
         </div>
     </div>
 
+    <!-- PIN Verification Modal -->
+    <div x-show="showPinModal"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+         @keydown.escape.window="closePinModal()">
+        <div x-show="showPinModal"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 border border-outline-variant/30">
+            <!-- Header -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-on-secondary-container">save</span>
+                </div>
+                <div>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">Confirm Commission Changes</h3>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant">Enter your PIN to save your changes.</p>
+                </div>
+            </div>
+            <!-- PIN input -->
+            <form @submit.prevent="submitPin()">
+                <div class="mb-4">
+                    <input
+                        type="password"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="6"
+                        x-model="pinInput"
+                        x-ref="pinField"
+                        placeholder="••••"
+                        class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        :class="pinError ? 'border-error ring-2 ring-error/30' : ''"
+                        autocomplete="off">
+                    <p x-show="pinError" x-text="pinError"
+                       class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1">
+                    </p>
+                    <p x-show="pinVerifying" class="mt-2 font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        Verifying…
+                    </p>
+                </div>
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button type="button" @click="closePinModal()"
+                            class="flex-1 px-4 py-2.5 rounded-lg font-bold text-on-surface-variant hover:bg-surface-container transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            :disabled="pinVerifying || pinInput.length < 4"
+                            class="flex-1 bg-primary text-on-primary px-4 py-2.5 rounded-lg font-bold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">save</span>
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -236,6 +308,10 @@ function commissionMatrix(cfg) {
         productColumns: cfg.productColumns,
         pageSize: cfg.pageSize,
         totalCount: cfg.totalCount,
+        saveUrl: cfg.saveUrl,
+        bulkSetUrl: cfg.bulkSetUrl,
+        verifyPinUrl: cfg.verifyPinUrl,
+        csrfToken: cfg.csrfToken,
         currentPage: 1,
         // Per-product bulk action
         bulkProduct: '',
@@ -244,8 +320,19 @@ function commissionMatrix(cfg) {
         dirty: false,
         changeCount: 0,
         changes: {},
+        // Original rates snapshot for discard restore
+        originalRates: {},
         // Scroll hint
         showScrollHint: false,
+        // PIN modal state
+        showPinModal: false,
+        pinInput: '',
+        pinError: '',
+        pinVerifying: false,
+        // Pending action: 'save' | { bulk: { productId, rate } }
+        pendingAction: null,
+        // Toast timeout
+        toastTimeout: null,
 
         // --- Pagination ---
         get paginatedRiders() {
@@ -271,44 +358,46 @@ function commissionMatrix(cfg) {
             return Math.min(this.currentPage * this.pageSize, this.totalCount);
         },
 
-        // --- Per-product bulk action ---
+        // --- Snapshot original rates on init for discard restore ---
+        init() {
+            // Snapshot original rates so discard can restore them.
+            this.riders.forEach(rider => {
+                rider.rate_cells.forEach(cell => {
+                    this.originalRates[rider.id + ':' + cell.product_id] = cell.rate;
+                });
+            });
+            // Scroll hint check + re-check on resize.
+            this.$nextTick(() => this.updateScrollHint());
+            window.addEventListener('resize', () => this.updateScrollHint());
+        },
+
+        // --- Per-product bulk action (client-side preview) ---
         // Applies the entered rate to ALL riders, but only for the SELECTED
         // product column.  This is intentionally narrower than a blanket
         // "apply to everything" — it prevents accidental mass-overwrites
-        // across unrelated products.
+        // across unrelated products.  The actual server save happens on
+        // "Save Matrix Changes" (or immediately if the user confirms via
+        // the bulk-set endpoint).
         applyBulkToProduct() {
             if (!this.bulkProduct || this.bulkRate === '') return;
-            this.riders.forEach(rider => {
-                const cell = rider.rate_cells.find(c => c.product_key === this.bulkProduct);
-                if (cell) {
-                    const key = rider.id + ':' + this.bulkProduct;
-                    if (!this.changes[key]) this.changeCount++;
-                    this.changes[key] = this.bulkRate;
-                    cell.rate = this.bulkRate;
-                }
-            });
-            this.dirty = true;
-            // Reset the form so the user doesn't double-apply by accident.
-            this.bulkProduct = '';
-            this.bulkRate = '';
+            // Queue a bulk-set action — opens the PIN modal.
+            this.pendingAction = {
+                bulk: { productId: this.bulkProduct, rate: this.bulkRate }
+            };
+            this.openPinModal();
         },
 
         // --- Per-column "set all" (the small done_all button in each header) ---
+        // Same as applyBulkToProduct but triggered from a column header.
         setColumnForAll(productKey, event) {
             const input = event.target.closest('th').querySelector('input');
             const value = input ? input.value : '';
             if (!value) return;
-            this.riders.forEach(rider => {
-                const cell = rider.rate_cells.find(c => c.product_key === productKey);
-                if (cell) {
-                    const key = rider.id + ':' + productKey;
-                    if (!this.changes[key]) this.changeCount++;
-                    this.changes[key] = value;
-                    cell.rate = value;
-                }
-            });
-            this.dirty = true;
+            this.pendingAction = {
+                bulk: { productId: productKey, rate: value }
+            };
             if (input) input.value = '';
+            this.openPinModal();
         },
 
         // --- Per-cell change tracking ---
@@ -316,7 +405,7 @@ function commissionMatrix(cfg) {
             const key = riderId + ':' + productKey;
             const rider = this.riders.find(r => r.id === riderId);
             if (!rider) return;
-            const cell = rider.rate_cells.find(c => c.product_key === productKey);
+            const cell = rider.rate_cells.find(c => c.product_id === productKey);
             if (!cell) return;
             // Only count as a change if the value actually differs.
             if (this.changes[key]) {
@@ -331,19 +420,152 @@ function commissionMatrix(cfg) {
         },
 
         discardChanges() {
-            // In the prototype we just clear the change tracker.  A real
-            // implementation would restore original values from the server.
+            // Restore original rates from the snapshot taken on init.
+            this.riders.forEach(rider => {
+                rider.rate_cells.forEach(cell => {
+                    const key = rider.id + ':' + cell.product_id;
+                    if (this.originalRates[key] !== undefined) {
+                        cell.rate = this.originalRates[key];
+                    }
+                });
+            });
             this.changes = {};
             this.changeCount = 0;
             this.dirty = false;
         },
 
+        // --- Save flow ---
         saveChanges() {
-            // Prototype: just clear the dirty state.  Real implementation
-            // would POST ``this.changes`` to a commission-rate endpoint.
+            if (!this.dirty || this.changeCount === 0) {
+                this.showToast('No changes to save.');
+                return;
+            }
+            this.pendingAction = 'save';
+            this.openPinModal();
+        },
+
+        // --- PIN modal ---
+        openPinModal() {
+            this.showPinModal = true;
+            this.pinInput = '';
+            this.pinError = '';
+            this.$nextTick(() => {
+                if (this.$refs.pinField) this.$refs.pinField.focus();
+            });
+        },
+
+        closePinModal() {
+            this.showPinModal = false;
+            this.pinInput = '';
+            this.pinError = '';
+            this.pinVerifying = false;
+            this.pendingAction = null;
+        },
+
+        async submitPin() {
+            if (this.pinInput.length < 4) {
+                this.pinError = 'PIN must be at least 4 digits.';
+                return;
+            }
+            this.pinVerifying = true;
+            this.pinError = '';
+            try {
+                // Step 1: verify PIN client-side (fast feedback).
+                const verifyResp = await fetch(this.verifyPinUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken,
+                    },
+                    body: JSON.stringify({ pin: this.pinInput }),
+                });
+                const verifyData = await verifyResp.json();
+                if (!verifyData.verified) {
+                    this.pinError = verifyData.error || 'Incorrect PIN.';
+                    return;
+                }
+
+                // Step 2: dispatch to the right endpoint based on pendingAction.
+                const action = this.pendingAction;
+                if (action === 'save') {
+                    await this._postSave();
+                } else if (action && action.bulk) {
+                    await this._postBulkSet(action.bulk.productId, action.bulk.rate);
+                }
+            } catch (e) {
+                this.pinError = 'Save failed. Please try again.';
+            } finally {
+                this.pinVerifying = false;
+            }
+        },
+
+        async _postSave() {
+            const resp = await fetch(this.saveUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken,
+                },
+                body: JSON.stringify({
+                    pin: this.pinInput,
+                    changes: this.changes,
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                this.pinError = data.error || 'Save failed.';
+                return;
+            }
+            // Commit: update the originalRates snapshot so a subsequent
+            // discard does not revert the saved values.
+            Object.entries(this.changes).forEach(([k, v]) => {
+                this.originalRates[k] = v;
+            });
             this.changes = {};
             this.changeCount = 0;
             this.dirty = false;
+            this.closePinModal();
+            this.showToast(`Saved ${data.saved} rate${data.saved !== 1 ? 's' : ''}.`);
+        },
+
+        async _postBulkSet(productId, rate) {
+            const resp = await fetch(this.bulkSetUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.csrfToken,
+                },
+                body: JSON.stringify({
+                    pin: this.pinInput,
+                    product_id: parseInt(productId, 10),
+                    rate: rate,
+                }),
+            });
+            const data = await resp.json();
+            if (!data.ok) {
+                this.pinError = data.error || 'Bulk set failed.';
+                return;
+            }
+            // Update client-side state to match the server.
+            this.riders.forEach(rider => {
+                const cell = rider.rate_cells.find(c => c.product_id == productId);
+                if (cell) {
+                    const key = rider.id + ':' + cell.product_id;
+                    this.originalRates[key] = rate;
+                    cell.rate = rate;
+                    // Clear any per-cell pending change for this cell.
+                    if (this.changes[key]) {
+                        delete this.changes[key];
+                        this.changeCount--;
+                    }
+                }
+            });
+            this.dirty = this.changeCount > 0;
+            // Reset the bulk form.
+            this.bulkProduct = '';
+            this.bulkRate = '';
+            this.closePinModal();
+            this.showToast(`Applied rate to ${data.updated} driver${data.updated !== 1 ? 's' : ''}.`);
         },
 
         // --- Horizontal scroll hint ---
@@ -355,11 +577,40 @@ function commissionMatrix(cfg) {
             this.showScrollHint = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
         },
 
-        init() {
-            this.$nextTick(() => this.updateScrollHint());
-            // Re-check on window resize in case the viewport widens enough
-            // to fit all columns.
-            window.addEventListener('resize', () => this.updateScrollHint());
+        // --- Toast (rendered into the global #toast-container) ---
+        // Reuses the shared .toast / .toast-success styles from
+        // components/toasts/toast.html.  Auto-dismisses after 3s.
+        showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const id = 'toast-' + Date.now();
+            const el = document.createElement('div');
+            el.id = id;
+            el.className = `toast toast-${type}`;
+            el.setAttribute('role', 'alert');
+            el.setAttribute('x-data', '{ show: true }');
+            el.setAttribute('x-show', 'show');
+            el.setAttribute('x-init', `setTimeout(() => show = false, 3000)`);
+            el.setAttribute('x-transition:enter', 'transition ease-out duration-300 transform');
+            el.setAttribute('x-transition:enter-start', 'opacity-0 -translate-y-4 translate-x-8');
+            el.setAttribute('x-transition:enter-end', 'opacity-100 translate-y-0 translate-x-0');
+            el.setAttribute('x-transition:leave', 'transition ease-in duration-200 transform');
+            el.setAttribute('x-transition:leave-start', 'opacity-100 translate-y-0 translate-x-0');
+            el.setAttribute('x-transition:leave-end', 'opacity-0 -translate-y-4 translate-x-8');
+            el.innerHTML = `
+                <div class="toast-indicator-strip"></div>
+                <div class="toast-body">
+                    <span class="toast-message"></span>
+                </div>
+                <button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>
+            `;
+            el.querySelector('.toast-message').textContent = message;
+            container.appendChild(el);
+            if (window.Alpine) {
+                window.Alpine.initTree(el);
+            }
+            if (this.toastTimeout) clearTimeout(this.toastTimeout);
+            this.toastTimeout = setTimeout(() => { el.remove(); }, 3200);
         },
     };
 }

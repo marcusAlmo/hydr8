@@ -15,6 +15,11 @@ class Product(models.Model):
     category = models.CharField(max_length=100,choices=CategoryChoices, default=CategoryChoices.OTHERS)
     description = models.TextField(null=True, blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    is_default = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Marks system-default products locked from edits and deletion.",
+    )
     company = models.ForeignKey(
         'settings.Company',
         on_delete=models.CASCADE,
@@ -24,7 +29,7 @@ class Product(models.Model):
         db_index=True,
     )
     deactivated_at = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -35,9 +40,13 @@ class Product(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'name', 'variation'],
-                condition=Q(deactivated_at__isnull=True),
+                condition=Q(deactivated_at__isnull=True, deleted_at__isnull=True),
                 name='unique_product_company_name_variation',
             ),
+        ]
+        indexes = [
+            models.Index(fields=['company', 'deleted_at']),
+            models.Index(fields=['company', 'deactivated_at']),
         ]
 
     @classmethod

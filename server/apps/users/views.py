@@ -17,6 +17,7 @@ from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.users.models import User, Role
+from apps.users.signals import login_failed
 from .services import (
     change_user_password,
     check_login_lockout,
@@ -131,6 +132,7 @@ def login_view(request):
             # Login failed — record the attempt and re-render with errors.
             # Preserve `next` so the hidden input survives the HTMX swap.
             record_failed_login(ip=ip, username=username)
+            login_failed.send(sender=None, request=request, username=username, ip=ip)
             logger.warning(
                 "DEBUG login FAILED. form_errors=%r",
                 {k: [str(e) for e in v] for k, v in form.errors.items()},

@@ -32,7 +32,7 @@ Non-default products (``is_default=False``):
     instead (based on the product's current active status).
 
 Expects context:
-  - products: list of { key, name, variation, unit_price, is_active,
+  - products: list of { id, name, variation, unit_price, is_active,
                         is_default, row_class, name_class, action_activate }
   - active_count, default_count, total_count
   - ai_insight: { product_name, delta_pct, adjustment, impact, body }
@@ -40,8 +40,9 @@ Expects context:
 <div class="flex flex-col gap-6"
      x-data="productInventory({
         verifyUrl: '{% url 'products:verify_pin' %}',
+        saveUrl: '{% url 'products:save' %}',
         csrfToken: '{{ csrf_token }}',
-        products: {{ products_json }}
+        products: {{ products_json|safe }}
      })">
 
     <!-- Section header + Add Product -->
@@ -103,9 +104,9 @@ Expects context:
                 </thead>
                 <tbody class="divide-y divide-outline-variant/20">
                     {% for product in products %}
-                    <tr x-show="!committedDeletes['{{ product.key }}']"
+                    <tr x-show="!committedDeletes['{{ product.id }}']"
                         class="hover:bg-surface-container-low transition-colors group {{ product.row_class }}"
-                        :class="pendingDeletes['{{ product.key }}'] ? 'opacity-50 line-through bg-error-container/10' : ''">
+                        :class="pendingDeletes['{{ product.id }}'] ? 'opacity-50 line-through bg-error-container/10' : ''">
                         <!-- Name + default lock badge -->
                         <td class="p-4 font-body-md text-body-md font-bold {{ product.name_class }}">
                             <div class="flex items-center gap-2">
@@ -113,12 +114,12 @@ Expects context:
                                 <span>{{ product.name }}</span>
                                 {% else %}
                                 <input type="text"
-                                       x-model="currentNames['{{ product.key }}']"
+                                       x-model="currentNames['{{ product.id }}']"
                                        :readonly="!editing"
-                                       @input="changedNames['{{ product.key }}'] = (currentNames['{{ product.key }}'] !== originalNames['{{ product.key }}']) ? currentNames['{{ product.key }}'] : null"
+                                       @input="changedNames['{{ product.id }}'] = (currentNames['{{ product.id }}'] !== originalNames['{{ product.id }}']) ? currentNames['{{ product.id }}'] : null"
                                        :class="!editing
                                            ? 'bg-transparent border-none p-0 font-body-md text-body-md font-bold {{ product.name_class }} cursor-not-allowed outline-none'
-                                           : (changedNames['{{ product.key }}'] !== null && changedNames['{{ product.key }}'] !== undefined
+                                           : (changedNames['{{ product.id }}'] !== null && changedNames['{{ product.id }}'] !== undefined
                                               ? 'editable-underline-dirty bg-transparent p-0 font-body-md text-body-md font-bold {{ product.name_class }}'
                                               : 'editable-underline bg-transparent p-0 font-body-md text-body-md font-bold {{ product.name_class }}')"
                                        aria-label="Product name">
@@ -137,12 +138,12 @@ Expects context:
                             <span>{{ product.variation }}</span>
                             {% else %}
                             <input type="text"
-                                   x-model="currentVariations['{{ product.key }}']"
+                                   x-model="currentVariations['{{ product.id }}']"
                                    :readonly="!editing"
-                                   @input="changedVariations['{{ product.key }}'] = (currentVariations['{{ product.key }}'] !== originalVariations['{{ product.key }}']) ? currentVariations['{{ product.key }}'] : null"
+                                   @input="changedVariations['{{ product.id }}'] = (currentVariations['{{ product.id }}'] !== originalVariations['{{ product.id }}']) ? currentVariations['{{ product.id }}'] : null"
                                    :class="!editing
                                        ? 'bg-transparent border-none p-0 font-body-md text-body-md text-on-surface-variant cursor-not-allowed outline-none'
-                                       : (changedVariations['{{ product.key }}'] !== null && changedVariations['{{ product.key }}'] !== undefined
+                                       : (changedVariations['{{ product.id }}'] !== null && changedVariations['{{ product.id }}'] !== undefined
                                           ? 'editable-underline-dirty bg-transparent p-0 font-body-md text-body-md text-on-surface-variant'
                                           : 'editable-underline bg-transparent p-0 font-body-md text-body-md text-on-surface-variant')"
                                    aria-label="Product variation">
@@ -152,7 +153,7 @@ Expects context:
                         <td class="p-4">
                             <div class="flex items-center gap-1.5">
                                 <div class="flex items-center gap-1 px-0 py-0 w-fit"
-                                     :class="changedPrices['{{ product.key }}'] !== null && changedPrices['{{ product.key }}'] !== undefined
+                                     :class="changedPrices['{{ product.id }}'] !== null && changedPrices['{{ product.id }}'] !== undefined
                                         ? 'editable-underline-dirty'
                                         : (editing ? 'editable-underline' : '')">
                                     <span class="font-data-mono text-data-mono text-on-surface-variant">₱</span>
@@ -162,9 +163,9 @@ Expects context:
                                         readonly
                                         class="bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface-variant cursor-not-allowed outline-none"
                                         {% else %}
-                                        x-model="currentPrices['{{ product.key }}']"
+                                        x-model="currentPrices['{{ product.id }}']"
                                         :readonly="!editing"
-                                        @input="changedPrices['{{ product.key }}'] = (currentPrices['{{ product.key }}'] !== originalPrices['{{ product.key }}']) ? currentPrices['{{ product.key }}'] : null"
+                                        @input="changedPrices['{{ product.id }}'] = (currentPrices['{{ product.id }}'] !== originalPrices['{{ product.id }}']) ? currentPrices['{{ product.id }}'] : null"
                                         :class="!editing
                                             ? 'bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface-variant cursor-not-allowed outline-none'
                                             : 'bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface outline-none'"
@@ -193,24 +194,26 @@ Expects context:
                                 </span>
                                 {% else %}
                                 <!-- Delete button: shown only in edit mode -->
-                                <button @click="toggleDelete('{{ product.key }}')"
+                                <button @click="toggleDelete('{{ product.id }}')"
                                         x-show="editing"
                                         x-cloak
                                         class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
-                                        :class="pendingDeletes['{{ product.key }}'] ? 'bg-error-container ring-1 ring-error/30' : ''"
-                                        :title="pendingDeletes['{{ product.key }}'] ? 'Undo pending deletion' : 'Mark for deletion'">
+                                        :class="pendingDeletes['{{ product.id }}'] ? 'bg-error-container ring-1 ring-error/30' : ''"
+                                        :title="pendingDeletes['{{ product.id }}'] ? 'Undo pending deletion' : 'Mark for deletion'">
                                     <span class="material-symbols-outlined text-[20px]"
-                                          x-text="pendingDeletes['{{ product.key }}'] ? 'undo' : 'delete'"></span>
+                                          x-text="pendingDeletes['{{ product.id }}'] ? 'undo' : 'delete'"></span>
                                 </button>
                                 <!-- Activate/Deactivate: shown when not editing -->
                                 {% if product.action_activate %}
                                 <button x-show="!editing"
+                                        @click="toggleActivate('{{ product.id }}', false)"
                                         class="p-1.5 rounded-lg hover:bg-tertiary-container text-tertiary transition-colors"
                                         title="Activate product">
                                     <span class="material-symbols-outlined text-[20px]">check_circle</span>
                                 </button>
                                 {% else %}
                                 <button x-show="!editing"
+                                        @click="toggleActivate('{{ product.id }}', true)"
                                         class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
                                         title="Deactivate">
                                     <span class="material-symbols-outlined text-[20px]">block</span>
@@ -362,15 +365,16 @@ function productInventory(cfg) {
     const currentVariations = {};
     const currentPrices = {};
     for (const p of cfg.products) {
-        originalNames[p.key] = p.name;
-        originalVariations[p.key] = p.variation;
-        originalPrices[p.key] = p.unit_price;
-        currentNames[p.key] = p.name;
-        currentVariations[p.key] = p.variation;
-        currentPrices[p.key] = p.unit_price;
+        originalNames[p.id] = p.name;
+        originalVariations[p.id] = p.variation;
+        originalPrices[p.id] = p.unit_price;
+        currentNames[p.id] = p.name;
+        currentVariations[p.id] = p.variation;
+        currentPrices[p.id] = p.unit_price;
     }
     return {
         verifyUrl: cfg.verifyUrl,
+        saveUrl: cfg.saveUrl,
         csrfToken: cfg.csrfToken,
         editing: false,
         // Per-product current values (bound via x-model)
@@ -387,6 +391,9 @@ function productInventory(cfg) {
         changedVariations: {},
         // key -> true when marked for deletion (pending save)
         pendingDeletes: {},
+        // key -> true when marked for activation/deactivation (pending save)
+        pendingActivates: {},
+        pendingDeactivates: {},
         // key -> true after PIN-verified commit (rows hidden via x-show)
         committedDeletes: {},
         // PIN modal state
@@ -423,12 +430,26 @@ function productInventory(cfg) {
             this.pendingDeletes[key] = !this.pendingDeletes[key];
         },
 
+        toggleActivate(id, currentlyActive) {
+            // Queue an activate or deactivate action (outside edit mode).
+            // Opens the PIN modal directly — the action is sent to the
+            // save endpoint with just the activate/deactivate list.
+            if (currentlyActive) {
+                this.pendingDeactivates[id] = true;
+            } else {
+                this.pendingActivates[id] = true;
+            }
+            this.openPinModal();
+        },
+
         cancelEdit() {
             this.editing = false;
             this.changedPrices = {};
             this.changedNames = {};
             this.changedVariations = {};
             this.pendingDeletes = {};
+            this.pendingActivates = {};
+            this.pendingDeactivates = {};
             // Revert all current values back to originals
             for (const key of Object.keys(this.originalNames)) {
                 this.currentNames[key] = this.originalNames[key];
@@ -472,7 +493,8 @@ function productInventory(cfg) {
             this.pinVerifying = true;
             this.pinError = '';
             try {
-                const resp = await fetch(this.verifyUrl, {
+                // Step 1: verify the PIN client-side (fast feedback).
+                const verifyResp = await fetch(this.verifyUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -480,42 +502,106 @@ function productInventory(cfg) {
                     },
                     body: JSON.stringify({ pin: this.pinInput }),
                 });
-                const data = await resp.json();
-                if (data.verified) {
-                    const dirtyPrices = Object.entries(this.changedPrices)
-                        .filter(([_, v]) => v !== null && v !== undefined);
-                    const dirtyNames = Object.entries(this.changedNames)
-                        .filter(([_, v]) => v !== null && v !== undefined);
-                    const dirtyVars = Object.entries(this.changedVariations)
-                        .filter(([_, v]) => v !== null && v !== undefined);
-                    const pending = Object.entries(this.pendingDeletes)
-                        .filter(([_, v]) => v);
-                    // Commit: snap originals to the current (edited) values so
-                    // the inputs show the new value after exiting edit mode.
-                    // (Mock: client-side only — replace with a real save
-                    // endpoint when backend lands.)
-                    dirtyPrices.forEach(([key]) => { this.originalPrices[key] = this.currentPrices[key]; });
-                    dirtyNames.forEach(([key]) => { this.originalNames[key] = this.currentNames[key]; });
-                    dirtyVars.forEach(([key]) => { this.originalVariations[key] = this.currentVariations[key]; });
-                    // Mark deleted rows as committed (hidden via x-show).
-                    pending.forEach(([key]) => { this.committedDeletes[key] = true; });
-                    const fieldCount = dirtyPrices.length + dirtyNames.length + dirtyVars.length;
-                    const deleteCount = pending.length;
-                    this.changedPrices = {};
-                    this.changedNames = {};
-                    this.changedVariations = {};
-                    this.pendingDeletes = {};
-                    this.editing = false;
-                    this.closePinModal();
-                    const parts = [];
-                    if (fieldCount > 0) parts.push(`Saved ${fieldCount} change${fieldCount > 1 ? 's' : ''}`);
-                    if (deleteCount > 0) parts.push(`Deleted ${deleteCount} product${deleteCount > 1 ? 's' : ''}`);
-                    this.showToast(parts.join(' · ') + '.');
-                } else {
-                    this.pinError = data.error || 'Incorrect PIN. Please try again.';
+                const verifyData = await verifyResp.json();
+                if (!verifyData.verified) {
+                    this.pinError = verifyData.error || 'Incorrect PIN. Please try again.';
+                    return;
                 }
+
+                // Step 2: build the change payload from dirty state.
+                const edits = [];
+                const dirtyPrices = Object.entries(this.changedPrices)
+                    .filter(([_, v]) => v !== null && v !== undefined);
+                const dirtyNames = Object.entries(this.changedNames)
+                    .filter(([_, v]) => v !== null && v !== undefined);
+                const dirtyVars = Object.entries(this.changedVariations)
+                    .filter(([_, v]) => v !== null && v !== undefined);
+
+                // Merge dirty fields per product id.
+                const editsMap = {};
+                const allIds = new Set([
+                    ...dirtyPrices.map(([k]) => k),
+                    ...dirtyNames.map(([k]) => k),
+                    ...dirtyVars.map(([k]) => k),
+                ]);
+                allIds.forEach(id => {
+                    editsMap[id] = { id: parseInt(id, 10) };
+                });
+                dirtyNames.forEach(([k, v]) => { editsMap[k].name = v; });
+                dirtyVars.forEach(([k, v]) => { editsMap[k].variation = v; });
+                dirtyPrices.forEach(([k, v]) => { editsMap[k].price = v; });
+                edits.push(...Object.values(editsMap));
+
+                const deletes = Object.entries(this.pendingDeletes)
+                    .filter(([_, v]) => v)
+                    .map(([k]) => parseInt(k, 10));
+                const activates = Object.entries(this.pendingActivates)
+                    .filter(([_, v]) => v)
+                    .map(([k]) => parseInt(k, 10));
+                const deactivates = Object.entries(this.pendingDeactivates)
+                    .filter(([_, v]) => v)
+                    .map(([k]) => parseInt(k, 10));
+
+                // Step 3: POST to the real save endpoint (PIN re-verified
+                // server-side as defence in depth).
+                const saveResp = await fetch(this.saveUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken,
+                    },
+                    body: JSON.stringify({
+                        pin: this.pinInput,
+                        edits,
+                        deletes,
+                        activates,
+                        deactivates,
+                    }),
+                });
+                const saveData = await saveResp.json();
+                if (!saveData.ok) {
+                    this.pinError = saveData.error || 'Save failed. Please try again.';
+                    return;
+                }
+
+                // Step 4: commit client-side — snap originals to the new
+                // values so the inputs show the saved value after exiting
+                // edit mode.
+                dirtyPrices.forEach(([key]) => { this.originalPrices[key] = this.currentPrices[key]; });
+                dirtyNames.forEach(([key]) => { this.originalNames[key] = this.currentNames[key]; });
+                dirtyVars.forEach(([key]) => { this.originalVariations[key] = this.currentVariations[key]; });
+                // Mark deleted rows as committed (hidden via x-show).
+                deletes.forEach(id => { this.committedDeletes[id] = true; });
+                // Mark activated/deactivated rows — update their visual state.
+                activates.forEach(id => {
+                    // The row stays visible; the server re-rendered it
+                    // active.  We just clear the pending flag.
+                    this.pendingActivates[id] = false;
+                });
+                deactivates.forEach(id => {
+                    this.pendingDeactivates[id] = false;
+                });
+
+                const fieldCount = edits.length;
+                const deleteCount = deletes.length;
+                const actCount = activates.length;
+                const deactCount = deactivates.length;
+                this.changedPrices = {};
+                this.changedNames = {};
+                this.changedVariations = {};
+                this.pendingDeletes = {};
+                this.pendingActivates = {};
+                this.pendingDeactivates = {};
+                this.editing = false;
+                this.closePinModal();
+                const parts = [];
+                if (fieldCount > 0) parts.push(`Saved ${fieldCount} change${fieldCount > 1 ? 's' : ''}`);
+                if (deleteCount > 0) parts.push(`Deleted ${deleteCount} product${deleteCount > 1 ? 's' : ''}`);
+                if (actCount > 0) parts.push(`Activated ${actCount}`);
+                if (deactCount > 0) parts.push(`Deactivated ${deactCount}`);
+                this.showToast(parts.join(' · ') + '.');
             } catch (e) {
-                this.pinError = 'Verification failed. Please try again.';
+                this.pinError = 'Save failed. Please try again.';
             } finally {
                 this.pinVerifying = false;
             }
@@ -546,10 +632,11 @@ function productInventory(cfg) {
             el.innerHTML = `
                 <div class="toast-indicator-strip"></div>
                 <div class="toast-body">
-                    <span class="toast-message">${message}</span>
+                    <span class="toast-message"></span>
                 </div>
                 <button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>
             `;
+            el.querySelector('.toast-message').textContent = message;
             container.appendChild(el);
             // Initialise Alpine on the newly-inserted node so x-show /
             // transitions work without a full page reload.

@@ -1,4 +1,4 @@
-{# My Profile tab — current user's profile card with username + password change #}
+{# My Profile tab — current user's profile card with name, username + password change #}
 <div class="max-w-3xl space-y-6">
 
     {# --- Profile card — identity + name fields --- #}
@@ -15,33 +15,40 @@
             </div>
             <div>
                 <h3 class="font-headline-md text-headline-md text-on-surface">{{ profile.full_name }}</h3>
-                <p class="text-on-surface-variant font-body-md text-body-md">{{ profile.role }} &bull; ID: <span class="font-data-mono text-data-mono">{{ profile.employee_id }}</span></p>
+                <p class="text-on-surface-variant font-body-md text-body-md">{{ profile.role }}</p>
             </div>
         </div>
 
-        {# Profile form fields #}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">First Name</label>
-                <input
-                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                    type="text"
-                    value="{{ profile.first_name }}"/>
+        {# Profile form fields — name update via HTMX #}
+        <form id="profile-form"
+              hx-post="{% url 'settings:save_profile' %}"
+              hx-swap="none">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">First Name</label>
+                    <input
+                        name="first_name"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        type="text"
+                        value="{{ profile.first_name }}"/>
+                </div>
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Last Name</label>
+                    <input
+                        name="last_name"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        type="text"
+                        value="{{ profile.last_name }}"/>
+                </div>
             </div>
-            <div class="space-y-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Last Name</label>
-                <input
-                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                    type="text"
-                    value="{{ profile.last_name }}"/>
-            </div>
-        </div>
 
-        <div class="flex justify-end pt-6">
-            <button class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
-                Save Profile
-            </button>
-        </div>
+            <div class="flex justify-end pt-6">
+                <button type="submit"
+                        class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
+                    Save Profile
+                </button>
+            </div>
+        </form>
     </div>
 
     {# --- Account credentials card — username + password change --- #}
@@ -56,20 +63,60 @@
             </div>
         </div>
 
-        {# Username change #}
-        <div class="space-y-2 mb-6">
+        {# Username change — requires current password #}
+        <form id="username-form"
+              hx-post="{% url 'settings:change_username' %}"
+              hx-swap="none"
+              class="space-y-2 mb-6"
+              x-data="{ showCurrent: false }">
             <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Username</label>
-            <input
-                class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                type="text"
-                value="{{ profile.username }}"/>
-        </div>
+            <div class="flex gap-3">
+                <input
+                    name="new_username"
+                    class="flex-1 bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                    type="text"
+                    value="{{ profile.username }}"/>
+                <button type="button"
+                        @click="showCurrent = true"
+                        x-show="!showCurrent"
+                        class="px-4 py-3 bg-surface-container text-on-surface-variant font-label-caps text-label-caps rounded uppercase hover:bg-surface-container-high transition-all duration-200 whitespace-nowrap">
+                    Change
+                </button>
+            </div>
+            {# Current password — revealed when the user clicks "Change" #}
+            <div x-show="showCurrent" x-cloak class="space-y-2 pt-2">
+                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password (required to change username)</label>
+                <div class="relative">
+                    <input
+                        name="current_password"
+                        :type="showCurrentPw ? 'text' : 'password'"
+                        x-data="{ showCurrentPw: false }"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        placeholder="Enter current password"
+                        autocomplete="current-password"/>
+                    <button type="button"
+                            @click="showCurrentPw = !showCurrentPw"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+                        <span class="material-symbols-outlined text-[20px]" x-text="showCurrentPw ? 'visibility_off' : 'visibility'">visibility</span>
+                    </button>
+                </div>
+                <div class="flex justify-end pt-2">
+                    <button type="submit"
+                            class="bg-tertiary text-on-tertiary font-label-caps text-label-caps px-6 py-2.5 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm">
+                        Update Username
+                    </button>
+                </div>
+            </div>
+        </form>
 
         {# Divider #}
         <div class="border-t border-outline-variant/20 my-6"></div>
 
         {# Password change — Alpine.js owns show/hide + validation state #}
-        <div x-data="{
+        <form id="password-change-form"
+              hx-post="{% url 'settings:change_password' %}"
+              hx-swap="none"
+              x-data="{
             showCurrent: false,
             showNew: false,
             showConfirm: false,
@@ -93,6 +140,7 @@
                     <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Current Password</label>
                     <div class="relative">
                         <input
+                            name="current_password"
                             :type="showCurrent ? 'text' : 'password'"
                             class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
                             placeholder="Enter current password"
@@ -111,6 +159,7 @@
                     <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">New Password</label>
                     <div class="relative">
                         <input
+                            name="new_password"
                             :type="showNew ? 'text' : 'password'"
                             x-model="newPassword"
                             class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
@@ -136,6 +185,7 @@
                     <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Confirm New Password</label>
                     <div class="relative">
                         <input
+                            name="confirm_password"
                             :type="showConfirm ? 'text' : 'password'"
                             x-model="confirmPassword"
                             class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
@@ -164,7 +214,7 @@
             {# Submit — disabled until validation passes #}
             <div class="flex justify-end pt-6">
                 <button
-                    type="button"
+                    type="submit"
                     :disabled="!canSubmit"
                     :class="canSubmit
                         ? 'bg-tertiary text-on-tertiary hover:opacity-90 active:scale-[0.98] shadow-sm hover:shadow-md cursor-pointer'
@@ -174,6 +224,6 @@
                     <span>Update Password</span>
                 </button>
             </div>
-        </div>
+        </form>
     </div>
 </div>

@@ -63,7 +63,8 @@
         </div>
     </div>
 
-    {# Settings table #}
+    {# Settings table — wrapped in a form so HTMX can collect all fields #}
+    <form id="system-config-form" class="contents">
     <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse">
             <thead class="bg-surface-container-high">
@@ -89,6 +90,7 @@
                             x-show="editing"
                             x-cloak
                             x-ref="{{ setting.key }}"
+                            name="{{ setting.key }}"
                             @change="checkDirty()"
                             class="bg-surface-container text-on-surface font-data-mono text-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none pl-3 pr-8 py-1.5 transition-all duration-200 text-right">
                             {% for opt in setting.options %}
@@ -105,6 +107,7 @@
                             x-show="editing"
                             x-cloak
                             x-ref="{{ setting.key }}"
+                            name="{{ setting.key }}"
                             @input="checkDirty()"
                             class="w-28 bg-surface-container text-on-surface font-data-mono text-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none pl-3 pr-3 py-1.5 transition-all duration-200"
                             type="text"
@@ -116,6 +119,7 @@
             </tbody>
         </table>
     </div>
+    </form>
 
     {# Save bar — only visible when editing AND changes detected #}
     <div
@@ -125,6 +129,10 @@
         class="flex justify-end pt-6">
         <button
             type="button"
+            hx-post="{% url 'settings:save_system_config' %}"
+            hx-include="#system-config-form"
+            hx-swap="none"
+            @click="editing = false; dirty = false"
             class="flex items-center gap-2 bg-tertiary text-on-tertiary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
             <span class="material-symbols-outlined text-[18px]">save</span>
             <span>Save System Config</span>

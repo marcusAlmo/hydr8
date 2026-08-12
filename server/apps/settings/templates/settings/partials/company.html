@@ -1,51 +1,75 @@
 {# Company tab — business identity form #}
 <div class="max-w-3xl">
+    {% if not company.has_company %}
+    {# Platform superuser with no tenant — show a notice instead of the form #}
     <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-8 shadow-sm">
-        <div class="flex items-center gap-3 mb-6">
-            <div class="w-10 h-10 bg-primary-container/20 rounded-lg flex items-center justify-center text-primary">
-                <span class="material-symbols-outlined">business</span>
-            </div>
+        <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-on-surface-variant flex-shrink-0">info</span>
             <div>
-                <h3 class="font-headline-sm text-headline-sm text-on-surface">Business Identity</h3>
-                <p class="font-body-sm text-body-sm text-on-surface-variant">Company details used across receipts, reports, and the sidebar.</p>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Company Name</label>
-                <input
-                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                    type="text"
-                    value="{{ company.name }}"/>
-            </div>
-            <div class="space-y-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Contact Number</label>
-                <input
-                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                    type="tel"
-                    value="{{ company.contact_number }}"/>
-            </div>
-            <div class="md:col-span-2 space-y-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Corporate Email</label>
-                <input
-                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                    type="email"
-                    value="{{ company.email }}"/>
-            </div>
-            <div class="md:col-span-2 space-y-2">
-                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Business Address</label>
-                <input
-                    class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
-                    type="text"
-                    value="{{ company.address }}"/>
+                <h3 class="font-headline-sm text-headline-sm text-on-surface mb-1">No Company Selected</h3>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">
+                    Your account is not associated with a company. Platform superusers cannot edit company details here.
+                </p>
             </div>
         </div>
     </div>
+    {% else %}
+    <form id="company-form"
+          hx-post="{% url 'settings:save_company' %}"
+          hx-swap="none">
+        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-8 shadow-sm">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="w-10 h-10 bg-primary-container/20 rounded-lg flex items-center justify-center text-primary">
+                    <span class="material-symbols-outlined">business</span>
+                </div>
+                <div>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">Business Identity</h3>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant">Company details used across receipts, reports, and the sidebar.</p>
+                </div>
+            </div>
 
-    <div class="flex justify-end pt-6">
-        <button class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
-            Save Company Data
-        </button>
-    </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Company Name</label>
+                    <input
+                        name="name"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        type="text"
+                        value="{{ company.name }}"/>
+                </div>
+                <div class="space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Contact Number</label>
+                    <input
+                        name="contact_number"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        type="tel"
+                        value="{{ company.contact_number }}"/>
+                </div>
+                <div class="md:col-span-2 space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Corporate Email</label>
+                    <input
+                        name="email"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        type="email"
+                        value="{{ company.email }}"/>
+                </div>
+                <div class="md:col-span-2 space-y-2">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant uppercase">Business Address</label>
+                    <input
+                        name="address"
+                        class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 text-on-surface focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
+                        type="text"
+                        value="{{ company.address }}"/>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end pt-6">
+            <button type="submit"
+                    class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
+                Save Company Data
+            </button>
+        </div>
+    </form>
+    {% endif %}
 </div>

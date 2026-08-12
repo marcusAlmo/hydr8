@@ -1,0 +1,12 @@
+{% comment %}
+Error toast — returned by Settings HTMX POST endpoints on failure.
+
+Uses the shared toast component with an OOB swap into #toast-container.
+The error variant uses the error color strip and a longer duration so
+the user has time to read the validation message.
+
+Expects context:
+  - message: str — error message text
+{% endcomment %}
+{% now "U" as ts %}
+{% include "components/toasts/toast.html" with id=ts timestamp=ts message=message type="error" duration=6000 %}

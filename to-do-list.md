@@ -90,6 +90,84 @@
 
 ---
 
+## 4. Audit Log E2E Integration — Deferred Items & Concerns
+
+> Completed: mock data replaced with real `django-auditlog.LogEntry` records,
+> selectors + signals + pagination wired, 10/10 tests passing.
+> The following items were identified during the Change Impact Assessment
+> and are deferred or require follow-up review.
+
+### 4.1 Security & Privacy Reviews (required before production)
+
+- [ ] **4.1.1 Role-based access control (Admin/Owner only)**
+  - Audit log currently accessible to any authenticated user via `@login_required`
+  - Exposes PII: actor emails, IP addresses, customer names in `object_repr`
+  - Needs a role-check decorator pattern (not yet established in the codebase)
+  - Recommend restricting to Admin/Owner roles only
+  - Files: `apps/audit/views.py` (`audit_log_view`, `audit_log_detail_view`)
+
+- [ ] **4.1.2 Privacy review (RA 10173 compliance)**
+  - Audit log displays PII: actor emails, IP addresses, customer names, session keys
+  - Confirm whether all authenticated users should see this or only Admin/Owner
+  - Verify `additional_data` field doesn't leak sensitive data in the detail modal
+  - Review `logs_json` projection — only display fields are included, but confirm
+  - Files: `apps/audit/selectors.py` (`build_logs_json`), `apps/audit/templates/audit/`
+
+- [ ] **4.1.3 Cybersec review — `|safe` filter on `logs_json`**
+  - `{{ logs_json|safe }}` at line 12 of `audit_log.html` uses `|safe` on JSON output
+  - `json.dumps` escapes `<`, `>`, `&` by default — no known XSS vector
+  - Needs formal Cybersec sign-off before production
+  - Files: `apps/audit/templates/audit/audit_log.html` (line 12)
+
+### 4.2 Deferred Enhancements
+
+- [ ] **4.2.1 System scheduler / retention shred events**
+  - Requires pg_cron job to auto-delete `LogEntry` records older than retention period
+  - Mock entry #16 in the old mock data demonstrated the pattern (retention_shred event)
+  - Should log a `LogEntry(action=DELETE, actor=None, additional_data={"event": "retention_shred"})` 
+  - Depends on: pg_cron_jobs skill, retention policy decision (e.g., 3 months)
+
+- [ ] **4.2.2 Server-side HTMX filtering**
+  - Current: Alpine.js client-side filtering (action, date range, search) within current page
+  - Defer to when audit log volume exceeds ~1000 entries/page
+  - Would move filters to server-side HTMX partials with `hx-get` + query params
+  - Files: `apps/audit/views.py`, `apps/audit/templates/audit/audit_log.html`
+
+- [ ] **4.2.3 Audit log CSV/PDF export**
+  - Not requested; future enhancement for compliance reporting
+  - Would add an export endpoint returning CSV/PDF of filtered log entries
+
+- [ ] **4.2.4 Caching stats counts**
+  - Cache total/mutation/access/active-actor counts with 60s TTL
+  - Defer until `COUNT(*)` queries on `LogEntry` become slow at scale
+  - Would use Django cache framework with `default` backend (Redis in prod)
+
+- [ ] **4.2.5 Custom LogEntry model with company FK**
+  - Only if RLS on audit logs becomes a hard requirement
+  - Current `actor__company` filter is sufficient for tenant scoping
+  - Would use `AUDITLOG_LOGENTRY_MODEL` swappable model setting
+
+- [ ] **4.2.6 Real-time audit log streaming**
+  - Not needed; audit log is historical, not real-time
+  - Would use HTMX SSE extension or polling if ever required
+
+### 4.3 Pre-Existing Bugs (not caused by audit log integration)
+
+- [ ] **4.3.1 Stale test: `test_login_view_get`**
+  - File: `apps/users/tests/test_views.py` (line 37)
+  - Expects GET `/login/` to return 200, but the view redirects to `/` on GET
+    (documented behavior at `apps/users/views.py` lines 140-145)
+  - Fix: update test to expect 302 redirect, or test the landing page instead
+
+- [ ] **4.3.2 Stale tests: `User.status` references (3 errors)**
+  - File: `apps/users/tests/test_models.py`
+  - Affected tests: `test_user_initial_state`, `test_set_pin_none_clears_pin`,
+    `test_check_pin_handles_exception`
+  - `User.status` field was removed in migration `users.0004_remove_user_status_user_deactivated_at_and_more`
+  - Fix: update tests to use `is_active` / `deactivated_at` instead of `status`
+
+---
+
 ## Notes
 
 - Order is intentional: skeletons + theme first (foundation), then caching
@@ -98,3 +176,5 @@
 - Each top-level item should get its own branch: `feat/skeletons-theme`,
   `feat/frontend-cache`, `feat/payload-hash-middleware`.
 - Update this file in the same commit as the work it tracks.
+- Section 4 items are from the Audit Log E2E integration Change Impact Assessment.
+  Security/privacy reviews (4.1) should be addressed before production deployment.
