@@ -539,7 +539,7 @@ def get_employee_directory_context(
     When ``query`` is non-empty, filters by first_name, last_name, or username
     using ``__icontains``. Uses real pagination (PER_PAGE=25).
     """
-    users_qs = _user_qs(request_user)
+    users_qs = _user_qs(request_user).select_related('role')
 
     # Apply search filter
     query = (query or "").strip()
@@ -575,7 +575,7 @@ def get_roles_permissions_context(request_user: "UserType") -> dict:
     """Returns the roles & permissions tab context."""
     roles = [
         _role_card(request_user, role)
-        for role in Role.objects.for_user(request_user).active()
+        for role in Role.objects.for_user(request_user).active().prefetch_related('permissions')
     ]
     _ROLE_ORDER = {"admin": 0, "staff": 1, "driver": 2}
     roles.sort(key=lambda r: _ROLE_ORDER.get(r["key"], 99))
@@ -587,7 +587,7 @@ def get_roles_permissions_context(request_user: "UserType") -> dict:
 
 def get_user_detail_context(request_user: "UserType", user_id: str) -> dict | None:
     """Returns the expanded report context for a single user, or ``None``."""
-    target = _user_qs(request_user).filter(id=user_id).first()
+    target = _user_qs(request_user).filter(id=user_id).select_related('role').first()
     if target is None:
         return None
 

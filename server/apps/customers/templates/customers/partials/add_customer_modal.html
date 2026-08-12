@@ -55,6 +55,7 @@ error banner is swapped into ``#form-error``.
               hx-post="{% url 'customers:add_submit' %}"
               hx-target="#form-error"
               hx-swap="innerHTML">
+            {% csrf_token %}
 
             <!-- Error placeholder (swapped on validation failure) -->
             <div id="form-error"></div>

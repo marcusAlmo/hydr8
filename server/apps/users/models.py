@@ -64,7 +64,12 @@ class Permission(models.Model):
 
     class Meta:
         db_table = 'users_permission'
-        unique_together = ('role', 'action')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['role', 'action'],
+                name='unique_permission_role_action',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.role.name} - {self.action}"

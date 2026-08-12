@@ -798,6 +798,7 @@ def get_customer_collect_context(customer: Customer) -> dict:
         if line.product.variation:
             product_name = f"{product_name} — {line.product.variation}"
 
+        remaining_balance = Decimal(line.qty_remaining) * line.unit_price_snapshot
         group["items"].append(
             {
                 "id": f"CL-{line.pk}",
@@ -805,7 +806,9 @@ def get_customer_collect_context(customer: Customer) -> dict:
                 "qty_credited": line.qty_credited,
                 "qty_remaining": line.qty_remaining,
                 "unit_price": _format_peso(line.unit_price_snapshot),
+                "unit_price_num": str(line.unit_price_snapshot),
                 "total_credit": _format_peso(line.total_credit_amount),
+                "remaining_balance": _format_peso(remaining_balance),
                 "rider": group["rider"],
                 "care_of": _care_of_summary(line.care_of),
             }

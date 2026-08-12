@@ -240,7 +240,7 @@ def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
             "amount": str(exp.amount),
             "confirmed": True,
         }
-        for exp in Expense.objects.filter(remittance=draft).order_by("id")
+        for exp in Expense.objects.filter(remittance=draft).select_related("recorded_by").order_by("id")
     ]
 
     return {

@@ -66,8 +66,10 @@ class Customer(models.Model):
             models.Index(fields=['company', 'status']),
         ]
 
-    def __str__(self):
-        return self.name
+    def __str__(self) -> str:
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        # __str__ appears in admin list views, logs, and repr() output.
+        return f"HY-{self.pk:04d}"
 
     @property
     def is_anomalous(self) -> bool:

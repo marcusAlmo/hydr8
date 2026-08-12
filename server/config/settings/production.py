@@ -24,3 +24,7 @@ CACHES = {
         },
     }
 }
+
+# Persistent database connections — let gunicorn keep connections open for
+# 10 minutes instead of creating a new one on every request.
+DATABASES['default']['CONN_MAX_AGE'] = 600

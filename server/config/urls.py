@@ -29,7 +29,7 @@ urlpatterns = [
     path('audit/', include('apps.audit.urls')),
 ]
 
-# Custom error handler — renders a friendly HTMX form fragment when a login
-# attempt is blocked by django-ratelimit (Ratelimited is a PermissionDenied
-# subclass, which Django routes to handler403).
+# Custom error handlers — render friendly fragments for common errors.
 handler403 = 'apps.users.views.ratelimited_view'
+handler404 = 'apps.core.views.handler404_view'
+handler500 = 'apps.core.views.handler500_view'

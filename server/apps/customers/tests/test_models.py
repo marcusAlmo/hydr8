@@ -7,9 +7,9 @@ from apps.tests.fakes import FakeCustomerRepository
 
 class CustomerModelTests(SimpleTestCase):
     def test_customer_str(self):
-        """Test Customer string representation."""
-        customer = Customer(name="John Doe Store")
-        self.assertEqual(str(customer), "John Doe Store")
+        """Test Customer string representation is a non-PII display ID."""
+        customer = Customer(name="John Doe Store", pk=1)
+        self.assertEqual(str(customer), "HY-0001")
 
     def test_customer_defaults(self):
         """Test Customer default balance and borrowed counts."""

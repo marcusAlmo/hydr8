@@ -13,6 +13,7 @@ from apps.audit.selectors import (
     get_log_entry,
     list_log_entries,
 )
+from apps.users.permissions import is_back_office
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,8 @@ def _build_list_context(*, user, page: int, query: str = "") -> dict:
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def audit_log_view(request):
+    if not is_back_office(request.user):
+        return HttpResponse("Forbidden", status=403)
     """Renders the Audit Log page from real django-auditlog LogEntry records.
 
     For HTMX requests (search/pagination), returns just the table partial.
@@ -125,6 +128,8 @@ def audit_log_view(request):
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='60/m', method='GET', block=True)
 def audit_log_detail_view(request, entry_id: int):
+    if not is_back_office(request.user):
+        return HttpResponse("Forbidden", status=403)
     """HTMX endpoint -- returns the detail modal partial for a single LogEntry."""
     entry = get_log_entry(entry_id=entry_id, user=request.user)
     if entry is None:

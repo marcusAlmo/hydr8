@@ -64,3 +64,17 @@ def toast_error(
 def toast_for_exception(request, exc: Exception, status: int = 400) -> HttpResponse:
     """Returns an error toast parsed from a backend exception."""
     return toast_error(request, error_message(exc), status=status)
+
+
+def handler404_view(request, exception=None):
+    """Renders a friendly 404 page for both HTMX and full-page requests."""
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "core/404_fragment.html", status=404)
+    return render(request, "core/404.html", status=404)
+
+
+def handler500_view(request):
+    """Renders a friendly 500 page for both HTMX and full-page requests."""
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "core/500_fragment.html", status=500)
+    return render(request, "core/500.html", status=500)

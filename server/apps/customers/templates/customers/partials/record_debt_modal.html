@@ -73,6 +73,7 @@ Expects context:
               hx-post="{% url 'customers:record_debt_submit' %}"
               hx-target="#form-error"
               hx-swap="innerHTML">
+            {% csrf_token %}
 
             <!-- Error placeholder -->
             <div id="form-error"></div>

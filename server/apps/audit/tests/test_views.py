@@ -9,6 +9,8 @@ class AuditLogViewTests(TestCase):
         self.user = User.objects.create_user(
             username="testuser", password="testpass123"
         )
+        self.user.is_superuser = True
+        self.user.save()
         self.client.login(username="testuser", password="testpass123")
 
     def test_audit_log_page_renders(self):

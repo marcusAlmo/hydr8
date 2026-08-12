@@ -139,7 +139,7 @@ def list_riders_with_rates(user: "UserType") -> list[dict]:
     )
     if not (user.is_superuser or user.company_id is None):
         riders_qs = riders_qs.filter(company_id=user.company_id)
-    riders_qs = riders_qs.order_by("first_name", "last_name", "username")
+    riders_qs = riders_qs.select_related('role').order_by("first_name", "last_name", "username")
 
     if not riders_qs or not product_ids:
         return []

@@ -137,13 +137,6 @@ def login_view(request):
             form = _form_with_non_field_error(form, str(exc))
             return render(request, 'users/partials/login_form.html', {'form': form, 'next': next_url})
 
-        # TEMP DEBUG: log submitted field shapes (never the raw password value).
-        submitted_pw = request.POST.get('password', '')
-        logger.warning(
-            "DEBUG login submit. username=%r pw_len=%r pw_first_char=%r",
-            username, len(submitted_pw), submitted_pw[:1],
-        )
-
         if form.is_valid():
             user = form.get_user()
             if not _is_back_office_user(user):

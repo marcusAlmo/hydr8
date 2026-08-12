@@ -22,4 +22,4 @@ def get_user_by_id(request_user: "UserType", user_id: str) -> User | None:
 
 def get_roles_for_user(request_user: "UserType"):
     """Returns active roles for the current tenant, ordered by name."""
-    return Role.objects.for_user(request_user).active().order_by("name")
+    return Role.objects.for_user(request_user).active().select_related('company').order_by("name")

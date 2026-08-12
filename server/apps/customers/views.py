@@ -118,9 +118,6 @@ def customer_detail_view(request, customer_id: str):
 @login_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
-@login_required
-@require_http_methods(["GET"])
-@ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_edit_view(request, customer_id: str):
     """HTMX endpoint — returns the edit-customer modal partial."""
     customer = get_customer_by_display_id(request.user, customer_id)

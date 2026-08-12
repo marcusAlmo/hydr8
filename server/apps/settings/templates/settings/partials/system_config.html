@@ -65,6 +65,7 @@
 
     {# Settings table — wrapped in a form so HTMX can collect all fields #}
     <form id="system-config-form" class="contents">
+        {% csrf_token %}
     <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse">
             <thead class="bg-surface-container-high">
