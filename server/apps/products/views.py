@@ -8,6 +8,8 @@ from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from apps.core.views import error_message
+
 from .selectors import get_products_pricing_context
 from .services import (
     activate_product,
@@ -113,7 +115,7 @@ def product_create_view(request):
         )
     except (ValidationError, ValueError, TypeError) as e:
         logger.info("[%s] product_create validation error: %s", request.user.id, e)
-        return render(request, "products/create_product.html", {"error": str(e)}, status=400)
+        return render(request, "products/create_product.html", {"error": error_message(e)}, status=400)
 
     return redirect("products:list")
 
@@ -252,7 +254,7 @@ def products_save_view(request):
             deactivated += 1
     except ValidationError as e:
         logger.info("[%s] products_save validation error: %s", request.user.id, e)
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+        return JsonResponse({"ok": False, "error": error_message(e)}, status=400)
     except (KeyError, ValueError, TypeError) as e:
         logger.info("[%s] products_save input error: %s", request.user.id, e)
         return JsonResponse({"ok": False, "error": f"Invalid input: {e}"}, status=400)
@@ -314,7 +316,7 @@ def commission_save_view(request):
         count = save_commission_matrix(changes=changes, performed_by=request.user)
     except ValidationError as e:
         logger.info("[%s] commission_save validation error: %s", request.user.id, e)
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+        return JsonResponse({"ok": False, "error": error_message(e)}, status=400)
 
     logger.info("[%s] commission_save ok cells=%s", request.user.id, count)
     return JsonResponse({"ok": True, "saved": count})
@@ -363,7 +365,7 @@ def commission_bulk_set_view(request):
         )
     except ValidationError as e:
         logger.info("[%s] commission_bulk_set validation error: %s", request.user.id, e)
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+        return JsonResponse({"ok": False, "error": error_message(e)}, status=400)
 
     logger.info("[%s] commission_bulk_set ok product_id=%s drivers=%s",
                 request.user.id, product_id, count)

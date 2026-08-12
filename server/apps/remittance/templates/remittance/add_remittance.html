@@ -72,14 +72,6 @@
                             <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalSales())"></h3>
                         </div>
                         <div class="flex flex-col">
-                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Remittance</p>
-                            <h3 class="font-data-mono text-[18px] text-tertiary" x-text="peso(netRemittance())"></h3>
-                        </div>
-                        <div class="flex flex-col">
-                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Tithes (10%)</p>
-                            <h3 class="font-data-mono text-[18px] text-secondary" x-text="peso(tithes())"></h3>
-                        </div>
-                        <div class="flex flex-col">
                             <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Expenses</p>
                             <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                         </div>
@@ -88,7 +80,15 @@
                             <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalCommission())"></h3>
                         </div>
                         <div class="flex flex-col">
-                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Manual Offering</p>
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Remittance</p>
+                            <h3 class="font-data-mono text-[18px] text-tertiary" x-text="peso(netRemittance())"></h3>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Tithes (10%)</p>
+                            <h3 class="font-data-mono text-[18px] text-secondary" x-text="peso(tithes())"></h3>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Offerings</p>
                             <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(manualOfferingNum())"></h3>
                         </div>
                     </div>
@@ -338,10 +338,25 @@
                                                class="w-full bg-transparent border-none font-body-md focus:ring-0 p-0 focus:outline-none">
                                     </td>
                                     <td class="py-3 px-6">
-                                        <div class="relative w-32">
-                                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant/50 font-data-mono text-data-mono">₱</span>
-                                            <input x-model="exp.amount" type="number" min="0" step="0.01"
-                                                   class="bg-surface-container-low border border-outline-variant/20 rounded pl-6 pr-2 py-1 font-data-mono text-data-mono focus:ring-2 focus:ring-primary w-full">
+                                        <div class="flex items-center gap-2">
+                                            <div class="relative w-32">
+                                                <span class="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant/50 font-data-mono text-data-mono">₱</span>
+                                                <input x-model="exp.amount" type="number" min="0" step="0.01"
+                                                       @input="onExpenseAmountInput(idx)"
+                                                       class="bg-surface-container-low border border-outline-variant/20 rounded pl-6 pr-2 py-1 font-data-mono text-data-mono focus:ring-2 focus:ring-primary w-full">
+                                            </div>
+                                            <button type="button" @click="confirmExpense(idx)"
+                                                    x-show="!exp.confirmed && exp.amount !== '' && exp.amount != null"
+                                                    x-transition:enter="transition ease-out duration-150"
+                                                    x-transition:enter-start="opacity-0 scale-75"
+                                                    x-transition:enter-end="opacity-100 scale-100"
+                                                    x-transition:leave="transition ease-in duration-100"
+                                                    x-transition:leave-start="opacity-100 scale-100"
+                                                    x-transition:leave-end="opacity-0 scale-75"
+                                                    title="Register expense"
+                                                    class="flex items-center justify-center w-7 h-7 rounded-md text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 transition-colors">
+                                                <span class="material-symbols-outlined text-[20px]">check</span>
+                                            </button>
                                         </div>
                                     </td>
                                     <td class="py-3 px-6 text-right">
@@ -832,10 +847,21 @@
 
                 // ---- expense management ----
                 addExpense() {
-                    this.expenses.push({description: '', amount: ''});
+                    this.expenses.push({description: '', amount: '', confirmed: false});
                 },
                 removeExpense(idx) {
                     this.expenses.splice(idx, 1);
+                },
+                confirmExpense(idx) {
+                    const exp = this.expenses[idx];
+                    if (!exp) return;
+                    if (exp.amount === '' || exp.amount === null || isNaN(Number(exp.amount))) return;
+                    exp.confirmed = true;
+                },
+                onExpenseAmountInput(idx) {
+                    // Editing the amount invalidates any prior confirmation.
+                    const exp = this.expenses[idx];
+                    if (exp) exp.confirmed = false;
                 },
 
                 // ---- KPI computations (live) ----
@@ -933,11 +959,42 @@
                     return this.totalSales() - this.totalExpenses() - this.totalCommission();
                 },
 
+                // ---- toast helper ----
+                showToast(message, type = 'success') {
+                    const container = document.getElementById('toast-container');
+                    if (!container) return;
+                    const id = 'toast-' + Date.now();
+                    const el = document.createElement('div');
+                    el.id = id;
+                    el.className = `toast toast-${type}`;
+                    el.setAttribute('role', 'alert');
+                    el.setAttribute('x-data', '{ show: true }');
+                    el.setAttribute('x-show', 'show');
+                    el.setAttribute('x-init', 'setTimeout(() => show = false, 4000)');
+                    el.setAttribute('x-transition:enter', 'transition ease-out duration-300 transform');
+                    el.setAttribute('x-transition:enter-start', 'opacity-0 -translate-y-4 translate-x-8');
+                    el.setAttribute('x-transition:enter-end', 'opacity-100 translate-y-0 translate-x-0');
+                    el.setAttribute('x-transition:leave', 'transition ease-in duration-200 transform');
+                    el.setAttribute('x-transition:leave-start', 'opacity-100 translate-y-0 translate-x-0');
+                    el.setAttribute('x-transition:leave-end', 'opacity-0 -translate-y-4 translate-x-8');
+                    el.innerHTML = `
+                        <div class="toast-indicator-strip"></div>
+                        <div class="toast-body">
+                            <span class="toast-message"></span>
+                        </div>
+                        <button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>
+                    `;
+                    el.querySelector('.toast-message').textContent = message;
+                    container.appendChild(el);
+                    if (window.Alpine) window.Alpine.initTree(el);
+                    setTimeout(() => { el.remove(); }, 4200);
+                },
+
                 // ---- finalize review ----
                 openReview() { if (this.dateExists) return; this.reviewOpen = true; },
                 async confirmFinalize() {
                     if (this.dateExists) {
-                        alert(this.dateError || 'This date is not available for a new remittance.');
+                        this.showToast(this.dateError || 'This date is not available for a new remittance.', 'error');
                         return;
                     }
                     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
@@ -964,10 +1021,10 @@
                         if (response.ok && data.ok) {
                             window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
                         } else {
-                            alert(data.error || 'Failed to finalize remittance.');
+                            this.showToast(data.error || 'Failed to finalize remittance.', 'error');
                         }
                     } catch (err) {
-                        alert('Network error: ' + err);
+                        this.showToast('Network error: ' + err, 'error');
                     } finally {
                         this.reviewOpen = false;
                     }

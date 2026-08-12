@@ -9,7 +9,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps header + content so the date range filter
      in the header drives the action chips, search, and records table. -->
-<div x-data='auditLogPage({{ logs_json|safe }}, {{ action_counts_json|safe }}, {{ total }})'
+<div x-data='auditLogPage({{ logs_json }}, {{ action_counts_json }}, {{ total }})'
      class="flex-1 flex flex-col overflow-hidden">
 
     <!-- TopNavBar -->
@@ -177,131 +177,23 @@
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
                 <input
                     type="text"
-                    x-model="searchQuery"
+                    name="q"
+                    value="{{ search_query|default:'' }}"
                     placeholder="Search object, IP, correlation ID, or username..."
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                    hx-get="{% url 'audit:list' %}"
+                    hx-trigger="keyup changed delay:300ms, search"
+                    hx-target="#audit-log-table"
+                    hx-swap="outerHTML"
+                    hx-include="this"
+                    hx-preserve="true"
                 >
             </div>
         </div>
 
         <!-- Audit Log Table -->
-        <div x-show="total > 0" x-cloak class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-surface-container-low border-b border-outline-variant/20">
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Timestamp</th>
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Actor</th>
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Action</th>
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Object</th>
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Changes</th>
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">IP</th>
-                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Correlation ID</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
-                        {% for entry in logs %}
-                        <tr
-                            x-show="matchesAction('{{ entry.action }}') && matchesDate('{{ entry.timestamp|escapejs }}') && matchesSearch('{{ entry.object_repr|escapejs }}', '{{ entry.remote_addr|default:''|escapejs }}', '{{ entry.cid|default:''|escapejs }}', '{{ entry.actor_display|escapejs }}')"
-                            x-cloak
-                            class="hover:bg-surface-container-low transition-colors group cursor-pointer"
-                            hx-get="{% url 'audit:detail' entry.id %}"
-                            hx-target="#modal-root"
-                            hx-swap="innerHTML">
-                            <!-- Timestamp -->
-                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
-                                {{ entry.timestamp|date:"Y-m-d H:i:s" }}
-                            </td>
-                            <!-- Actor -->
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">
-                                        {% if entry.actor_display == "System" or entry.actor_display == "system-scheduler" %}
-                                        <span class="material-symbols-outlined text-[14px]">memory</span>
-                                        {% else %}
-                                        {{ entry.actor_display|slice:":2"|upper }}
-                                        {% endif %}
-                                    </div>
-                                    <div class="flex flex-col gap-0.5 min-w-0">
-                                        <span class="font-sans text-on-surface text-xs font-medium truncate">{{ entry.actor_display }}</span>
-                                        {% if entry.actor_email %}
-                                        <span class="text-[10px] text-on-surface-variant/70 truncate">{{ entry.actor_email }}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </td>
-                            <!-- Action badge -->
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border {{ entry.badge_class }}">
-                                    {{ entry.action_label }}
-                                </span>
-                            </td>
-                            <!-- Object -->
-                            <td class="px-4 py-3 max-w-[220px]">
-                                <div class="flex flex-col gap-0.5">
-                                    <span class="font-sans text-on-surface text-xs font-medium truncate" title="{{ entry.object_repr }}">{{ entry.object_repr }}</span>
-                                    <span class="text-[10px] text-on-surface-variant/70 font-data-mono">{{ entry.content_type_str }}</span>
-                                </div>
-                            </td>
-                            <!-- Changes summary -->
-                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
-                                {{ entry.changes_summary }}
-                            </td>
-                            <!-- IP -->
-                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono">
-                                {{ entry.remote_addr|default:"—" }}
-                            </td>
-                            <!-- Correlation ID -->
-                            <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono max-w-[140px]">
-                                <span class="truncate inline-block max-w-[120px] align-bottom" title="{{ entry.cid|default:'' }}">
-                                    {{ entry.cid|default:"—" }}
-                                </span>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        <!-- Empty state when no rows match filters -->
-                        <tr x-show="filteredCount() === 0" x-cloak>
-                            <td colspan="7" class="px-4 py-12 text-center">
-                                <div class="flex flex-col items-center gap-3">
-                                    <span class="material-symbols-outlined text-outline-variant text-[40px]">search_off</span>
-                                    <p class="font-body-md text-body-md text-on-surface-variant">No entries match the current filters.</p>
-                                    <button @click="clearFilters()" class="text-primary font-body-sm text-body-sm hover:underline">Clear all filters</button>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Pagination -->
-            <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
-                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
-                    Showing <span class="text-primary font-data-mono font-bold" x-text="filteredCount()"></span>
-                    of <span class="font-data-mono">{{ pagination.total_display }}</span> entries
-                    <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered on page</span>
-                </span>
-                <div class="flex items-center gap-1">
-                    {% if pagination.has_previous %}
-                    <a href="?page={{ pagination.previous_page_number }}" class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Previous page">
-                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-                    </a>
-                    {% else %}
-                    <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
-                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-                    </button>
-                    {% endif %}
-                    <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
-                    {% if pagination.has_next %}
-                    <a href="?page={{ pagination.next_page_number }}" class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Next page">
-                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-                    </a>
-                    {% else %}
-                    <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
-                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
+        <div x-show="total > 0" x-cloak>
+            {% include "audit/partials/audit_log_table.html" %}
         </div>
 
         <!-- Info Note -->
@@ -323,7 +215,6 @@
             return {
                 logs: logsData,
                 total: total,
-                searchQuery: '',
                 actionFilter: '',
                 dateRange: 'all',
                 customRangeOpen: false,
@@ -372,28 +263,12 @@
                     }
                     return true;
                 },
-                matchesSearch(objRepr, remoteAddr, cid, actorDisplay) {
-                    if (!this.searchQuery) return true;
-                    const q = this.searchQuery.toLowerCase();
-                    return (
-                        objRepr.toLowerCase().includes(q) ||
-                        remoteAddr.toLowerCase().includes(q) ||
-                        cid.toLowerCase().includes(q) ||
-                        actorDisplay.toLowerCase().includes(q)
-                    );
-                },
 
                 // --- Computed counts (mirrors row x-show logic) ----------------
                 filteredCount() {
                     return this.logs.filter(e =>
                         this.matchesAction(String(e.action)) &&
-                        this.matchesDate(e.timestamp) &&
-                        this.matchesSearch(
-                            e.object_repr,
-                            e.remote_addr || '',
-                            e.cid || '',
-                            e.actor_display
-                        )
+                        this.matchesDate(e.timestamp)
                     ).length;
                 },
                 actionCount(value) {
@@ -414,7 +289,6 @@
                     }
                 },
                 clearFilters() {
-                    this.searchQuery = '';
                     this.actionFilter = '';
                     this.dateRange = 'all';
                     this.customFrom = '';
@@ -426,7 +300,7 @@
 
                 // --- Derived state ---------------------------------------------
                 get hasFilters() {
-                    return !!(this.searchQuery || this.actionFilter || this.dateRange !== 'all');
+                    return !!(this.actionFilter || this.dateRange !== 'all');
                 },
             };
         }

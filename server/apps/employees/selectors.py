@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.timezone import localtime
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MODULES = ["Remittance", "Customers", "Products", "Users", "Reports"]
+PER_PAGE = 25
 
 _ROLE_STYLE = {
     "Admin": {
@@ -210,7 +212,38 @@ def _directory_filters(users_qs):
     ]
 
 
+def _pagination_from_page(page_obj) -> dict:
+    """Builds the pagination context dict from a Django Page object."""
+    total = page_obj.paginator.count
+    if total == 0:
+        return {
+            "showing_from": 0,
+            "showing_to": 0,
+            "total": 0,
+            "total_display": "0",
+            "current_page": page_obj.number,
+            "total_pages": page_obj.paginator.num_pages,
+            "has_previous": False,
+            "has_next": False,
+            "previous_page_number": None,
+            "next_page_number": None,
+        }
+    return {
+        "showing_from": page_obj.start_index(),
+        "showing_to": page_obj.end_index(),
+        "total": total,
+        "total_display": f"{total:,}",
+        "current_page": page_obj.number,
+        "total_pages": page_obj.paginator.num_pages,
+        "has_previous": page_obj.has_previous(),
+        "has_next": page_obj.has_next(),
+        "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+        "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+    }
+
+
 def _pagination(total: int) -> dict:
+    """Legacy fake pagination — used only by the full page render (small datasets)."""
     return {
         "showing_from": 1 if total else 0,
         "showing_to": total,
@@ -446,16 +479,42 @@ def _user_profile(user: User) -> dict:
     return row
 
 
-def get_employee_directory_context(request_user: "UserType") -> dict:
-    """Returns the full context for the Employees & Users directory page."""
+def get_employee_directory_context(
+    request_user: "UserType",
+    query: str = "",
+    page: int = 1,
+) -> dict:
+    """Returns the full context for the Employees & Users directory page.
+
+    When ``query`` is non-empty, filters by first_name, last_name, or username
+    using ``__icontains``. Uses real pagination (PER_PAGE=25).
+    """
     users_qs = _user_qs(request_user)
-    users = [_user_row(u) for u in users_qs.order_by("first_name", "last_name")]
+
+    # Apply search filter
+    query = (query or "").strip()
+    if query:
+        users_qs = users_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(username__icontains=query)
+        )
+
+    users_qs = users_qs.order_by("first_name", "last_name")
+
+    # Real pagination
+    paginator = Paginator(users_qs, PER_PAGE)
+    page_obj = paginator.get_page(page)
+
+    users = [_user_row(u) for u in page_obj.object_list]
+
     return {
         "today_date": timezone.now().strftime("%A, %b %d, %Y"),
-        "stats": _directory_stats(users_qs),
-        "filters": _directory_filters(users_qs),
+        "stats": _directory_stats(_user_qs(request_user)),
+        "filters": _directory_filters(_user_qs(request_user)),
         "users": users,
-        "pagination": _pagination(len(users)),
+        "pagination": _pagination_from_page(page_obj),
+        "search_query": query,
     }
 
 

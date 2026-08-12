@@ -5,9 +5,15 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import render
-from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
+
+from apps.core.views import (
+    error_message,
+    toast_error,
+    toast_for_exception,
+    toast_success,
+)
 
 from .forms import (
     CompanyForm,
@@ -75,22 +81,12 @@ def settings_view(request):
 
 def _success_response(request, message: str) -> HttpResponse:
     """Returns the shared success toast component for OOB swap into #toast-container."""
-    return render(request, "components/toasts/toast.html", {
-        "id": int(timezone.now().timestamp() * 1000),
-        "message": message,
-        "type": "success",
-        "duration": 4000,
-    })
+    return toast_success(request, message)
 
 
 def _error_response(request, message: str, status: int = 400) -> HttpResponse:
     """Returns the shared error toast component for OOB swap into #toast-container."""
-    return render(request, "components/toasts/toast.html", {
-        "id": int(timezone.now().timestamp() * 1000),
-        "message": message,
-        "type": "error",
-        "duration": 6000,
-    }, status=status)
+    return toast_error(request, message, status=status)
 
 
 def _is_admin(user) -> bool:
@@ -125,7 +121,7 @@ def save_system_config_view(request):
             )
             saved_keys.append(key)
         except ValidationError as exc:
-            errors.append(f"{key}: {exc.message if hasattr(exc, 'message') else str(exc)}")
+            errors.append(f"{key}: {error_message(exc)}")
 
     if errors:
         return _error_response(request, " | ".join(errors))
@@ -160,7 +156,7 @@ def save_company_view(request):
             address=form.cleaned_data['address'],
         )
     except ValidationError as exc:
-        return _error_response(request, exc.message if hasattr(exc, 'message') else str(exc))
+        return toast_for_exception(request, exc)
 
     return _success_response(request, "Company details saved successfully.")
 
@@ -200,7 +196,7 @@ def change_username_view(request):
             new_username=form.cleaned_data['new_username'],
         )
     except ValidationError as exc:
-        return _error_response(request, exc.message if hasattr(exc, 'message') else str(exc))
+        return toast_for_exception(request, exc)
 
     return _success_response(request, "Username changed successfully.")
 
@@ -226,7 +222,7 @@ def change_password_view(request):
             new_password=form.cleaned_data['new_password'],
         )
     except ValidationError as exc:
-        return _error_response(request, exc.message if hasattr(exc, 'message') else str(exc))
+        return toast_for_exception(request, exc)
 
     # Keep the session alive — otherwise the password change logs the
     # user out and the HTMX response triggers a redirect to login.

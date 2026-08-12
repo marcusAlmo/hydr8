@@ -59,6 +59,13 @@ MIDDLEWARE = [
     'django_htmx.middleware.HtmxMiddleware',
 ]
 
+# django-auditlog — use the project's correlation id contextvar (set by
+# CorrelationIdMiddleware) to populate LogEntry.cid. Without this, auditlog
+# reads the X-Correlation-ID header independently and saves None for normal
+# browser requests (which don't send the header). CorrelationIdMiddleware
+# runs before AuditlogMiddleware, so the contextvar is always set first.
+AUDITLOG_CID_GETTER = 'apps.core.middleware.get_correlation_id'
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

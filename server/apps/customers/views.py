@@ -5,6 +5,8 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from apps.core.views import error_message
+
 from .selectors import (
     DEFAULT_DIR,
     DEFAULT_SORT,
@@ -64,12 +66,17 @@ def customer_list_view(request):
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def customer_table_view(request):
-    """HTMX endpoint — returns the sorted customer table partial."""
+    """HTMX endpoint — returns the sorted/filtered customer table partial."""
     sort_field = request.GET.get("sort", DEFAULT_SORT)
     sort_field = sort_field if sort_field in SORT_FIELD_MAP else DEFAULT_SORT
     direction = request.GET.get("dir", DEFAULT_DIR)
     direction = direction if direction in ("asc", "desc") else DEFAULT_DIR
-    context = get_customer_table_context(request.user, sort_field, direction)
+    query = request.GET.get("q", "")
+    try:
+        page = int(request.GET.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    context = get_customer_table_context(request.user, sort_field, direction, query, page)
     return render(request, "customers/partials/customer_table.html", context)
 
 
@@ -122,7 +129,7 @@ def customer_edit_submit_view(request, customer_id: str):
         return render(
             request,
             "customers/partials/form_error.html",
-            {"message": " ".join(e.messages)},
+            {"message": error_message(e)},
             status=400,
         )
 
@@ -167,7 +174,7 @@ def customer_add_submit_view(request):
         return render(
             request,
             "customers/partials/form_error.html",
-            {"message": " ".join(e.messages)},
+            {"message": error_message(e)},
             status=400,
         )
 
@@ -205,7 +212,7 @@ def record_debt_submit_view(request):
         return render(
             request,
             "customers/partials/form_error.html",
-            {"message": " ".join(e.messages)},
+            {"message": error_message(e)},
             status=400,
         )
 
@@ -251,7 +258,7 @@ def record_borrowed_submit_view(request):
         return render(
             request,
             "customers/partials/form_error.html",
-            {"message": " ".join(e.messages)},
+            {"message": error_message(e)},
             status=400,
         )
 
@@ -281,7 +288,7 @@ def customer_delete_view(request, customer_id: str):
         return render(
             request,
             "customers/partials/form_error.html",
-            {"message": " ".join(e.messages)},
+            {"message": error_message(e)},
             status=400,
         )
 

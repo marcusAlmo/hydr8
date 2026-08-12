@@ -9,16 +9,20 @@ from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpResponse
-from django.template.response import TemplateResponse
+
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from django.db import transaction
-
+from apps.core.views import (
+    error_message,
+    toast_for_exception,
+    toast_success,
+)
 from apps.users.models import Role, User
 from apps.users.signals import login_failed
 from .selectors import get_roles_for_user, get_user_by_id
@@ -45,6 +49,13 @@ def _can_change_user(user) -> bool:
     """Django built-in RBAC check for user-management mutations."""
     return user.is_authenticated and (
         user.is_staff or user.is_superuser or user.has_perm("users.change_user")
+    )
+
+
+def _can_add_user(user) -> bool:
+    """Django built-in RBAC check for creating new users."""
+    return user.is_authenticated and (
+        user.is_staff or user.is_superuser or user.has_perm("users.add_user")
     )
 
 
@@ -82,11 +93,14 @@ def index(request):
     """
     Renders the full login landing page (users/index.html).
     Reads the optional `next` query param (set by @login_required redirects)
-    and passes it to the template so the embedded login form can carry it
-    through the HTMX POST and redirect to the originally requested page.
+    and the optional `error` query param (set by the rate-limited handler)
+    and passes them to the template so the embedded login form can carry
+    them through the HTMX POST and redirect to the originally requested page.
     """
     form = AuthenticationForm()
     next_url = request.GET.get('next', '')
+    if request.GET.get('error') == 'rate_limited':
+        form = _form_with_non_field_error(form, "Too many requests. Please try again later.")
     return render(request, 'users/index.html', {'form': form, 'next': next_url})
 
 
@@ -169,23 +183,26 @@ def login_view(request):
 
 def ratelimited_view(request, exception=None):
     """
-    Custom handler for Ratelimited (HTTP 403) — renders a friendly message
-    inside the HTMX login form so the user sees feedback instead of a blank 403.
-    Preserves the `next` parameter so it survives the retry.
+    Custom handler for Ratelimited (HTTP 403) — logs the user out and
+    redirects them to the login landing page with a rate-limit error
+    shown on the login form.
     """
-    form = AuthenticationForm()
-    form = _form_with_non_field_error(form, "Too many requests. Please try again in 1 minute.")
+    auth_logout(request)
     next_url = (
         request.POST.get('next', '')
         if request.method == 'POST'
         else request.GET.get('next', '')
     )
-    return TemplateResponse(
-        request,
-        'users/partials/login_form.html',
-        {'form': form, 'next': next_url},
-        status=429,
-    )
+    safe_next = _safe_next_url(next_url, request)
+    if safe_next:
+        target = f"{reverse('users:index')}?error=rate_limited&next={quote(safe_next)}"
+    else:
+        target = f"{reverse('users:index')}?error=rate_limited"
+    if request.headers.get('HX-Request') == 'true':
+        response = HttpResponse()
+        response['HX-Redirect'] = target
+        return response
+    return redirect(target)
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +298,8 @@ def generate_temp_password_view(request, user_id):
     return render(request, 'users/partials/temp_password_result.html', {
         'target_user': target_user,
         'temp_password': raw_password,
+        'toast_id': int(timezone.now().timestamp() * 1000),
+        'toast_message': f"Temporary password generated for {target_user.username}.",
     })
 
 
@@ -362,14 +381,127 @@ def edit_user_submit_view(request, user_id):
     form.fields['role'].queryset = get_roles_for_user(request.user)
 
     if form.is_valid():
-        form.save()
+        try:
+            form.save()
+        except ValidationError as exc:
+            logger.warning("[%s] Failed to update User id=%s: %s",
+                           request.user.id, target_user.id, error_message(exc))
+            return toast_for_exception(request, exc)
+
         logger.info("[%s] Updated User id=%s", request.user.id, target_user.id)
         return render(request, 'users/partials/edit_user_success.html', {
             'target_user': target_user,
+            'toast_id': int(timezone.now().timestamp() * 1000),
+            'toast_message': f"{target_user.username}'s profile has been saved.",
         })
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
+        'roles': get_roles_for_user(request.user),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Add user — admin action on the employee directory.
+# ---------------------------------------------------------------------------
+
+class AddUserForm(forms.Form):
+    """Form for adding a new user and sending them to onboarding."""
+
+    username = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+        }),
+        max_length=150,
+    )
+    first_name = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent',
+        }),
+        required=False,
+    )
+    last_name = forms.CharField(
+        widget=forms.TextInput(attrs={
+            'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent',
+        }),
+        required=False,
+    )
+    email = forms.EmailField(
+        widget=forms.EmailInput(attrs={
+            'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+        }),
+        required=False,
+    )
+    role = forms.ModelChoiceField(
+        queryset=Role.objects.none(),
+        widget=forms.Select(attrs={
+            'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent appearance-none',
+        }),
+        required=True,
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if User.objects.filter(username=username, deleted_at__isnull=True).exists():
+            raise ValidationError("A user with that username already exists.")
+        return username
+
+
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key='user', rate='60/m', method='GET', block=True)
+def add_user_view(request):
+    """HTMX endpoint — returns the add user form partial for the drawer."""
+    if not _can_add_user(request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    form = AddUserForm()
+    form.fields['role'].queryset = get_roles_for_user(request.user)
+    return render(request, 'users/partials/add_user_form.html', {
+        'form': form,
+        'roles': get_roles_for_user(request.user),
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def add_user_submit_view(request):
+    """HTMX endpoint — creates the user, sets a temporary password, and
+    returns a partial displaying the one-time temporary password.
+    """
+    if not _can_add_user(request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    form = AddUserForm(request.POST)
+    form.fields['role'].queryset = get_roles_for_user(request.user)
+
+    if form.is_valid():
+        try:
+            with transaction.atomic():
+                new_user = create_user_account(
+                    username=form.cleaned_data['username'].strip(),
+                    first_name=form.cleaned_data.get('first_name', ''),
+                    last_name=form.cleaned_data.get('last_name', ''),
+                    email=form.cleaned_data.get('email', ''),
+                    role=form.cleaned_data['role'],
+                    company_id=None if request.user.is_superuser else request.user.company_id,
+                    performed_by=request.user,
+                )
+                raw_password = set_temporary_password(new_user)
+        except ValidationError as exc:
+            return toast_for_exception(request, exc)
+
+        logger.info("[%s] Created and issued temporary password for User id=%s", request.user.id, new_user.id)
+        return render(request, 'users/partials/temp_password_result.html', {
+            'target_user': new_user,
+            'temp_password': raw_password,
+            'toast_id': int(timezone.now().timestamp() * 1000),
+            'toast_message': f"User {new_user.username} created and temporary password generated.",
+        })
+
+    return render(request, 'users/partials/add_user_form.html', {
+        'form': form,
         'roles': get_roles_for_user(request.user),
     })
 

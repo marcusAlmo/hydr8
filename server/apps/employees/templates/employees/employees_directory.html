@@ -14,7 +14,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps the page so the drawer state can be toggled
      from any child element via the `open-drawer` event. -->
-<div class="flex-1 flex flex-col overflow-hidden" x-data="{ activeTab: 'directory', drawerOpen: false }" @open-drawer.window="drawerOpen = true">
+<div class="flex-1 flex flex-col overflow-hidden" x-data="{ activeTab: 'directory', drawerOpen: false }" @open-drawer.window="drawerOpen = true" @close-drawer.window="drawerOpen = false">
     <!-- TopNavBar -->
     <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
         <div class="flex items-center gap-4">

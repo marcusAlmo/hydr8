@@ -15,4 +15,6 @@ urlpatterns = [
     path('user/<uuid:user_id>/temp-password/', views.generate_temp_password_view, name='generate_temp_password'),
     path('user/<uuid:user_id>/edit/', views.edit_user_view, name='edit_user'),
     path('user/<uuid:user_id>/edit/submit/', views.edit_user_submit_view, name='edit_user_submit'),
+    path('user/add/', views.add_user_view, name='add_user'),
+    path('user/add/submit/', views.add_user_submit_view, name='add_user_submit'),
 ]

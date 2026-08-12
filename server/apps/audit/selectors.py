@@ -7,7 +7,7 @@ import json
 import logging
 
 from django.core.paginator import Paginator
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from auditlog.models import LogEntry
 
@@ -53,8 +53,11 @@ def _enrich_entry(entry):
     entry.changes_summary = f"{len(changes)} field(s) changed" if changes else "—"
 
 
-def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE) -> dict:
+def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: str = "") -> dict:
     """Returns a paginated, enriched, tenant-scoped view of the audit log.
+
+    When ``query`` is non-empty, filters by object_repr, cid, remote_addr,
+    or actor name/username using ``__icontains``.
 
     Returns a dict with:
         page_obj:      Django Page object (object_list entries are enriched)
@@ -69,6 +72,18 @@ def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE) -> dict:
         .order_by("-timestamp")
     )
     qs = _tenant_filter(qs, user)
+
+    # Apply search filter
+    query = (query or "").strip()
+    if query:
+        qs = qs.filter(
+            Q(object_repr__icontains=query)
+            | Q(cid__icontains=query)
+            | Q(remote_addr__icontains=query)
+            | Q(actor__username__icontains=query)
+            | Q(actor__first_name__icontains=query)
+            | Q(actor__last_name__icontains=query)
+        )
 
     # Aggregate counts from the full queryset (single query via values+annotate)
     total = qs.count()

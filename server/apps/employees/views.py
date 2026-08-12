@@ -79,3 +79,21 @@ def user_detail_view(request, user_id: str):
         stat["icon_class"] = accent["icon"]
 
     return render(request, "employees/partials/user_detail.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def employees_search_view(request):
+    """HTMX endpoint — returns the filtered+paginated users table partial."""
+    if not _can_view_employees(request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    query = request.GET.get("q", "")
+    try:
+        page = int(request.GET.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+
+    context = get_employee_directory_context(request.user, query, page)
+    return render(request, "employees/partials/users_table.html", context)

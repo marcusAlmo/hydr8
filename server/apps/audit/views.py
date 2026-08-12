@@ -17,9 +17,9 @@ from apps.audit.selectors import (
 logger = logging.getLogger(__name__)
 
 
-def _build_list_context(*, user, page: int) -> dict:
+def _build_list_context(*, user, page: int, query: str = "") -> dict:
     """Builds the template context for the audit log list page from real data."""
-    data = list_log_entries(user=user, page=page)
+    data = list_log_entries(user=user, page=page, query=query)
     page_obj = data["page_obj"]
     action_counts = data["action_counts"]
 
@@ -95,6 +95,7 @@ def _build_list_context(*, user, page: int) -> dict:
         "logs_json": logs_json,
         "action_counts_json": action_counts_json,
         "page_obj": page_obj,
+        "search_query": query,
     }
 
 
@@ -102,12 +103,21 @@ def _build_list_context(*, user, page: int) -> dict:
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def audit_log_view(request):
-    """Renders the Audit Log page from real django-auditlog LogEntry records."""
+    """Renders the Audit Log page from real django-auditlog LogEntry records.
+
+    For HTMX requests (search/pagination), returns just the table partial.
+    For full page loads, renders the complete audit_log.html.
+    """
     try:
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
-    context = _build_list_context(user=request.user, page=page)
+    query = request.GET.get("q", "")
+    context = _build_list_context(user=request.user, page=page, query=query)
+
+    # HTMX requests get just the table partial; full loads get the page
+    if request.headers.get("HX-Request") == "true":
+        return render(request, "audit/partials/audit_log_table.html", context)
     return render(request, "audit/audit_log.html", context)
 
 

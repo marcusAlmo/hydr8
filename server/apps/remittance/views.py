@@ -10,6 +10,8 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from apps.core.views import error_message
+
 from .selectors import (
     get_add_remittance_context,
     get_recent_remittances,
@@ -87,7 +89,7 @@ def create_remittance_view(request):
         )
     except ValidationError as e:
         logger.info("[%s] create remittance validation error: %s", request.user.id, e)
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+        return JsonResponse({"ok": False, "error": error_message(e)}, status=400)
     except (KeyError, ValueError, TypeError) as e:
         logger.info("[%s] create remittance input error: %s", request.user.id, e)
         return JsonResponse({"ok": False, "error": f"Invalid input: {e}"}, status=400)

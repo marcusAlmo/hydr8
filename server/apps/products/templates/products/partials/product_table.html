@@ -563,7 +563,8 @@ function productInventory(cfg) {
                 });
                 const saveData = await saveResp.json();
                 if (!saveData.ok) {
-                    this.pinError = saveData.error || 'Save failed. Please try again.';
+                    this.closePinModal();
+                    this.showToast(saveData.error || 'Save failed. Please try again.', 'error');
                     return;
                 }
 
@@ -604,7 +605,8 @@ function productInventory(cfg) {
                 if (deactCount > 0) parts.push(`Deactivated ${deactCount}`);
                 this.showToast(parts.join(' · ') + '.');
             } catch (e) {
-                this.pinError = 'Save failed. Please try again.';
+                this.closePinModal();
+                this.showToast('Save failed. Please try again.', 'error');
             } finally {
                 this.pinVerifying = false;
             }

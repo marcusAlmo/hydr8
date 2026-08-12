@@ -2,6 +2,7 @@
 Edit user success — shown in the drawer after a successful user edit.
 Displays a success message and closes the drawer on button click.
 {% endcomment %}
+{% include "components/toasts/toast.html" with id=toast_id message=toast_message type="success" duration=4000 %}
 <div
     class="rounded-lg border border-tertiary/30 bg-tertiary/5 p-6 space-y-4"
     x-data="{ shown: true }"

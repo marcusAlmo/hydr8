@@ -10,7 +10,7 @@ Expects context:
   - pagination: { showing_from, showing_to, total, total_display,
                   current_page, total_pages }
 {% endcomment %}
-<div class="flex-1 flex flex-col gap-6">
+<div id="users-table" class="flex-1 flex flex-col gap-6">
 
     <!-- Filter Chips & Add CTA -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -27,11 +27,26 @@ Expects context:
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
                 <input
                     type="text"
+                    name="q"
+                    value="{{ search_query|default:'' }}"
                     placeholder="Search by name, username, or role..."
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                    hx-get="{% url 'employees:search' %}"
+                    hx-trigger="keyup changed delay:300ms, search"
+                    hx-target="#users-table"
+                    hx-swap="outerHTML"
+                    hx-include="this"
+                    hx-preserve="true"
                 >
             </div>
-            <button class="bg-primary text-on-primary px-4 py-2 rounded-lg font-body-md font-medium hover:bg-surface-tint transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap">
+            <button
+                type="button"
+                class="bg-primary text-on-primary px-4 py-2 rounded-lg font-body-md font-medium hover:bg-surface-tint transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+                hx-get="{% url 'users:add_user' %}"
+                hx-target="#user-detail-content"
+                hx-swap="innerHTML"
+                @click="$dispatch('open-drawer')"
+            >
                 <span class="material-symbols-outlined text-[18px]">person_add</span>
                 Add User
             </button>
@@ -95,28 +110,16 @@ Expects context:
                         </td>
                         <!-- Actions -->
                         <td class="px-6 py-4 whitespace-nowrap text-right" @click.stop>
-                            <div class="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <div class="flex justify-end opacity-60 group-hover:opacity-100 transition-opacity">
                                 <button
-                                    class="p-1.5 text-primary hover:bg-surface-container rounded-md transition-colors"
-                                    title="View Report"
+                                    class="p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-primary rounded-md transition-colors"
+                                    title="View Details"
                                     hx-get="{% url 'employees:detail' user.id %}"
                                     hx-target="#user-detail-content"
                                     hx-swap="innerHTML"
                                     @click="$dispatch('open-drawer')"
                                 >
-                                    <span class="material-symbols-outlined text-[18px]">insights</span>
-                                </button>
-                                {% if user.actions == 'resend' %}
-                                <button class="p-1.5 text-primary hover:bg-surface-container rounded-md transition-colors" title="Resend Invite">
-                                    <span class="material-symbols-outlined text-[18px]">send</span>
-                                </button>
-                                {% elif user.actions == 'edit' %}
-                                <button class="p-1.5 text-on-surface-variant hover:bg-surface-container rounded-md transition-colors" title="Edit User">
-                                    <span class="material-symbols-outlined text-[18px]">edit</span>
-                                </button>
-                                {% endif %}
-                                <button class="p-1.5 text-on-surface-variant hover:bg-surface-container rounded-md transition-colors" title="More Actions">
-                                    <span class="material-symbols-outlined text-[18px]">more_horiz</span>
+                                    <span class="material-symbols-outlined text-[18px]">visibility</span>
                                 </button>
                             </div>
                         </td>
@@ -139,17 +142,34 @@ Expects context:
                 Showing {{ pagination.showing_from }}–{{ pagination.showing_to }} of {{ pagination.total_display }} users
             </span>
             <div class="flex items-center gap-1">
-                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Previous page">
+                {% if pagination.has_previous %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Previous page"
+                        hx-get="{% url 'employees:search' %}?page={{ pagination.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#users-table"
+                        hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_left</span>
                 </button>
-                <button class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</button>
-                <button class="px-3 py-1 rounded hover:bg-surface-container text-on-surface-variant text-xs font-data-mono transition-colors">2</button>
-                <button class="px-3 py-1 rounded hover:bg-surface-container text-on-surface-variant text-xs font-data-mono transition-colors">3</button>
-                <span class="px-2 text-on-surface-variant text-xs font-data-mono">…</span>
-                <button class="px-3 py-1 rounded hover:bg-surface-container text-on-surface-variant text-xs font-data-mono transition-colors">{{ pagination.total_pages }}</button>
-                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant" title="Next page">
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {% endif %}
+                <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
+                <span class="px-2 text-on-surface-variant text-xs font-data-mono">/ {{ pagination.total_pages }}</span>
+                {% if pagination.has_next %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Next page"
+                        hx-get="{% url 'employees:search' %}?page={{ pagination.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#users-table"
+                        hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_right</span>
                 </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% endif %}
             </div>
         </div>
     </div>

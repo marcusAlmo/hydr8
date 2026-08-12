@@ -120,7 +120,8 @@ Expects context:
                                                 type="number" step="0.01" min="0"
                                                 :value="cell.rate"
                                                 @input="markDirty(rider.id, cell.product_id, $event.target.value)"
-                                                class="w-16 h-8 text-center font-data-mono text-data-mono border-transparent hover:border-outline-variant focus:border-primary focus:ring-0 rounded bg-transparent outline-none"
+                                                class="h-8 px-1 text-center font-data-mono text-data-mono border-transparent hover:border-outline-variant focus:border-primary focus:ring-0 rounded bg-transparent outline-none appearance-none"
+                                                :style="'width: ' + (cell.rate !== null && cell.rate !== '' && cell.rate !== undefined ? Math.max(8, String(cell.rate).length + 4) : 8) + 'ch'"
                                                 :aria-label="'Commission rate for ' + rider.name + ' — ' + cell.product_id">
                                         </div>
                                     </td>
@@ -454,6 +455,10 @@ function commissionMatrix(cfg) {
                     },
                     body: JSON.stringify({ pin: this.pinInput }),
                 });
+                if (verifyResp.redirected) {
+                    window.location.href = verifyResp.url;
+                    return;
+                }
                 const verifyData = await verifyResp.json();
                 if (!verifyData.verified) {
                     this.pinError = verifyData.error || 'Incorrect PIN.';
@@ -468,7 +473,8 @@ function commissionMatrix(cfg) {
                     await this._postBulkSet(action.bulk.productId, action.bulk.rate);
                 }
             } catch (e) {
-                this.pinError = 'Save failed. Please try again.';
+                this.closePinModal();
+                this.showToast('Save failed. Please try again.', 'error');
             } finally {
                 this.pinVerifying = false;
             }
@@ -488,7 +494,8 @@ function commissionMatrix(cfg) {
             });
             const data = await resp.json();
             if (!data.ok) {
-                this.pinError = data.error || 'Save failed.';
+                this.closePinModal();
+                this.showToast(data.error || 'Save failed.', 'error');
                 return;
             }
             // Commit: update the originalRates snapshot so a subsequent
@@ -518,7 +525,8 @@ function commissionMatrix(cfg) {
             });
             const data = await resp.json();
             if (!data.ok) {
-                this.pinError = data.error || 'Bulk set failed.';
+                this.closePinModal();
+                this.showToast(data.error || 'Bulk set failed.', 'error');
                 return;
             }
             // Update client-side state to match the server.

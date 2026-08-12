@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from django.core.paginator import Paginator
 from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
@@ -38,6 +39,17 @@ SORT_FIELD_MAP: dict[str, str] = {
 }
 DEFAULT_SORT = "name"
 DEFAULT_DIR = "asc"
+PER_PAGE = 25
+
+# Maps sort field names to actual DB column/annotation names for DB-side sorting.
+# "last_credit" maps to "last_credit_at" with inverted direction (more recent = fewer days).
+_DB_SORT_MAP: dict[str, str] = {
+    "name": "name",
+    "debt_balance": "debt_balance",
+    "borrowed_total": "borrowed_total",  # annotated
+    "payable_amount": "debt_balance",     # same value as debt_balance
+    "last_credit": "last_credit_at",      # direction inverted below
+}
 
 
 def _display_id(customer: Customer) -> str:
@@ -230,7 +242,38 @@ def _last_payment_dt(customer: Customer) -> datetime | None:
     return payment.created_at if payment else None
 
 
+def _pagination_from_page(page_obj) -> dict:
+    """Builds the pagination context dict from a Django Page object."""
+    total = page_obj.paginator.count
+    if total == 0:
+        return {
+            "showing_from": 0,
+            "showing_to": 0,
+            "total": 0,
+            "total_display": "0",
+            "current_page": page_obj.number,
+            "total_pages": page_obj.paginator.num_pages,
+            "has_previous": False,
+            "has_next": False,
+            "previous_page_number": None,
+            "next_page_number": None,
+        }
+    return {
+        "showing_from": page_obj.start_index(),
+        "showing_to": page_obj.end_index(),
+        "total": total,
+        "total_display": f"{total:,}",
+        "current_page": page_obj.number,
+        "total_pages": page_obj.paginator.num_pages,
+        "has_previous": page_obj.has_previous(),
+        "has_next": page_obj.has_next(),
+        "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+        "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+    }
+
+
 def _pagination(current_page: int, total: int) -> dict:
+    """Legacy fake pagination — used only by debt/ranking tabs (small datasets)."""
     return {
         "showing_from": 1 if total else 0,
         "showing_to": total,
@@ -483,30 +526,57 @@ def get_customer_table_context(
     user: "UserType",
     sort_field: str = DEFAULT_SORT,
     direction: str = DEFAULT_DIR,
+    query: str = "",
+    page: int = 1,
 ) -> dict:
-    """Returns the full customer table partial context."""
-    sort_key = SORT_FIELD_MAP.get(sort_field, SORT_FIELD_MAP[DEFAULT_SORT])
-    reverse = direction == "desc"
+    """Returns the full customer table partial context.
+
+    When ``query`` is non-empty, filters by ``name__icontains``.
+    Uses DB-side sorting and real pagination (PER_PAGE=25).
+    """
     next_dir = "desc" if direction == "asc" else "asc"
 
-    rows = [
-        _customer_row(c)
-        for c in Customer.objects.for_user(user)
-        .filter(deleted_at__isnull=True)
-        .order_by("name")
-    ]
-    rows.sort(key=lambda c: c.get(sort_key, 0), reverse=reverse)
+    qs = Customer.objects.for_user(user).filter(deleted_at__isnull=True)
 
-    total = len(rows)
+    # Apply search filter
+    query = (query or "").strip()
+    if query:
+        qs = qs.filter(name__icontains=query)
+
+    # Annotate borrowed_total for sorting
+    qs = qs.annotate(
+        borrowed_total=F("borrowed_round_8gal") + F("borrowed_slim_8gal") + F("borrowed_other")
+    )
+
+    # DB-side sorting
+    db_sort = _DB_SORT_MAP.get(sort_field, _DB_SORT_MAP[DEFAULT_SORT])
+    if sort_field == "last_credit":
+        # Invert direction: last_credit_days asc = last_credit_at desc
+        if direction == "asc":
+            qs = qs.order_by(F("last_credit_at").desc(nulls_last=True))
+        else:
+            qs = qs.order_by(F("last_credit_at").asc(nulls_last=True))
+    else:
+        if direction == "desc":
+            db_sort = f"-{db_sort}"
+        qs = qs.order_by(db_sort)
+
+    # Real pagination
+    paginator = Paginator(qs, PER_PAGE)
+    page_obj = paginator.get_page(page)
+
+    rows = [_customer_row(c) for c in page_obj.object_list]
+
     return {
         "filters": _customer_filters(user),
         "customers": rows,
-        "pagination": _pagination(1, total),
+        "pagination": _pagination_from_page(page_obj),
         "sort_state": {
             "field": sort_field,
             "direction": direction,
             "next_dir": next_dir,
         },
+        "search_query": query,
     }
 
 

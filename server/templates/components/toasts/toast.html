@@ -1,17 +1,19 @@
 <div id="toast-{{ id|default:1000 }}" 
      class="toast toast-{{ type|default:'success' }}" 
+     style="--toast-duration: {{ duration|default:4000 }}ms"
      hx-swap-oob="beforeend:#toast-container"
      x-data="{ show: true }"
      x-show="show"
+     x-cloak
      x-init="setTimeout(() => show = false, {{ duration|default:4000 }})"
      x-transition:enter="transition ease-out duration-300 transform"
-     x-transition:enter-start="opacity-0 -translate-y-4 translate-x-8"
-     x-transition:enter-end="opacity-100 translate-y-0 translate-x-0"
+     x-transition:enter-start="opacity-0 translate-y-4 translate-x-8 scale-95"
+     x-transition:enter-end="opacity-100 translate-y-0 translate-x-0 scale-100"
      x-transition:leave="transition ease-in duration-200 transform"
-     x-transition:leave-start="opacity-100 translate-y-0 translate-x-0"
-     x-transition:leave-end="opacity-0 -translate-y-4 translate-x-8"
+     x-transition:leave-start="opacity-100 translate-y-0 translate-x-0 scale-100"
+     x-transition:leave-end="opacity-0 -translate-y-4 translate-x-8 scale-95"
      role="alert">
-    <div class="toast-indicator-strip"></div>
+    <div class="toast-indicator-strip" aria-hidden="true"></div>
     <div class="toast-body">
         {% if title %}<strong class="toast-title">{{ title }}</strong>{% endif %}
         <span class="toast-message">{{ message }}</span>
@@ -20,53 +22,3 @@
         &times;
     </button>
 </div>
-
-<style>
-    .toast {
-        position: relative;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.875rem 1rem;
-        border-radius: 0.5rem;
-        background: var(--surface-container-highest, #1e293b);
-        color: var(--on-surface, #f8fafc);
-        border: 1px solid var(--outline-variant, rgba(226, 232, 240, 0.15));
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-        overflow: hidden;
-    }
-    .toast-indicator-strip {
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 4px;
-    }
-    .toast-success .toast-indicator-strip { background: var(--tertiary, #10b981); }
-    .toast-error .toast-indicator-strip { background: var(--error, #ef4444); }
-    .toast-warning .toast-indicator-strip { background: var(--secondary, #f59e0b); }
-    .toast-info .toast-indicator-strip { background: var(--primary, #0ea5e9); }
-    
-    .toast-body {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        font-size: 0.875rem;
-    }
-    .toast-title {
-        font-weight: 600;
-        margin-bottom: 0.125rem;
-    }
-    .toast-close {
-        background: transparent;
-        border: none;
-        color: var(--on-surface-variant, #94a3b8);
-        font-size: 1.25rem;
-        cursor: pointer;
-        line-height: 1;
-        padding: 0 0.25rem;
-    }
-    .toast-close:hover {
-        color: var(--on-surface, #ffffff);
-    }
-</style>
