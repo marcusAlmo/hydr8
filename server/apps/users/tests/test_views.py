@@ -16,7 +16,8 @@ class UserLandingAndLoginViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username="hydr8user",
-            password="securepassword123"
+            password="securepassword123",
+            is_staff=True,
         )
         cache.clear()
 
@@ -32,10 +33,9 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertContains(response, 'Sign In')
 
     def test_login_view_get(self):
-        """Test direct GET request to login view returns partial form."""
+        """Test direct GET request to login view redirects to the landing page."""
         response = self.client.get('/login/')
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'username')
+        self.assertEqual(response.status_code, 302)
 
     def test_login_htmx_failure_returns_partial(self):
         """Test HTMX login failure returns inline form errors."""
@@ -111,7 +111,11 @@ class UserLandingAndLoginViewTests(TestCase):
 
     def test_login_lockout_is_per_username(self):
         """Test that lockout on one username does not block a different username from the same IP."""
-        User.objects.create_user(username="otheruser", password="otherpass123")
+        User.objects.create_user(
+            username="otheruser",
+            password="otherpass123",
+            is_staff=True,
+        )
         for _ in range(LOGIN_MAX_ATTEMPTS):
             self.client.post('/login/', {
                 'username': 'hydr8user',

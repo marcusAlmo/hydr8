@@ -120,6 +120,13 @@ def login_view(request):
 
         if form.is_valid():
             user = form.get_user()
+            if not (user.is_staff or user.is_superuser):
+                form = _form_with_non_field_error(
+                    form,
+                    "Only staff and administrators are allowed to log in.",
+                )
+                logger.warning("[%s] Login denied for non-staff user. ip=%s", user.id, ip)
+                return render(request, 'users/partials/login_form.html', {'form': form, 'next': next_url})
             auth_login(request, user)
             reset_failed_login(ip=ip, username=username)
             logger.info("[%s] Login success. ip=%s", user.id, ip)
