@@ -1,13 +1,15 @@
 from django.db import models
 from django.conf import settings
 
+from apps.core.managers import TenantManager
+
 
 class Remittance(models.Model):
     class StatusChoices(models.TextChoices):
         DRAFT = 'DRAFT'
         FINALIZED = 'FINALIZED'
 
-    date = models.DateField(unique=True)
+    date = models.DateField()
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='created_remittances')
     finalized_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='finalized_remittances')
     status = models.CharField(max_length=20, choices=StatusChoices, default=StatusChoices.DRAFT)
@@ -25,15 +27,31 @@ class Remittance(models.Model):
     tithes_paid = models.BooleanField(default=False)
     offering_paid = models.BooleanField(default=False)
     notes = models.TextField(null=True, blank=True)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='remittances',
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     finalized_at = models.DateTimeField(null=True, blank=True)
 
+    objects = TenantManager()
+
     class Meta:
         db_table = 'remittance_remittance'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'date'],
+                name='unique_remittance_company_date',
+            ),
+        ]
         indexes = [
-            models.Index(fields=['status']),
-            models.Index(fields=['tithes_paid', 'offering_paid']),
+            models.Index(fields=['company', 'status']),
+            models.Index(fields=['company', 'tithes_paid', 'offering_paid']),
         ]
 
     def __str__(self):
@@ -45,15 +63,30 @@ class RemittanceRider(models.Model):
     rider = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='remittance_lines')
     subtotal_payable = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     subtotal_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='remittance_riders',
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = TenantManager()
+
     class Meta:
         db_table = 'remittance_remittance_rider'
-        unique_together = ('remittance', 'rider')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'remittance', 'rider'],
+                name='unique_rr_company_remittance_rider',
+            ),
+        ]
         indexes = [
-            models.Index(fields=['remittance']),
-            models.Index(fields=['rider']),
+            models.Index(fields=['company', 'remittance']),
+            models.Index(fields=['company', 'rider']),
         ]
 
     def __str__(self):
@@ -71,15 +104,30 @@ class RemittanceRiderProductLine(models.Model):
     subtotal_payable = models.DecimalField(max_digits=12, decimal_places=2)
     subtotal_credit = models.DecimalField(max_digits=12, decimal_places=2)
     subtotal_commission = models.DecimalField(max_digits=12, decimal_places=2)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='remittance_rider_product_lines',
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = TenantManager()
+
     class Meta:
         db_table = 'remittance_remittance_rider_productline'
-        unique_together = ('remittance_rider', 'product')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'remittance_rider', 'product'],
+                name='unique_rrpl_company_rr_product',
+            ),
+        ]
         indexes = [
-            models.Index(fields=['remittance_rider']),
-            models.Index(fields=['product']),
+            models.Index(fields=['company', 'remittance_rider']),
+            models.Index(fields=['company', 'product']),
         ]
 
     def __str__(self):
@@ -90,13 +138,23 @@ class Expense(models.Model):
     remittance = models.ForeignKey(Remittance, on_delete=models.CASCADE, related_name='expenses')
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='expenses',
+        db_index=True,
+    )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantManager()
 
     class Meta:
         db_table = 'remittance_expense'
         indexes = [
-            models.Index(fields=['remittance']),
+            models.Index(fields=['company', 'remittance']),
         ]
 
     def __str__(self):
@@ -112,16 +170,26 @@ class RiderCredit(models.Model):
     total_repaid = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     is_repaid = models.BooleanField(default=False)
     notes = models.TextField(null=True, blank=True)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='rider_credits',
+        db_index=True,
+    )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_rider_credits')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = TenantManager()
+
     class Meta:
         db_table = 'remittance_rider_credit'
         indexes = [
-            models.Index(fields=['rider']),
-            models.Index(fields=['is_repaid']),
-            models.Index(fields=['created_at']),
+            models.Index(fields=['company', 'rider']),
+            models.Index(fields=['company', 'is_repaid']),
+            models.Index(fields=['company', 'created_at']),
         ]
 
     def __str__(self):
@@ -133,14 +201,24 @@ class RiderCreditRepayment(models.Model):
     remittance = models.ForeignKey(Remittance, on_delete=models.CASCADE, related_name='credit_repayments')
     amount_repaid = models.DecimalField(max_digits=12, decimal_places=2)
     commission_applied = models.DecimalField(max_digits=12, decimal_places=2)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='rider_credit_repayments',
+        db_index=True,
+    )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_repayments')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantManager()
 
     class Meta:
         db_table = 'remittance_rider_credit_repayment'
         indexes = [
-            models.Index(fields=['rider_credit']),
-            models.Index(fields=['remittance']),
+            models.Index(fields=['company', 'rider_credit']),
+            models.Index(fields=['company', 'remittance']),
         ]
 
     def __str__(self):

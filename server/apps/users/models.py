@@ -9,8 +9,9 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.hashers import make_password, check_password
 
 from apps.core.models import Product
+from apps.core.managers import TenantQuerySet, TenantManager
 
-class RoleQuerySet(models.QuerySet):
+class RoleQuerySet(TenantQuerySet):
     def active(self):
         """Returns active roles ordered by their names in alphabetical order."""
         return self.filter(deleted_at__isnull=True).order_by('name')
@@ -23,9 +24,20 @@ class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.CharField(max_length=255, default='', blank=True)
     is_default = models.BooleanField(default=False)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='roles',
+        db_index=True,
+        help_text='NULL = platform-default role template shared across tenants.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = RoleQuerySet.as_manager()
 
     class Meta:
         db_table = 'users_role'
@@ -56,6 +68,15 @@ class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     pin = models.CharField(max_length=128, null=True, blank=True)
     role = models.ForeignKey(Role, on_delete=models.RESTRICT, null=True, blank=True)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='users',
+        db_index=True,
+        help_text='NULL = platform superuser (sees all tenants).',
+    )
     deactivated_at = models.DateTimeField(null=True, blank=True)
     force_password_change = models.BooleanField(
         default=False,
@@ -115,12 +136,27 @@ class DriverCommission(models.Model):
     driver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='commissions')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     rate_per_unit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='driver_commissions',
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = TenantManager()
+
     class Meta:
         db_table = 'users_driver_commission'
-        unique_together = ('driver', 'product')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'driver', 'product'],
+                name='unique_driver_commission_company_driver_product',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.driver.username} - {self.product.name}"

@@ -6,13 +6,15 @@ from .models import Role, Permission, User, DriverCommission
 
 @admin.register(Role)
 class RoleAdmin(ModelAdmin):
-    list_display = ('name', 'is_default', 'description', 'created_at', 'updated_at', 'deleted_at')
+    list_display = ('name', 'company', 'is_default', 'description', 'created_at', 'updated_at', 'deleted_at')
+    list_filter = ('company', 'is_default')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at', 'deleted_at')
     fieldsets = (
         ("Role Details", {
             "fields": (
                 ("name", "is_default"),
+                "company",
                 "description",
             ),
             "classes": ["tab"],
@@ -50,8 +52,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
 
-    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'is_active')
-    list_filter = ('role', 'is_active', 'is_superuser', 'is_staff')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'company', 'role', 'is_active')
+    list_filter = ('company', 'role', 'is_active', 'is_superuser', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name')
     readonly_fields = ('pin', 'last_login', 'date_joined', 'created_at', 'updated_at', 'deleted_at')
 
@@ -64,8 +66,8 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
             "fields": ("first_name", "last_name", "email"),
             "classes": ["tab"],
         }),
-        ("Role & Deactivation", {
-            "fields": ("role", "deactivated_at"),
+        ("Tenancy & Role", {
+            "fields": ("company", "role", "deactivated_at"),
             "classes": ["tab"],
         }),
         ("Django Permissions", {
@@ -89,14 +91,15 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
 
 @admin.register(DriverCommission)
 class DriverCommissionAdmin(ModelAdmin):
-    list_display = ('driver', 'product', 'rate_per_unit', 'created_at', 'updated_at')
-    list_filter = ('product',)
+    list_display = ('driver', 'product', 'company', 'rate_per_unit', 'created_at', 'updated_at')
+    list_filter = ('company', 'product')
     search_fields = ('driver__username', 'product__name')
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         ("Commission Details", {
             "fields": (
                 ("driver", "product"),
+                "company",
                 "rate_per_unit",
             ),
             "classes": ["tab"],

@@ -43,7 +43,7 @@ def _mock_dashboard_data() -> dict:
                 "label": "Outstanding Debt",
                 "value": "₱28,940.12",
                 "value_size": "2xl",
-                "subtitle": "45-day overdue average",
+                "subtitle": "Total Unpaid Credits",
                 "icon": "dangerous",
                 "accent": "error",
                 "col_span": "md:col-span-3",

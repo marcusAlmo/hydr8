@@ -45,3 +45,43 @@ class CorrelationIdFilter(logging.Filter):
     def filter(self, record):
         record.correlation_id = get_correlation_id() or 'no-id'
         return True
+
+
+class TenantMiddleware:
+    """Sets the Postgres session variable ``app.current_tenant`` so that RLS
+    policies can enforce row-level isolation.
+
+    For regular users: sets it to the user's ``company_id`` (as text).
+    For platform superusers (``company_id`` is None): sets it to an empty
+    string, which RLS policies interpret as "see all tenants".
+
+    Must run AFTER ``AuthenticationMiddleware`` so ``request.user`` is
+    available.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.db import connection
+
+        user = getattr(request, 'user', None)
+        company_id = None
+        if user and user.is_authenticated:
+            company_id = getattr(user, 'company_id', None)
+
+        with connection.cursor() as cursor:
+            if company_id is not None:
+                cursor.execute("SET app.current_tenant = %s", [str(company_id)])
+            else:
+                cursor.execute("SET app.current_tenant = ''")
+
+        try:
+            response = self.get_response(request)
+        finally:
+            # Reset after the request so a pooled connection can't leak the
+            # tenant context to the next request.
+            with connection.cursor() as cursor:
+                cursor.execute("RESET app.current_tenant")
+
+        return response

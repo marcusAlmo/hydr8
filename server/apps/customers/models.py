@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 
+from apps.core.managers import TenantManager
+
 
 class Customer(models.Model):
     """A water refilling station customer (household, sari-sari, business).
@@ -25,6 +27,14 @@ class Customer(models.Model):
     borrowed_slim_8gal = models.SmallIntegerField(default=0)
     borrowed_other = models.SmallIntegerField(default=0)
     last_credit_at = models.DateTimeField(null=True, blank=True)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='customers',
+        db_index=True,
+    )
 
     # --- Anomaly / blacklist tracking ---
     status = models.CharField(
@@ -45,12 +55,14 @@ class Customer(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+    objects = TenantManager()
+
     class Meta:
         db_table = 'customers_customer'
         indexes = [
-            models.Index(fields=['debt_balance']),
-            models.Index(fields=['last_credit_at']),
-            models.Index(fields=['status']),
+            models.Index(fields=['company', 'debt_balance']),
+            models.Index(fields=['company', 'last_credit_at']),
+            models.Index(fields=['company', 'status']),
         ]
 
     def __str__(self):
@@ -65,7 +77,7 @@ class Customer(models.Model):
 class CreditLine(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='credit_lines')
     remittance_rider_product = models.ForeignKey(
-        'remittance.RemittanceRiderProductLine', 
+        'remittance.RemittanceRiderProductLine',
         on_delete=models.PROTECT,
         related_name='credit_lines'
     )
@@ -74,7 +86,17 @@ class CreditLine(models.Model):
     unit_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2)
     total_credit_amount = models.DecimalField(max_digits=12, decimal_places=2)
     qty_remaining = models.SmallIntegerField()
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='credit_lines',
+        db_index=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantManager()
 
     class Meta:
         db_table = 'customers_credit_line'
@@ -88,14 +110,24 @@ class CreditPayment(models.Model):
     remittance = models.ForeignKey('remittance.Remittance', on_delete=models.PROTECT, related_name='credit_payments')
     containers_paid = models.SmallIntegerField()
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='credit_payments',
+        db_index=True,
+    )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantManager()
 
     class Meta:
         db_table = 'customers_credit_payment'
         indexes = [
-            models.Index(fields=['credit_line']),
-            models.Index(fields=['remittance']),
+            models.Index(fields=['company', 'credit_line']),
+            models.Index(fields=['company', 'remittance']),
         ]
 
     def __str__(self):

@@ -532,6 +532,40 @@ workspace clutter. Specifically:
 ### 4. Parallel Execution (`subagent-driven-development`)
 If the Architect's plan involves a large scope (e.g., both Django backend and templates), you may optionally spawn subagents to work on the templates and backend concurrently to speed up delivery.
 
+### 5. Delete Deprecated Files (`delete-don't-deprecate`)
+**When a file becomes unusable, superseded, or replaced — delete it. Do not leave
+it behind as an "orphan" for "just in case".** Orphan files are a recurring source
+of confusion: a developer (or agent) edits the orphan thinking it's the live
+source-of-truth, the change has no effect, and the failure is misdiagnosed as a
+caching/invalidation problem rather than "wrong file."
+
+**Hard rules:**
+
+1. **When you replace a file's responsibility** (e.g., a Stitch mockup at the
+   repo root is superseded by a real Django template under
+   `server/apps/<app>/templates/`), `git rm` the old file in the **same
+   commit** that introduces the replacement. Never leave both behind.
+2. **When you refactor and a file is no longer imported or referenced**, delete
+   it. Do not leave it "in case someone needs it later" — git history is the
+   backup.
+3. **Before declaring a task complete**, grep the repo for any file you
+   superseded and confirm it's gone. A stale duplicate with the same name as
+   the live file is the worst-case scenario (template loader ambiguity, editor
+   confusion).
+4. **Never create root-level mockups** outside `server/`. All HTML served to
+   users lives under `server/templates/` or `server/apps/<app>/templates/`.
+   If a Stitch/design export produces a standalone HTML file, port its content
+   into the proper Django template location and delete the export immediately.
+5. **Stale infrastructure files count too.** If `AGENTS.md` says "no Docker
+   needed for deployment" and the project connects to native Postgres, the
+   `docker-compose.yml` and dev-only `Dockerfile` are orphans — delete them
+   rather than leaving them to imply a deployment path that doesn't exist.
+
+**Verification step before hand-off:** Run
+`git ls-files | grep -E '\.(html|yml|yaml|Dockerfile)$'` and confirm every
+listed file is either (a) actively loaded by Django, (b) active infrastructure,
+or (c) documentation. Anything else is an orphan and must be removed.
+
 ## Attempt Management
 
 If you encounter the same bug or implementation error after 2 attempts, **stop and ask the user**:
