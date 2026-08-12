@@ -62,10 +62,14 @@
                         <h3 class="font-headline-sm text-body-md font-bold text-on-surface">Remittance Summary</h3>
                         <span class="text-label-caps font-label-caps text-outline uppercase ml-auto">Live KPIs</span>
                     </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
                         <div class="flex flex-col">
                             <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
                             <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalSales())"></h3>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Repayments</p>
+                            <h3 class="font-data-mono text-[18px] text-tertiary" x-text="peso(totalRepayments())"></h3>
                         </div>
                         <div class="flex flex-col">
                             <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Expenses</p>
@@ -153,6 +157,16 @@
                         </div>
                     </div>
 
+                    <!-- Cash-only sales note -->
+                    <div class="flex items-start gap-2 px-4 py-2.5 rounded-lg bg-primary/5 border border-primary/20">
+                        <span class="material-symbols-outlined text-primary text-[18px] mt-0.5">info</span>
+                        <p class="font-body-sm text-on-surface-variant">
+                            Record only <strong class="text-on-surface">products sold and paid in cash</strong> here.
+                            Credit sales and borrowed containers are registered on the customer's page
+                            (Add Credit Record). Credit repayments collected today are auto-populated below.
+                        </p>
+                    </div>
+
                     <!-- Product table for the selected rider -->
                     <div class="overflow-x-auto">
                         <table class="w-full text-left">
@@ -164,8 +178,6 @@
                                         <span class="block text-[10px] text-on-surface-variant/60 normal-case font-normal leading-tight">/ comm</span>
                                     </th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">SOLD</th>
-                                    <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">CREDITED</th>
-                                    <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">BORROWED</th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">SUBTOTAL</th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">COMM. AMOUNT</th>
                                     <th class="py-3 px-2"></th>
@@ -190,7 +202,8 @@
                                                  :class="line.sold === '' || line.sold === null || (Number(line.sold)||0) < 0 ? 'border-error/60' : ''">
                                                 <input x-model.number="line.sold" type="number" min="0" step="1"
                                                        @input="line.sold = sanitizeCount(line.sold)"
-                                                       class="w-12 bg-transparent border-none text-center font-data-mono text-data-mono focus:ring-0 py-1">
+                                                       :style="`width: ${Math.min(5, Math.max(2, String(line.sold ?? '').length || 1))}ch`"
+                                                       class="bg-transparent border-none text-center font-data-mono text-data-mono focus:ring-0 py-1 transition-[width] duration-75">
                                                 <div class="flex flex-col border-l border-outline-variant/20">
                                                     <button type="button" @click="line.sold = clampCount(line.sold, 1)"
                                                             class="px-2 py-0.5 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors border-b border-outline-variant/10 text-center leading-none">+</button>
@@ -198,20 +211,6 @@
                                                             :disabled="(Number(line.sold)||0) <= 0"
                                                             class="px-2 py-0.5 text-on-surface-variant hover:text-primary hover:bg-primary/5 transition-colors text-center leading-none disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent">-</button>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td class="py-4 px-4">
-                                            <div class="flex items-center justify-center w-fit mx-auto px-3 py-1 rounded bg-surface-container-low/60 border border-outline-variant/10"
-                                                 :class="(Number(line.credited)||0) > 0 ? 'text-tertiary' : 'text-on-surface-variant/50'"
-                                                 title="Auto-populated from the customer's page">
-                                                <span class="font-data-mono text-data-mono" x-text="(Number(line.credited)||0)"></span>
-                                            </div>
-                                        </td>
-                                        <td class="py-4 px-4">
-                                            <div class="flex items-center justify-center w-fit mx-auto px-3 py-1 rounded bg-surface-container-low/60 border border-outline-variant/10"
-                                                 :class="(Number(line.borrowed)||0) > 0 ? 'text-tertiary' : 'text-on-surface-variant/50'"
-                                                 title="Auto-populated from the customer's page">
-                                                <span class="font-data-mono text-data-mono" x-text="(Number(line.borrowed)||0)"></span>
                                             </div>
                                         </td>
                                         <td class="py-4 px-4 text-right font-data-mono text-primary"
@@ -262,50 +261,65 @@
                         </div>
                     </div>
 
-                    <!-- ============ Repayments (read-only, auto-populated) ============ -->
-                    <!-- Collected from the customer's page within this session.
-                         Disabled for editing — shown so the rider's commission
-                         can be recomputed to include repaid quantities. -->
-                    <div x-show="riderRepayments(selectedRiderId).length > 0"
-                         class="mt-2 border border-tertiary/20 rounded-lg overflow-hidden bg-tertiary/5">
-                        <div class="flex items-center gap-2 px-4 py-2.5 bg-tertiary/10 border-b border-tertiary/20">
-                            <span class="material-symbols-outlined text-tertiary text-[18px]">payments</span>
-                            <h4 class="font-label-caps text-tertiary">Repayments Collected This Session</h4>
-                            <span class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase ml-auto flex items-center gap-1">
-                                <span class="material-symbols-outlined text-[12px]">lock</span>
-                                Auto-populated · read-only
-                            </span>
-                        </div>
-                        <table class="w-full text-left">
-                            <thead class="bg-surface-container-low/30 border-b border-outline-variant/10">
-                                <tr>
-                                    <th class="py-2.5 px-4 font-label-caps text-label-caps text-on-surface-variant">PAYER</th>
-                                    <th class="py-2.5 px-4 font-label-caps text-label-caps text-on-surface-variant">PRODUCT</th>
-                                    <th class="py-2.5 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">QTY</th>
-                                    <th class="py-2.5 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">AMOUNT</th>
-                                    <th class="py-2.5 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">COMM. APPLICABLE</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-outline-variant/10">
-                                <template x-for="rp in riderRepayments(selectedRiderId)" :key="rp.payer + '-' + rp.product_key">
-                                    <tr class="hover:bg-surface-container-low/30 transition-colors">
-                                        <td class="py-2.5 px-4 font-body-md text-on-surface" x-text="rp.payer"></td>
-                                        <td class="py-2.5 px-4 font-body-sm text-on-surface-variant" x-text="productName(rp.product_key)"></td>
-                                        <td class="py-2.5 px-4 text-center font-data-mono text-data-mono text-on-surface" x-text="rp.qty"></td>
-                                        <td class="py-2.5 px-4 text-right font-data-mono text-data-mono text-primary" x-text="peso(rp.amount)"></td>
-                                        <td class="py-2.5 px-4 text-right font-data-mono text-data-mono text-tertiary" x-text="peso(repaymentCommission(rp, selectedRiderId))"></td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                            <tfoot>
-                                <tr class="bg-tertiary/5 border-t border-tertiary/20">
-                                    <td colspan="3" class="py-2.5 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">Repayment Totals</td>
-                                    <td class="py-2.5 px-4 text-right font-data-mono text-data-mono text-primary font-bold" x-text="peso(riderRepaymentAmount(selectedRiderId))"></td>
-                                    <td class="py-2.5 px-4 text-right font-data-mono text-data-mono text-tertiary font-bold" x-text="peso(riderRepaymentCommission(selectedRiderId))"></td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                </section>
+
+                <!-- ============ CREDIT REPAYMENTS (standalone, auto-populated) ============ -->
+                <!-- All CreditPayments collected today, regardless of whether
+                     the care_of is a rider or staff.  Driver-attributed
+                     repayments earn commission; staff-attributed do not.
+                     Read-only — recorded via the customer Collect modal. -->
+                <section x-show="repayments.length > 0"
+                         class="bg-surface-container-lowest border border-tertiary/20 rounded-lg overflow-hidden">
+                    <div class="flex items-center gap-2 px-6 py-3 bg-tertiary/10 border-b border-tertiary/20">
+                        <span class="material-symbols-outlined text-tertiary text-[20px]">payments</span>
+                        <h3 class="font-label-caps text-tertiary">Credit Repayments Collected Today</h3>
+                        <span class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase ml-auto flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[12px]">lock</span>
+                            Auto-populated · read-only
+                        </span>
                     </div>
+                    <table class="w-full text-left">
+                        <thead class="bg-surface-container-low/30 border-b border-outline-variant/10">
+                            <tr>
+                                <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant">CREDITOR</th>
+                                <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant">PRODUCT</th>
+                                <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant text-center">QTY PAID</th>
+                                <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant text-right">AMOUNT</th>
+                                <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant text-right">COMMISSION</th>
+                                <th class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant">CARE OF</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10">
+                            <template x-for="(rp, idx) in repayments" :key="idx">
+                                <tr class="hover:bg-surface-container-low/30 transition-colors">
+                                    <td class="py-3 px-6 font-body-md text-on-surface" x-text="rp.payer"></td>
+                                    <td class="py-3 px-6 font-body-sm text-on-surface-variant" x-text="productName(rp.product_key)"></td>
+                                    <td class="py-3 px-6 text-center font-data-mono text-data-mono text-on-surface" x-text="rp.qty"></td>
+                                    <td class="py-3 px-6 text-right font-data-mono text-data-mono text-primary" x-text="peso(rp.amount)"></td>
+                                    <td class="py-3 px-6 text-right font-data-mono text-data-mono"
+                                        :class="rp.care_of_is_driver ? 'text-tertiary' : 'text-on-surface-variant/40'"
+                                        x-text="peso(repaymentCommission(rp))"></td>
+                                    <td class="py-3 px-6 font-body-sm">
+                                        <span class="flex items-center gap-1.5">
+                                            <span class="material-symbols-outlined text-[14px]"
+                                                  :class="rp.care_of_is_driver ? 'text-tertiary' : 'text-on-surface-variant/50'"
+                                                  x-text="rp.care_of_is_driver ? 'electric_rickshaw' : 'storefront'"></span>
+                                            <span :class="rp.care_of_is_driver ? 'text-on-surface' : 'text-on-surface-variant/70'"
+                                                  x-text="rp.care_of_name"></span>
+                                        </span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-tertiary/5 border-t border-tertiary/20">
+                                <td colspan="3" class="py-3 px-6 font-label-caps text-label-caps text-on-surface-variant text-right">Repayment Totals</td>
+                                <td class="py-3 px-6 text-right font-data-mono text-data-mono text-primary font-bold" x-text="peso(totalRepayments())"></td>
+                                <td class="py-3 px-6 text-right font-data-mono text-data-mono text-tertiary font-bold" x-text="peso(totalRepaymentCommission())"></td>
+                                <td class="py-3 px-6"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </section>
 
                 <!-- Expenses Section (general, decoupled from rider) -->
@@ -556,10 +570,14 @@
                 <!-- Modal body (scrollable) -->
                 <div class="overflow-y-auto custom-scrollbar p-6 space-y-6">
                     <!-- KPI summary -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                         <div class="bg-surface-container-low/50 rounded-lg p-3 border border-outline-variant/10">
                             <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
                             <p class="font-data-mono text-data-mono text-primary font-bold" x-text="peso(totalSales())"></p>
+                        </div>
+                        <div class="bg-surface-container-low/50 rounded-lg p-3 border border-outline-variant/10">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Repayments</p>
+                            <p class="font-data-mono text-data-mono text-tertiary font-bold" x-text="peso(totalRepayments())"></p>
                         </div>
                         <div class="bg-surface-container-low/50 rounded-lg p-3 border border-outline-variant/10">
                             <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Expenses</p>
@@ -602,7 +620,6 @@
                                                     <span class="block text-[9px] text-on-surface-variant/60 normal-case font-normal">/ comm</span>
                                                 </th>
                                                 <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-center">Sold</th>
-                                                <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-center">Credited</th>
                                                 <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-right">Subtotal</th>
                                                 <th class="py-2 px-4 font-label-caps text-[10px] text-on-surface-variant uppercase text-right">Commission</th>
                                             </tr>
@@ -618,17 +635,16 @@
                                                         </div>
                                                     </td>
                                                     <td class="py-2 px-4 text-center font-data-mono text-data-mono" x-text="line.sold"></td>
-                                                    <td class="py-2 px-4 text-center font-data-mono text-data-mono" x-text="line.credited"></td>
                                                     <td class="py-2 px-4 text-right font-data-mono text-data-mono text-primary" x-text="peso(lineSubtotal(line))"></td>
                                                     <td class="py-2 px-4 text-right font-data-mono text-data-mono text-tertiary" x-text="peso(lineCommission(line, r.id))"></td>
                                                 </tr>
                                             </template>
                                             <tr x-show="riderLines(r.id).length === 0">
-                                                <td colspan="6" class="py-3 px-4 text-center text-on-surface-variant italic">No products recorded</td>
+                                                <td colspan="5" class="py-3 px-4 text-center text-on-surface-variant italic">No products recorded</td>
                                             </tr>
                                         </tbody>
                                     </table>
-                                    <!-- Repayments collected this session (read-only) -->
+                                    <!-- Repayments attributed to this rider (read-only) -->
                                     <div x-show="riderRepayments(r.id).length > 0"
                                          class="border-t border-tertiary/20 bg-tertiary/5">
                                         <div class="px-4 py-2 flex items-center gap-2 border-b border-tertiary/10">
@@ -650,7 +666,7 @@
                                                         <td class="py-1.5 px-4" x-text="rp.payer + ' · ' + productName(rp.product_key)"></td>
                                                         <td class="py-1.5 px-4 text-center font-data-mono text-data-mono" x-text="rp.qty"></td>
                                                         <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-primary" x-text="peso(rp.amount)"></td>
-                                                        <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-tertiary" x-text="peso(repaymentCommission(rp, r.id))"></td>
+                                                        <td class="py-1.5 px-4 text-right font-data-mono text-data-mono text-tertiary" x-text="peso(repaymentCommission(rp))"></td>
                                                     </tr>
                                                 </template>
                                             </tbody>
@@ -746,26 +762,28 @@
          * Alpine.js component for the Add Remittance form.
          * All KPIs are computed live from the seed state on every input change.
          *
-         * Credited rule (per the operator's spec):
-         *   subtotal   = (sold - credited) * unit_price
-         *   commission = (sold - credited) * commission_rate
-         * Credited units deduct the FULL price from total sales (and thus net
-         * remittance), not just the commission.  Both the branch owner and the
-         * rider forgo the sale and commission on credited units.
+         * Cash sales rule:
+         *   subtotal   = sold * unit_price
+         *   commission = sold * commission_rate
+         * Only products sold and paid in cash are recorded here.  Credit
+         * sales and borrowed containers are registered on the customer's
+         * page (Add Credit Record).
          *
          * Repayments (auto-populated from the customer's collect page):
-         *   Repayment amounts are added back to total sales, and the rider
-         *   earns commission on the repaid quantity at the product's rate.
-         *   Repayments are read-only on this form.
-         *
-         * Credited & Borrowed quantities are read-only here — they are
-         * recorded on the customer's page with a reference to the rider.
+         *   ALL CreditPayments collected today are listed in a standalone
+         *   section, regardless of whether care_of is a rider or staff.
+         *   Driver-attributed repayments earn commission (qty × rate);
+         *   staff-attributed repayments earn 0.  Repayment amounts are
+         *   tracked separately as Total Repayments.  Net Remittance =
+         *   Total Sales + Total Repayments - Total Expenses - Total
+         *   Commission.  Repayments are read-only on this form.
          */
         function remittanceForm(seed) {
             return {
                 // ---- state ----
                 riders: seed.riders,
                 products: seed.products,
+                repayments: seed.repayments || [],
                 expenses: seed.expenses,
                 titheRate: seed.titheRate,
                 manualOffering: seed.manualOffering || '',
@@ -873,7 +891,7 @@
                 },
 
                 // ---- per-line computed values (called as methods so they
-                // ---- re-evaluate reactively when sold/credited change) ----
+                // ---- re-evaluate reactively when sold changes) ----
                 // We attach subtotal/commission as getters via Object.defineProperty
                 // on each line at init time, but Alpine's reactivity works more
                 // reliably when we compute them as functions of the line object.
@@ -904,8 +922,6 @@
                     rider.product_lines.push({
                         product_key: productKey,
                         sold: 0,
-                        credited: 0,
-                        borrowed: 0,
                     });
                 },
                 removeLine(idx) {
@@ -932,12 +948,12 @@
                 },
 
                 // ---- KPI computations (live) ----
-                // Credited items deduct the FULL unit price from sales (not
-                // just the commission).  Both the branch owner and the rider
-                // forgo the sale and the commission on credited units.
+                // Only cash-paid units (sold) count toward sales and
+                // commission.  Credit sales are registered on the customer's
+                // page; repayments are auto-populated below.
                 lineSubtotal(line) {
-                    const paid = Math.max(0, (Number(line.sold) || 0) - (Number(line.credited) || 0));
-                    return paid * this.productPrice(line.product_key);
+                    const sold = Math.max(0, Number(line.sold) || 0);
+                    return sold * this.productPrice(line.product_key);
                 },
                 lineCommissionRate(line, riderId) {
                     const rider = this.riders.find(r => r.id === (riderId || this.selectedRiderId)) || this.selectedRider();
@@ -945,8 +961,8 @@
                 },
                 lineCommission(line, riderId) {
                     const rider = this.riders.find(r => r.id === (riderId || this.selectedRiderId)) || this.selectedRider();
-                    const paid = Math.max(0, (Number(line.sold) || 0) - (Number(line.credited) || 0));
-                    return paid * this.rateFor(rider, line.product_key);
+                    const sold = Math.max(0, Number(line.sold) || 0);
+                    return sold * this.rateFor(rider, line.product_key);
                 },
                 riderCommission(riderId) {
                     const r = this.riders.find(r => r.id === riderId);
@@ -960,33 +976,42 @@
                 riderCommissionComputed(riderId) {
                     const r = this.riders.find(r => r.id === riderId);
                     if (!r) return 0;
-                    // Commission on sold units (minus credited).
+                    // Commission on cash-paid sold units.
                     const lineComm = r.product_lines.reduce((sum, line) => {
-                        const paid = Math.max(0, (Number(line.sold) || 0) - (Number(line.credited) || 0));
-                        return sum + paid * this.rateFor(r, line.product_key);
+                        const sold = Math.max(0, Number(line.sold) || 0);
+                        return sum + sold * this.rateFor(r, line.product_key);
                     }, 0);
                     // Commission on repayments collected this session.
                     const repaymentComm = this.riderRepaymentCommission(riderId);
                     return lineComm + repaymentComm;
                 },
                 // ---- repayments (read-only, auto-populated from customer
-                // ---- collections within this session) ----
+                // ---- collections today — global, not per-rider) ----
+                // The global `repayments` array contains ALL CreditPayments
+                // collected today, regardless of whether care_of is a rider
+                // or staff.  riderRepayments(riderId) filters it by care_of_id.
                 riderRepayments(riderId) {
-                    const r = this.riders.find(r => r.id === riderId);
-                    return r && r.repayments ? r.repayments : [];
+                    return this.repayments.filter(rp => rp.care_of_id === riderId);
                 },
-                repaymentCommission(rp, riderId) {
-                    const r = this.riders.find(r => r.id === riderId);
+                repaymentCommission(rp) {
+                    // Only drivers earn commission on repayments.  Staff
+                    // care_of (care_of_is_driver === false) → 0.
+                    if (!rp.care_of_is_driver) return 0;
+                    const r = this.riders.find(r => r.id === rp.care_of_id);
                     if (!r) return 0;
                     return (Number(rp.qty) || 0) * this.rateFor(r, rp.product_key);
                 },
                 riderRepaymentCommission(riderId) {
                     return this.riderRepayments(riderId).reduce((sum, rp) =>
-                        sum + this.repaymentCommission(rp, riderId), 0);
+                        sum + this.repaymentCommission(rp), 0);
                 },
                 riderRepaymentAmount(riderId) {
                     return this.riderRepayments(riderId).reduce((sum, rp) =>
                         sum + (Number(rp.amount) || 0), 0);
+                },
+                totalRepaymentCommission() {
+                    return this.repayments.reduce((sum, rp) =>
+                        sum + this.repaymentCommission(rp), 0);
                 },
                 hasCommissionOverride(riderId) {
                     const r = this.riders.find(r => r.id === riderId);
@@ -997,18 +1022,23 @@
                     const r = this.riders.find(r => r.id === riderId);
                     if (!r) return 0;
                     const lineUnits = r.product_lines.reduce((sum, line) =>
-                        sum + Math.max(0, (Number(line.sold) || 0) - (Number(line.credited) || 0)), 0);
+                        sum + Math.max(0, Number(line.sold) || 0), 0);
                     const repaymentUnits = this.riderRepayments(riderId).reduce((sum, rp) =>
                         sum + (Number(rp.qty) || 0), 0);
                     return lineUnits + repaymentUnits;
                 },
                 totalSales() {
-                    const lineSales = this.riders.reduce((sum, r) =>
+                    return this.riders.reduce((sum, r) =>
                         sum + r.product_lines.reduce((s, line) =>
                             s + this.lineSubtotal(line), 0), 0);
-                    const repaymentSales = this.riders.reduce((sum, r) =>
-                        sum + this.riderRepaymentAmount(r.id), 0);
-                    return lineSales + repaymentSales;
+                },
+                totalRepayments() {
+                    // Sum the amount of ALL repayments collected today,
+                    // regardless of whether care_of is a rider or staff.
+                    // Matches the backend (services.py accumulates
+                    // total_repayments += cp.amount for every CreditPayment).
+                    return this.repayments.reduce((sum, rp) =>
+                        sum + (Number(rp.amount) || 0), 0);
                 },
                 totalExpenses() {
                     return this.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
@@ -1023,7 +1053,7 @@
                     return this.netRemittance() * this.titheRate;
                 },
                 netRemittance() {
-                    return this.totalSales() - this.totalExpenses() - this.totalCommission();
+                    return this.totalSales() + this.totalRepayments() - this.totalExpenses() - this.totalCommission();
                 },
 
                 // ---- toast helper ----
@@ -1076,8 +1106,6 @@
                             product_lines: (r.product_lines || []).map(l => ({
                                 product_key: l.product_key,
                                 sold: l.sold,
-                                credited: l.credited,
-                                borrowed: l.borrowed,
                             })),
                         };
                     }
@@ -1124,8 +1152,6 @@
                                     const cl = cachedLines[line.product_key];
                                     if (cl) {
                                         line.sold = cl.sold;
-                                        line.credited = cl.credited;
-                                        line.borrowed = cl.borrowed;
                                     }
                                 }
                             }
@@ -1210,8 +1236,6 @@
                         r.commission_override = '';
                         for (const line of r.product_lines) {
                             line.sold = 0;
-                            line.credited = 0;
-                            line.borrowed = 0;
                         }
                     }
                     this.showToast('Draft cleared. Form reset to empty.', 'success');

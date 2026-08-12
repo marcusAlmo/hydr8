@@ -50,22 +50,25 @@ def _active_riders_qs(user: "UserType"):
     return qs
 
 
-def _collect_rider_repayments(
+def _collect_repayments(
     performed_by: "UserType",
     active_riders,
     remittance_date: date,
-) -> dict[int, list[tuple[CreditPayment, "Product", Decimal]]]:
-    """Returns a mapping of ``rider.pk -> [(credit_payment, product, commission_rate), ...]``
-    for CreditPayments collected on ``remittance_date`` that are attributed
-    to an active rider (via ``CreditLine.care_of``) and not yet linked to
-    a Remittance.
+) -> dict[int | None, list[tuple[CreditPayment, "Product", Decimal]]]:
+    """Returns a mapping of ``care_of_id -> [(credit_payment, product, commission_rate), ...]``
+    for ALL CreditPayments collected on ``remittance_date`` that are not
+    yet linked to a Remittance — regardless of whether ``care_of`` is a
+    driver or a staff member.
 
     The commission rate is looked up from ``DriverCommission`` for the
-    (rider, product) pair, defaulting to 0.00.
+    (care_of, product) pair.  If ``care_of`` is not a driver (or has no
+    DriverCommission row for the product), the rate defaults to 0.00 —
+    staff members do not earn commission on repayments.
+
+    The key is ``care_of_id`` (an int) or ``None`` if the credit line
+    has no ``care_of`` set.
     """
-    rider_ids = [r.pk for r in active_riders]
-    if not rider_ids:
-        return {}
+    rider_ids = {r.pk for r in active_riders}
 
     company_id = getattr(performed_by, "company_id", None)
     payments = list(
@@ -74,15 +77,15 @@ def _collect_rider_repayments(
             company_id=company_id,
             remittance__isnull=True,
             created_at__date=remittance_date,
-            credit_line__care_of_id__in=rider_ids,
         )
-        .select_related("credit_line__product")
+        .select_related("credit_line__product", "credit_line__care_of")
         .order_by("created_at")
     )
     if not payments:
         return {}
 
-    # Pre-fetch commission rates for the (rider, product) pairs involved.
+    # Pre-fetch commission rates for (rider, product) pairs — only for
+    # care_of users who are active drivers.  Staff care_of gets 0.00.
     product_ids = {cp.credit_line.product_id for cp in payments}
     rate_map: dict[tuple[int, int], Decimal] = {}
     if rider_ids and product_ids:
@@ -93,13 +96,17 @@ def _collect_rider_repayments(
         ):
             rate_map[(row["driver_id"], row["product_id"])] = Decimal(row["rate_per_unit"])
 
-    by_rider: dict[int, list[tuple[CreditPayment, Product, Decimal]]] = {}
+    by_care_of: dict[int | None, list[tuple[CreditPayment, Product, Decimal]]] = {}
     for cp in payments:
-        rider_id = cp.credit_line.care_of_id
+        care_of_id = cp.credit_line.care_of_id
         product = cp.credit_line.product
-        rate = rate_map.get((rider_id, product.id), Decimal("0.00"))
-        by_rider.setdefault(rider_id, []).append((cp, product, rate))
-    return by_rider
+        # Only active drivers earn commission; staff/None → 0.00.
+        if care_of_id in rider_ids:
+            rate = rate_map.get((care_of_id, product.id), Decimal("0.00"))
+        else:
+            rate = Decimal("0.00")
+        by_care_of.setdefault(care_of_id, []).append((cp, product, rate))
+    return by_care_of
 
 
 def _unlink_credit_payments(remittance: Remittance) -> int:
@@ -199,6 +206,9 @@ def save_remittance_draft(
                 f"A finalized remittance for {remittance_date} already exists "
                 "and cannot be overwritten."
             )
+        # Unlink CreditPayments before deleting so the PROTECT FK does not
+        # block the cascade delete of the draft.
+        _unlink_credit_payments(existing)
         # Delete the existing draft (cascade removes children) so we can
         # create a fresh one with the latest form data.
         existing.delete()
@@ -251,6 +261,9 @@ def delete_draft_remittance(
             "Finalized records are immutable."
         )
 
+    # Unlink CreditPayments before deleting so the PROTECT FK does not
+    # block the cascade delete of the draft.
+    _unlink_credit_payments(existing)
     existing.delete()
     logger.info(
         "[%s] Cleared DRAFT remittance for date=%s",
@@ -307,8 +320,21 @@ def _build_remittance(
     total_commission = Decimal("0.00")
     total_expenses = Decimal("0.00")
     total_borrowed_items = 0
+    total_repayments = Decimal("0.00")
 
     active_riders = _active_riders_qs(performed_by)
+    active_rider_list = list(active_riders)
+    rider_id_set = {r.pk for r in active_rider_list}
+
+    # Collect ALL repayments collected on the remittance date and not yet
+    # linked to a Remittance — regardless of whether care_of is a driver
+    # or staff.  Driver-attributed repayments earn commission; staff do not.
+    repayments_by_care_of = _collect_repayments(
+        performed_by, active_rider_list, remittance_date
+    )
+
+    # Map rider_id -> RemittanceRider for repayment attribution.
+    rider_rows: dict[int, RemittanceRider] = {}
 
     for rider_payload in riders_data:
         rider_id = rider_payload.get("id")
@@ -323,6 +349,7 @@ def _build_remittance(
             subtotal_payable=Decimal("0.00"),
             subtotal_commission=Decimal("0.00"),
         )
+        rider_rows[rider.id] = remittance_rider
 
         rider_payable = Decimal("0.00")
         rider_commission = Decimal("0.00")
@@ -377,6 +404,14 @@ def _build_remittance(
             total_credit_sales += credit_total
             total_borrowed_items += borrowed
 
+        # Add repayment commission for this rider (collected today for
+        # credits they previously extended).  The repayment amounts
+        # themselves are tracked separately in total_repayments.
+        rider_repayment_commission = Decimal("0.00")
+        for cp, _product, rate in repayments_by_care_of.get(rider.id, []):
+            rider_repayment_commission += Decimal(cp.containers_paid) * rate
+        rider_commission += rider_repayment_commission
+
         # Apply a rider-level commission override if provided.
         override = rider_payload.get("commission_override")
         if override not in (None, ""):
@@ -390,6 +425,45 @@ def _build_remittance(
 
         total_sales += rider_payable
         total_commission += rider_commission
+
+    # Link ALL CreditPayments to this remittance and accumulate total
+    # repayments.  Payments attributed to active riders (via care_of)
+    # earn commission; payments attributed to staff or with no care_of
+    # are still linked and counted in total_repayments but earn no
+    # commission.  Rider-attributed payments for riders not in the
+    # payload get a lightweight RemittanceRider row.
+    for care_of_id, entries in repayments_by_care_of.items():
+        # Link the payments regardless of who care_of is.
+        payment_ids = [cp.id for cp, _p, _r in entries]
+        CreditPayment.objects.filter(id__in=payment_ids).update(remittance=remittance)
+        for cp, _p, _r in entries:
+            total_repayments += cp.amount
+
+        # Only active drivers earn repayment commission.  Skip staff/None.
+        if care_of_id not in rider_id_set:
+            continue
+
+        rr = rider_rows.get(care_of_id)
+        if rr is None:
+            # Rider not in the payload — create a lightweight row to hold
+            # their repayment commission.
+            rider = next((r for r in active_rider_list if r.id == care_of_id), None)
+            if rider is None:
+                continue
+            rr = RemittanceRider.objects.create(
+                remittance=remittance,
+                rider=rider,
+                company=company,
+                subtotal_payable=Decimal("0.00"),
+                subtotal_commission=Decimal("0.00"),
+            )
+            rider_rows[care_of_id] = rr
+            rider_repayment_commission = Decimal("0.00")
+            for cp, _product, rate in entries:
+                rider_repayment_commission += Decimal(cp.containers_paid) * rate
+            rr.subtotal_commission = rider_repayment_commission
+            rr.save(update_fields=["subtotal_commission", "updated_at"])
+            total_commission += rider_repayment_commission
 
     for expense in expenses_data:
         amount = _to_decimal(expense.get("amount"))
@@ -408,7 +482,7 @@ def _build_remittance(
         )
         total_expenses += amount
 
-    net_profit = total_sales - total_expenses - total_commission
+    net_profit = total_sales + total_repayments - total_expenses - total_commission
     tithe_amount = net_profit * remittance.tithe_rate_snapshot
 
     remittance.total_sales = total_sales
@@ -416,6 +490,7 @@ def _build_remittance(
     remittance.total_commission = total_commission
     remittance.total_expenses = total_expenses
     remittance.total_borrowed_items = total_borrowed_items
+    remittance.total_repayments_received = total_repayments
     remittance.net_profit = net_profit
     remittance.tithe_amount = tithe_amount
     remittance.save(
@@ -425,6 +500,7 @@ def _build_remittance(
             "total_commission",
             "total_expenses",
             "total_borrowed_items",
+            "total_repayments_received",
             "net_profit",
             "tithe_amount",
             "updated_at",
@@ -432,11 +508,13 @@ def _build_remittance(
     )
 
     logger.info(
-        "[%s] Created Remittance id=%s company_id=%s total_sales=%s net_profit=%s",
+        "[%s] Created Remittance id=%s company_id=%s total_sales=%s "
+        "total_repayments=%s net_profit=%s",
         performed_by.id,
         remittance.id,
         getattr(company, "id", None),
         total_sales,
+        total_repayments,
         net_profit,
     )
     return remittance

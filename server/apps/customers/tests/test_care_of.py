@@ -205,6 +205,44 @@ class CareOfSelectorTests(TestCase):
         self.assertEqual(len(credit_items), 1)
         self.assertEqual(credit_items[0]["care_of"]["name"], self.admin.full_name)
 
+    def test_collect_context_groups_manual_debt_under_care_of_user(self):
+        """A manually-recorded debt (no remittance rider product) is grouped
+        under its ``care_of`` user in the collect modal, not "Unassigned".
+
+        Regression: previously the rider group header fell back to
+        "Unassigned" whenever ``remittance_rider_product`` was null, even
+        though ``care_of`` had been assigned during debt creation.
+        """
+        record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            care_of_id=str(self.admin.pk),
+            performed_by=self.staff,
+        )
+        ctx = get_customer_collect_context(self.customer)
+        rider_groups = ctx["rider_groups"]
+        self.assertEqual(len(rider_groups), 1)
+        group = rider_groups[0]
+        self.assertEqual(group["rider"]["name"], self.admin.full_name)
+        self.assertNotEqual(group["rider"]["name"], "Unassigned")
+
+    def test_collect_context_groups_unassigned_debt_separately(self):
+        """A debt recorded without a ``care_of`` user is still grouped under
+        "Unassigned" so it is not silently hidden."""
+        record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=2,
+            unit_price="40.00",
+            performed_by=self.staff,
+        )
+        ctx = get_customer_collect_context(self.customer)
+        rider_groups = ctx["rider_groups"]
+        self.assertEqual(len(rider_groups), 1)
+        self.assertEqual(rider_groups[0]["rider"]["name"], "Unassigned")
+
 
 class CareOfViewTests(TestCase):
     """HTMX view-layer behaviour for the ``care_of`` field."""

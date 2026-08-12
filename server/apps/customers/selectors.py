@@ -767,6 +767,16 @@ def get_customer_collect_context(customer: Customer) -> dict:
             r_name = rider_obj.full_name
             r_initials = user_initials(rider_obj)
             r_driver_code = user_driver_code(rider_obj)
+        elif line.care_of is not None:
+            # Manual debt records have no remittance rider product; fall
+            # back to the ``care_of`` user (the staff/rider who extended
+            # the credit) so the collect modal groups them under the
+            # responsible person instead of "Unassigned".
+            rider_obj = line.care_of
+            r_id = rider_obj.pk
+            r_name = rider_obj.full_name
+            r_initials = user_initials(rider_obj)
+            r_driver_code = user_driver_code(rider_obj)
         else:
             r_id = "unassigned"
             r_name = "Unassigned"

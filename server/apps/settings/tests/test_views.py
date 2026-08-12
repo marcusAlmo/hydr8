@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from apps.core.models import SystemConfig
 from apps.settings.models import Company
-from apps.users.models import User
+from apps.users.models import Role, User
 
 
 class SettingsViewTests(TestCase):
@@ -17,15 +17,21 @@ class SettingsViewTests(TestCase):
     def setUp(self):
         cache.clear()
         self.company = Company.objects.create(name="Test Co")
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        staff_role, _ = Role.objects.get_or_create(name="Staff")
         self.admin = User.objects.create_user(
             username="admin", password="securepassword123",
             is_staff=True, company=self.company,
             first_name="Adrian", last_name="Thorne",
         )
+        self.admin.role = admin_role
+        self.admin.save()
         self.staff = User.objects.create_user(
             username="staff", password="securepassword123",
             company=self.company,
         )
+        self.staff.role = staff_role
+        self.staff.save()
         self.client.force_login(self.admin)
 
     def tearDown(self):
@@ -53,14 +59,20 @@ class SaveSystemConfigViewTests(TestCase):
     def setUp(self):
         cache.clear()
         self.company = Company.objects.create(name="Test Co")
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        staff_role, _ = Role.objects.get_or_create(name="Staff")
         self.admin = User.objects.create_user(
             username="admin", password="securepassword123",
             is_staff=True, company=self.company,
         )
+        self.admin.role = admin_role
+        self.admin.save()
         self.staff = User.objects.create_user(
             username="staff", password="securepassword123",
             company=self.company,
         )
+        self.staff.role = staff_role
+        self.staff.save()
 
     def tearDown(self):
         cache.clear()
@@ -110,14 +122,20 @@ class SaveCompanyViewTests(TestCase):
     def setUp(self):
         cache.clear()
         self.company = Company.objects.create(name="Original Co")
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        staff_role, _ = Role.objects.get_or_create(name="Staff")
         self.admin = User.objects.create_user(
             username="admin", password="securepassword123",
             is_staff=True, company=self.company,
         )
+        self.admin.role = admin_role
+        self.admin.save()
         self.staff = User.objects.create_user(
             username="staff", password="securepassword123",
             company=self.company,
         )
+        self.staff.role = staff_role
+        self.staff.save()
 
     def tearDown(self):
         cache.clear()

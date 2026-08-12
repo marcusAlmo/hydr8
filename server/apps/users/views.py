@@ -26,6 +26,8 @@ from apps.core.views import (
 )
 from apps.employees.selectors import get_user_detail_context
 from apps.users.models import Role, User
+from apps.users.permissions import is_admin as user_is_admin
+from apps.users.permissions import is_back_office as user_is_back_office
 from apps.users.signals import login_failed
 from .selectors import get_roles_for_user, get_user_by_id
 from .services import (
@@ -49,18 +51,19 @@ logger = logging.getLogger(__name__)
 LOGIN_RATELIMIT = ratelimit(key='ip', rate='10/m', method='POST', block=True)
 
 
+def _is_back_office_user(user) -> bool:
+    """Login gate: Admin/Staff role (or platform superuser) may sign in."""
+    return user_is_back_office(user)
+
+
 def _can_change_user(user) -> bool:
-    """Django built-in RBAC check for user-management mutations."""
-    return user.is_authenticated and (
-        user.is_staff or user.is_superuser or user.has_perm("users.change_user")
-    )
+    """Admin role (or platform superuser) may mutate other users."""
+    return user_is_admin(user)
 
 
 def _can_add_user(user) -> bool:
-    """Django built-in RBAC check for creating new users."""
-    return user.is_authenticated and (
-        user.is_staff or user.is_superuser or user.has_perm("users.add_user")
-    )
+    """Admin role (or platform superuser) may create new users."""
+    return user_is_admin(user)
 
 
 def _form_with_non_field_error(form: AuthenticationForm, message: str) -> AuthenticationForm:
@@ -143,7 +146,7 @@ def login_view(request):
 
         if form.is_valid():
             user = form.get_user()
-            if not (user.is_staff or user.is_superuser):
+            if not _is_back_office_user(user):
                 form = _form_with_non_field_error(
                     form,
                     "Only staff and administrators are allowed to log in.",
@@ -287,8 +290,8 @@ def generate_temp_password_view(request, user_id):
     Returns a partial with the plaintext password displayed once for copy.
     The plaintext is never logged (RA 10173).
 
-    Protected by Django's built-in users.change_user permission (or
-    is_staff / is_superuser).
+    Protected by the Admin role (or platform superuser) via
+    ``_can_change_user`` → ``apps.users.permissions.is_admin``.
     """
     if not _can_change_user(request.user):
         return HttpResponse("Forbidden", status=403)

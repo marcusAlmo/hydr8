@@ -12,35 +12,11 @@ Expects context:
   - debt_search_query: current search string (preserved in the input)
 
 Column headers issue HTMX GETs to the debt table partial endpoint,
-swapping ``#debt-table`` in place. The whole partial is wrapped in
-``#debt-table`` so the swap replaces the search row too.
+swapping ``#debt-table`` in place. The search input lives in the parent
+``debt_management.html`` header row and targets ``#debt-table`` from
+outside the swapped region.
 {% endcomment %}
 <div id="debt-table" class="flex flex-col gap-4">
-
-    <!-- Search -->
-    <div class="flex items-center justify-between gap-4">
-        <div class="relative max-w-sm w-full">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
-            <input
-                type="text"
-                id="debtSearch"
-                name="q"
-                value="{{ debt_search_query|default:'' }}"
-                placeholder="Search debtor by name..."
-                class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
-                hx-get="{% url 'customers:debt_table' %}"
-                hx-trigger="keyup changed delay:300ms, search"
-                hx-target="#debt-table"
-                hx-swap="outerHTML"
-                hx-include="this"
-                hx-vals='{"sort": "{{ debt_sort_state.field }}", "dir": "{{ debt_sort_state.direction }}"}'
-                hx-preserve="true"
-            >
-        </div>
-        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase whitespace-nowrap">
-            {{ debt_pagination.total_display }} debtor{{ debt_pagination.total|pluralize }}
-        </span>
-    </div>
 
     <!-- Debtors table -->
     <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">

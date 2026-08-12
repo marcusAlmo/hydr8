@@ -202,7 +202,7 @@ Expects context (from _mock_user_detail_data):
                         <span class="text-outline">Avg <span class="text-tertiary font-bold" x-text="formatPesoShort(avgCommission())"></span></span>
                         <span class="text-outline-variant/40">|</span>
                         <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxCommission())"></span></span>
-                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">Cumulative ₱</span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">Daily ₱</span>
                     </div>
                 </div>
                 <div id="chart-driver-commission" class="px-2 pb-3"></div>
@@ -605,6 +605,17 @@ function userDetailDrawer(seedData) {
             return this.commissionsDaily.filter(c => this._dateInRange(c.iso_date));
         },
 
+        // Re-based cumulative commission series for the filtered window.
+        // The seed's ``commissions`` array is a running total across the
+        // full 90-day window; when the user filters to a shorter range we
+        // restart the cumulative at 0 so the chart reflects growth within
+        // the selected window rather than an arbitrary offset.
+        filteredCommissionCumulative() {
+            const rows = this.filteredCommissions();
+            let run = 0;
+            return rows.map(r => { run += Number(r.amount_raw) || 0; return Math.round(run * 100) / 100; });
+        },
+
         // --- MAC (Min / Avg / Max) helpers ---
         minPerformance() {
             const s = this.filteredSeries('performance');
@@ -623,19 +634,22 @@ function userDetailDrawer(seedData) {
         },
 
         minCommission() {
-            const s = this.filteredSeries('commissions');
-            return s.length ? Math.min(...s) : 0;
+            const rows = this.filteredCommissions();
+            if (!rows.length) return 0;
+            return Math.min(...rows.map(r => Number(r.amount_raw) || 0));
         },
 
         maxCommission() {
-            const s = this.filteredSeries('commissions');
-            return s.length ? Math.max(...s) : 0;
+            const rows = this.filteredCommissions();
+            if (!rows.length) return 0;
+            return Math.max(...rows.map(r => Number(r.amount_raw) || 0));
         },
 
         avgCommission() {
-            const s = this.filteredSeries('commissions');
-            if (!s.length) return 0;
-            return s.reduce((a, b) => a + b, 0) / s.length;
+            const rows = this.filteredCommissions();
+            if (!rows.length) return 0;
+            const sum = rows.reduce((a, r) => a + (Number(r.amount_raw) || 0), 0);
+            return sum / rows.length;
         },
 
         // --- Format helpers ---
@@ -715,8 +729,12 @@ function userDetailDrawer(seedData) {
                 this.charts['#chart-driver-commission'].destroy();
             }
 
-            const data = this.filteredSeries('commissions');
-            const labels = this.filteredLabels();
+            // Cumulative is re-based from the filtered daily rows so the
+            // chart starts at 0 within the selected window.  Labels come
+            // from the same filtered rows to stay aligned.
+            const rows = this.filteredCommissions();
+            const data = this.filteredCommissionCumulative();
+            const labels = rows.map(r => r.date);
 
             const options = {
                 chart: {

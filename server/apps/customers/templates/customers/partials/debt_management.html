@@ -27,10 +27,29 @@ Expects context:
     </section>
 
     <!-- Collections workflow header -->
-    <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary">payments</span>
-            <h3 class="font-headline-sm text-sm font-bold text-on-surface">Active Debtors</h3>
+    <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">payments</span>
+                <h3 class="font-headline-sm text-sm font-bold text-on-surface">Active Debtors</h3>
+            </div>
+            <div class="relative w-64">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+                <input
+                    type="text"
+                    id="debtSearch"
+                    name="q"
+                    value="{{ debt_search_query|default:'' }}"
+                    placeholder="Search debtor by name..."
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                    hx-get="{% url 'customers:debt_table' %}"
+                    hx-trigger="keyup changed delay:300ms, search"
+                    hx-target="#debt-table"
+                    hx-swap="outerHTML"
+                    hx-include="this"
+                    hx-vals='{"sort": "{{ debt_sort_state.field }}", "dir": "{{ debt_sort_state.direction }}"}'
+                >
+            </div>
         </div>
         <div class="flex items-center gap-2">
             <button

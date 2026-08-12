@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.core.cache import cache
 
-from apps.users.models import User
+from apps.users.models import Role, User
 from apps.users.services import (
     LOGIN_LOCKOUT_SECONDS,
     LOGIN_MAX_ATTEMPTS,
@@ -14,11 +14,14 @@ from apps.users.services import (
 
 class UserLandingAndLoginViewTests(TestCase):
     def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.user = User.objects.create_user(
             username="hydr8user",
             password="securepassword123",
             is_staff=True,
         )
+        self.user.role = admin_role
+        self.user.save()
         cache.clear()
 
     def tearDown(self):
@@ -111,11 +114,14 @@ class UserLandingAndLoginViewTests(TestCase):
 
     def test_login_lockout_is_per_username(self):
         """Test that lockout on one username does not block a different username from the same IP."""
-        User.objects.create_user(
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        other = User.objects.create_user(
             username="otheruser",
             password="otherpass123",
             is_staff=True,
         )
+        other.role = admin_role
+        other.save()
         for _ in range(LOGIN_MAX_ATTEMPTS):
             self.client.post('/login/', {
                 'username': 'hydr8user',
@@ -128,6 +134,83 @@ class UserLandingAndLoginViewTests(TestCase):
             'password': 'otherpass123'
         }, HTTP_HX_REQUEST='true')
         self.assertIn('HX-Redirect', response.headers)
+
+    def test_login_allows_staff_role_without_is_staff_flag(self):
+        """A user with Role='Staff' but is_staff=False may log in.
+
+        Regression: the login gate used to check only the `is_staff` boolean,
+        so accounts created outside the user-creation service (admin, shell,
+        fixtures) were rejected even though their Role granted back-office
+        access. The gate now honors the Role model as the source of truth.
+        """
+        staff_role, _ = Role.objects.get_or_create(name="Staff")
+        user = User.objects.create_user(
+            username="rolestaff",
+            password="securepassword123",
+            is_staff=False,
+        )
+        user.role = staff_role
+        user.save()
+
+        response = self.client.post('/login/', {
+            'username': 'rolestaff',
+            'password': 'securepassword123'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('HX-Redirect', response.headers)
+
+    def test_login_allows_admin_role_without_is_staff_flag(self):
+        """A user with Role='Admin' but is_staff=False may log in."""
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        user = User.objects.create_user(
+            username="roleadmin",
+            password="securepassword123",
+            is_staff=False,
+        )
+        user.role = admin_role
+        user.save()
+
+        response = self.client.post('/login/', {
+            'username': 'roleadmin',
+            'password': 'securepassword123'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('HX-Redirect', response.headers)
+
+    def test_login_rejects_driver_role_without_flag(self):
+        """A user with Role='Driver' and no is_staff/superuser is still rejected."""
+        driver_role, _ = Role.objects.get_or_create(name="Driver")
+        user = User.objects.create_user(
+            username="roledriver",
+            password="securepassword123",
+            is_staff=False,
+        )
+        user.role = driver_role
+        user.save()
+
+        response = self.client.post('/login/', {
+            'username': 'roledriver',
+            'password': 'securepassword123'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('HX-Redirect', response.headers)
+        self.assertContains(response, "Only staff and administrators are allowed to log in.")
+
+    def test_login_rejects_user_with_no_role_and_no_flag(self):
+        """A user with neither a back-office role nor the is_staff flag is rejected."""
+        User.objects.create_user(
+            username="norole",
+            password="securepassword123",
+            is_staff=False,
+        )
+
+        response = self.client.post('/login/', {
+            'username': 'norole',
+            'password': 'securepassword123'
+        }, HTTP_HX_REQUEST='true')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('HX-Redirect', response.headers)
+        self.assertContains(response, "Only staff and administrators are allowed to log in.")
 
 
 class LoginLockoutServiceTests(TestCase):

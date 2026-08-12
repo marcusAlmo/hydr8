@@ -14,6 +14,7 @@ from apps.core.views import (
     toast_for_exception,
     toast_success,
 )
+from apps.users.permissions import is_admin as user_is_admin
 
 from .forms import (
     CompanyForm,
@@ -91,8 +92,13 @@ def _error_response(request, message: str, status: int = 400) -> HttpResponse:
 
 
 def _is_admin(user) -> bool:
-    """Returns True if the user may edit system/company settings."""
-    return bool(user.is_staff or user.is_superuser)
+    """Returns True if the user may edit system/company settings.
+
+    Admin role (or platform superuser) only. Staff may view the Settings page
+    but cannot save — per the role permission seed, Staff has no settings
+    write access.
+    """
+    return user_is_admin(user)
 
 
 @login_required
@@ -103,7 +109,7 @@ def save_system_config_view(request):
 
     Accepts form-encoded fields keyed by the SystemConfig key name
     (e.g. ``tithe_rate=10.00``).  Only whitelisted keys are accepted.
-    Restricted to admin/staff users.
+    Restricted to administrators (Admin role or platform superuser).
     """
     if not _is_admin(request.user):
         return _error_response(request, "Only administrators can edit system config.", status=403)
@@ -138,7 +144,7 @@ def save_system_config_view(request):
 def save_company_view(request):
     """HTMX endpoint — saves the tenant Company record.
 
-    Restricted to admin/staff users.
+    Restricted to administrators (Admin role or platform superuser).
     """
     if not _is_admin(request.user):
         return _error_response(request, "Only administrators can edit company details.", status=403)

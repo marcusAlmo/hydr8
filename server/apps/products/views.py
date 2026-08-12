@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
+from apps.users.permissions import is_back_office as user_is_back_office
 
 from .selectors import get_products_pricing_context
 from .services import (
@@ -75,10 +76,11 @@ def _serialize_for_alpine(data: dict) -> dict:
 def _is_admin_or_staff(user) -> bool:
     """Returns True if the user may mutate products/commission rates.
 
-    Matches the existing pattern in ``apps/users/views.py``: superusers
-    and staff users are allowed.  Drivers are not.
+    Back-office roles (Admin/Staff) and platform superusers are allowed.
+    Drivers are not. Authorization is driven by the Role model — the only
+    editable permission surface — via apps.users.permissions.is_back_office.
     """
-    return bool(user.is_staff or user.is_superuser)
+    return user_is_back_office(user)
 
 
 def _forbidden() -> HttpResponse:

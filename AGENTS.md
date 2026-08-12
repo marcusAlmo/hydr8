@@ -62,3 +62,44 @@ Redis instance across all gunicorn workers.
 `REDIS_URL` defaults to `redis://127.0.0.1:6379/1` and is read from the
 environment in `production.py`. The VPS already runs Redis on port 6379; no
 Docker setup is needed for deployment.
+
+## Authorization Convention (MANDATORY)
+
+The `Role` model (`apps.users.models.Role`) is the **single source of truth**
+for what a user may do inside the application. It is the only authorization
+surface editable through the UI (Employees & Users directory → Roles).
+
+### DO NOT use `is_staff` for authorization
+
+Django's `is_staff` flag is a parallel boolean that drifts out of sync with
+the Role whenever a user is created outside
+`apps.users.services.create_user_account` (Django admin, shell, fixtures).
+Never write `user.is_staff or user.is_superuser` in view guards.
+
+### Use `apps.users.permissions` helpers
+
+```python
+from apps.users.permissions import is_back_office, is_admin
+
+# Login gate / general back-office access (Admin + Staff)
+if not is_back_office(request.user):
+    return HttpResponse("Forbidden", status=403)
+
+# Admin-only operations (settings, user management)
+if not is_admin(request.user):
+    return HttpResponse("Forbidden", status=403)
+```
+
+| Helper           | Returns True for                         | Use for                     |
+|-------------------|------------------------------------------|-----------------------------|
+| `is_back_office`  | Role in {Admin, Staff} or superuser      | Login, products, employees  |
+| `is_admin`        | Role == Admin or superuser               | Settings, user management   |
+
+`is_superuser` is kept as a platform-level escape hatch only (superusers have
+no `company` / `role` row). It is never assigned through the UI.
+
+### Canonical role names
+
+Defined in `apps/users/migrations/0008_default_roles_and_permissions.py`:
+**Admin**, **Staff**, **Driver**. If a new role is added, update
+`_BACK_OFFICE_ROLE_NAMES` in `apps/users/permissions.py`.

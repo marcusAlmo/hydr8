@@ -55,6 +55,7 @@ def add_remittance_view(request):
     context["alpine_seed"] = json.dumps({
         "riders": riders,
         "products": products,
+        "repayments": context["repayments"],
         "expenses": context["expenses"],
         "titheRate": context["tithe_rate"],
         "manualOffering": context["offering_amount"],

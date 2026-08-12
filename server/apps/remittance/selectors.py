@@ -75,23 +75,31 @@ def _active_riders_qs(user: "UserType"):
     return qs.order_by("first_name", "last_name", "username")
 
 
-def _rider_repayments_for_date(
+def _repayments_for_date(
     user: "UserType",
     riders_qs,
     remittance_date: date,
-) -> dict[str, list[dict]]:
-    """Returns a mapping of ``rider_id -> [repayment_dict, ...]`` for
-    CreditPayments collected on ``remittance_date`` that are attributed
-    to an active rider (via ``CreditLine.care_of``) and not yet linked
-    to a Remittance.
+) -> list[dict]:
+    """Returns a flat list of ALL CreditPayments collected on
+    ``remittance_date`` that are not yet linked to a Remittance —
+    regardless of who the ``care_of`` is (rider or staff).
 
-    Each repayment dict is shaped for the Alpine.js form::
+    Each entry is shaped for the Alpine.js form::
 
-        {"payer": str, "product_key": str, "qty": int, "amount": float}
+        {
+            "payer": str,           # customer name
+            "product_key": str,     # product FK as string
+            "qty": int,             # containers_paid
+            "amount": float,        # payment amount
+            "care_of_id": str,      # care_of user FK as string (or "")
+            "care_of_name": str,    # care_of user full name (or "—")
+            "care_of_is_driver": bool,  # True if care_of is an active driver
+        }
+
+    ``riders_qs`` is used only to determine which ``care_of`` users are
+    active drivers (so the frontend knows whether to compute commission).
     """
-    rider_ids = [r.pk for r in riders_qs]
-    if not rider_ids:
-        return {}
+    rider_ids = {r.pk for r in riders_qs}
 
     qs = (
         CreditPayment.objects
@@ -99,35 +107,38 @@ def _rider_repayments_for_date(
             company_id=getattr(user, "company_id", None),
             remittance__isnull=True,
             created_at__date=remittance_date,
-            credit_line__care_of_id__in=rider_ids,
         )
-        .select_related("credit_line__customer", "credit_line__product")
+        .select_related("credit_line__customer", "credit_line__product", "credit_line__care_of")
         .order_by("created_at")
     )
 
-    by_rider: dict[str, list[dict]] = {}
+    repayments: list[dict] = []
     for cp in qs:
-        rider_id = str(cp.credit_line.care_of_id)
-        by_rider.setdefault(rider_id, []).append({
+        care_of = cp.credit_line.care_of
+        care_of_id = str(care_of.pk) if care_of else ""
+        care_of_name = care_of.full_name if care_of else "—"
+        repayments.append({
             "payer": cp.credit_line.customer.name,
             "product_key": str(cp.credit_line.product_id),
             "qty": cp.containers_paid,
             "amount": float(cp.amount),
+            "care_of_id": care_of_id,
+            "care_of_name": care_of_name,
+            "care_of_is_driver": care_of_id in {str(rid) for rid in rider_ids},
         })
-    return by_rider
+    return repayments
 
 
 def list_riders_for_remittance(
     user: "UserType",
     remittance_date: date | None = None,
 ) -> list[dict]:
-    """Returns active riders with per-product commission rates, empty
-    product lines, and auto-populated repayments, ready for Alpine.js
-    to hydrate.
+    """Returns active riders with per-product commission rates and empty
+    product lines, ready for Alpine.js to hydrate.
 
-    ``remittance_date`` defaults to today.  Repayments are CreditPayments
-    collected on that date, attributed to each rider via
-    ``CreditLine.care_of``, and not yet linked to a Remittance.
+    Repayments are NO LONGER embedded per-rider — they are returned as a
+    separate flat list by :func:`_repayments_for_date` and injected into
+    the page context at the top level.
     """
     remittance_date = remittance_date or date.today()
     products = list_products_for_remittance(user)
@@ -145,9 +156,6 @@ def list_riders_for_remittance(
             rate_map[(str(row["driver_id"]), str(row["product_id"]))] = float(
                 row["rate_per_unit"]
             )
-
-    # Auto-populate repayments collected on the remittance date.
-    repayments_by_rider = _rider_repayments_for_date(user, riders_qs, remittance_date)
 
     riders: list[dict] = []
     for idx, rider in enumerate(riders_qs):
@@ -168,12 +176,9 @@ def list_riders_for_remittance(
                 {
                     "product_key": pk,
                     "sold": 0,
-                    "credited": 0,
-                    "borrowed": 0,
                 }
                 for pk in product_keys
             ],
-            "repayments": repayments_by_rider.get(rider_id, []),
         })
     return riders
 
@@ -182,7 +187,9 @@ def get_add_remittance_context(user: "UserType") -> dict:
     """Builds the full context for the Add Remittance page."""
     default_date = date.today()
     products = list_products_for_remittance(user)
+    riders_qs = _active_riders_qs(user)
     riders = list_riders_for_remittance(user, remittance_date=default_date)
+    repayments = _repayments_for_date(user, riders_qs, default_date)
     company_id = getattr(getattr(user, "company", None), "id", None)
 
     return {
@@ -190,6 +197,7 @@ def get_add_remittance_context(user: "UserType") -> dict:
         "default_date": default_date.isoformat(),
         "products": products,
         "riders": riders,
+        "repayments": repayments,
         "rider_position": f"1 of {len(riders)}" if riders else "0 of 0",
         "summary": {
             "total_sales": "₱0.00",

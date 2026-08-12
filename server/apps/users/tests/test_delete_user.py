@@ -1,17 +1,20 @@
 """Tests for the soft-delete user flow (edit form → challenge → delete)."""
 from django.test import TestCase
 
-from apps.users.models import User
+from apps.users.models import Role, User
 from apps.users.services import generate_delete_challenge, soft_delete_user
 
 
 class DeleteUserServiceTests(TestCase):
     def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.admin = User.objects.create_user(
             username="admin",
             password="securepassword123",
             is_staff=True,
         )
+        self.admin.role = admin_role
+        self.admin.save()
         self.target = User.objects.create_user(
             username="targetuser",
             password="securepassword123",
@@ -52,11 +55,14 @@ class DeleteUserServiceTests(TestCase):
 
 class DeleteUserViewTests(TestCase):
     def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.admin = User.objects.create_user(
             username="admin",
             password="securepassword123",
             is_staff=True,
         )
+        self.admin.role = admin_role
+        self.admin.save()
         self.target = User.objects.create_user(
             username="targetuser",
             password="securepassword123",
