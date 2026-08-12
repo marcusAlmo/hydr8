@@ -7,4 +7,5 @@ django-htmx>=1.17.3
 django-auditlog>=3.0.0
 django-ratelimit>=4.1.0
 django-redis>=6.0.0
+django-unfold>=0.101.0
 sentry-sdk>=2.0
