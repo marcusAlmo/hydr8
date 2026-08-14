@@ -320,8 +320,6 @@ function commissionMatrix(cfg) {
         pinVerifying: false,
         // Pending action: 'save' | { bulk: { productId, rate } }
         pendingAction: null,
-        // Toast timeout
-        toastTimeout: null,
 
         // --- Pagination ---
         get paginatedRiders() {
@@ -561,39 +559,11 @@ function commissionMatrix(cfg) {
         },
 
         // --- Toast (rendered into the global #toast-container) ---
-        // Reuses the shared .toast / .toast-success styles from
-        // components/toasts/toast.html.  Auto-dismisses after 3s.
+        // Delegates to the shared ``hydr8ShowToast`` helper defined in
+        // base.html, which mirrors the server-rendered
+        // ``components/toasts/toast.html`` template exactly.
         showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-            const id = 'toast-' + Date.now();
-            const el = document.createElement('div');
-            el.id = id;
-            el.className = `toast toast-${type}`;
-            el.setAttribute('role', 'alert');
-            el.setAttribute('x-data', '{ show: true }');
-            el.setAttribute('x-show', 'show');
-            el.setAttribute('x-init', `setTimeout(() => show = false, 3000)`);
-            el.setAttribute('x-transition:enter', 'transition ease-out duration-300 transform');
-            el.setAttribute('x-transition:enter-start', 'opacity-0 -translate-y-4 translate-x-8');
-            el.setAttribute('x-transition:enter-end', 'opacity-100 translate-y-0 translate-x-0');
-            el.setAttribute('x-transition:leave', 'transition ease-in duration-200 transform');
-            el.setAttribute('x-transition:leave-start', 'opacity-100 translate-y-0 translate-x-0');
-            el.setAttribute('x-transition:leave-end', 'opacity-0 -translate-y-4 translate-x-8');
-            el.innerHTML = `
-                <div class="toast-indicator-strip"></div>
-                <div class="toast-body">
-                    <span class="toast-message"></span>
-                </div>
-                <button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>
-            `;
-            el.querySelector('.toast-message').textContent = message;
-            container.appendChild(el);
-            if (window.Alpine) {
-                window.Alpine.initTree(el);
-            }
-            if (this.toastTimeout) clearTimeout(this.toastTimeout);
-            this.toastTimeout = setTimeout(() => { el.remove(); }, 3200);
+            window.hydr8ShowToast(message, { type: type });
         },
     };
 }

@@ -14,6 +14,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import User
 
 from .models import BorrowedContainer, CreditPayment, Customer, CreditLine
@@ -72,6 +73,51 @@ def _resolve_customer(customer_id: str, user: "UserType") -> Customer:
     )
     if customer is None:
         raise ValidationError("Please select a customer.")
+    return customer
+
+
+def _resolve_or_create_customer(
+    customer_id: str,
+    customer_name: str,
+    user: "UserType",
+) -> Customer:
+    """Resolves an existing customer by display id, or creates a new one by name.
+
+    This enables the insert-if-not-exists workflow in the Record Debt and
+    Record Borrowed modals: the operator searches for a customer, and if
+    none is found they just type the name and the system creates the
+    customer on the fly with the tenant's default credit limit.
+
+    - If ``customer_id`` is non-empty → resolves the existing customer
+      (raises ``ValidationError`` if not found).
+    - If ``customer_id`` is empty but ``customer_name`` is non-empty →
+      creates a new customer scoped to the operator's company with the
+      default credit limit from System Config.
+    - If both are empty → raises ``ValidationError``.
+    """
+    raw_id = (customer_id or "").strip()
+    raw_name = (customer_name or "").strip()
+
+    if raw_id:
+        return _resolve_customer(raw_id, user)
+
+    if not raw_name:
+        raise ValidationError("Please select a customer.")
+
+    # Insert-if-not-exists: create a minimal customer record.  The default
+    # credit limit is pulled from System Config so the operator doesn't
+    # have to re-enter it — they can override it later via Edit Customer.
+    customer = Customer.objects.create(
+        company=getattr(user, "company", None),
+        name=raw_name,
+        credit_limit=get_default_credit_limit(user),
+    )
+    logger.info(
+        "[%s] Created Customer (inline) id=%s name=%s",
+        user.id,
+        customer.id,
+        customer.id,  # log the id, not the name (PII)
+    )
     return customer
 
 
@@ -157,10 +203,16 @@ def record_customer_debt(
     qty_credited,
     unit_price="",
     care_of_id: str = "",
+    customer_name: str = "",
     performed_by: "UserType",
 ) -> CreditLine:
-    """Creates a credit line for a customer and increases their debt balance."""
-    customer = _resolve_customer(customer_id, performed_by)
+    """Creates a credit line for a customer and increases their debt balance.
+
+    If ``customer_id`` is provided, resolves the existing customer.  If
+    only ``customer_name`` is provided (insert-if-not-exists workflow),
+    creates a new customer on the fly with the default credit limit.
+    """
+    customer = _resolve_or_create_customer(customer_id, customer_name, performed_by)
     product = _resolve_product(product_key, performed_by)
     care_of = _resolve_care_of(care_of_id, performed_by)
 
@@ -211,6 +263,7 @@ def record_customer_borrowed(
     container_key: str,
     qty_borrowed,
     care_of_id: str = "",
+    customer_name: str = "",
     performed_by: "UserType",
 ) -> BorrowedContainer:
     """Records containers borrowed by a customer.
@@ -218,8 +271,12 @@ def record_customer_borrowed(
     Creates a :class:`BorrowedContainer` instance linked to the user
     responsible (``care_of``) and updates the aggregate counters on the
     ``Customer`` row for backward compatibility with the table/detail views.
+
+    If ``customer_id`` is provided, resolves the existing customer.  If
+    only ``customer_name`` is provided (insert-if-not-exists workflow),
+    creates a new customer on the fly with the default credit limit.
     """
-    customer = _resolve_customer(customer_id, performed_by)
+    customer = _resolve_or_create_customer(customer_id, customer_name, performed_by)
     care_of = _resolve_care_of(care_of_id, performed_by)
 
     if not container_key or container_key not in _CONTAINER_FIELDS:

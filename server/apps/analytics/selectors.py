@@ -22,10 +22,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DASHBOARD_RECENT_LIMIT = 5
+_DASHBOARD_RECENT_LIMIT = 8
 _DEBT_AGE_WARNING_DAYS = 30
 _DEBT_AGE_CRITICAL_DAYS = 45
-_OUTSTANDING_DEBT_LIMIT = 5
+_OUTSTANDING_DEBT_LIMIT = 8
 
 
 def _fmt_peso(value: Decimal) -> str:
@@ -109,12 +109,16 @@ def _build_stats(user: "User") -> list[dict]:
     """Assemble the asymmetric 6/3/3 summary cards."""
     today_sales, sales_trend, sales_direction = _sales_trend(user)
     containers = _unreturned_containers(user)
+    outstanding = _outstanding_debt(user)
 
     return [
         {
             "key": "today_sales",
             "label": "Today's Total Sales",
             "value": _fmt_peso(today_sales),
+            "raw_value": float(today_sales),
+            "value_prefix": "₱",
+            "value_decimals": 2,
             "value_size": "4xl",
             "trend": sales_trend,
             "trend_direction": sales_direction,
@@ -125,7 +129,10 @@ def _build_stats(user: "User") -> list[dict]:
         {
             "key": "outstanding_debt",
             "label": "Outstanding Debt",
-            "value": _fmt_peso(_outstanding_debt(user)),
+            "value": _fmt_peso(outstanding),
+            "raw_value": float(outstanding),
+            "value_prefix": "₱",
+            "value_decimals": 2,
             "value_size": "2xl",
             "subtitle": "Total Unpaid Credits",
             "icon": "dangerous",
@@ -136,6 +143,9 @@ def _build_stats(user: "User") -> list[dict]:
             "key": "unreturned_containers",
             "label": "Unreturned Containers",
             "value": str(containers["total"]),
+            "raw_value": float(containers["total"]),
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "2xl",
             "icon": "water_damage",
             "accent": "tertiary",
@@ -144,16 +154,57 @@ def _build_stats(user: "User") -> list[dict]:
     ]
 
 
-def _warning_banner(user: "User") -> dict:
-    """Show a CTA when today's remittance has not yet been recorded."""
+def _today_remittance(user: "User") -> dict:
+    """Centralized today's-remittance status for the dashboard panel.
+
+    Returns one of three states:
+
+      - ``none``      — no remittance exists for today.  CTA: create one.
+      - ``draft``     — a staff member saved a draft for today.  CTA:
+                        review/finalize the draft (links to the Add
+                        Remittance page, which hydrates from the draft).
+      - ``finalized`` — today's remittance is already finalized.
+
+    The draft's ``created_by`` name is included so the admin can see at a
+    glance who prepared it.
+    """
     today = timezone.localdate()
-    has_today = Remittance.objects.for_user(user).filter(date=today).exists()
+    rem = (
+        Remittance.objects.for_user(user)
+        .filter(date=today)
+        .select_related("created_by")
+        .first()
+    )
+
+    if rem is None:
+        return {
+            "state": "none",
+            "title": "No remittance for today yet",
+            "message": "Operations are running but no financial data has been logged for this period.",
+            "cta_text": "Create a Remittance",
+            "cta_url": "remittance:add",
+            "created_by": "",
+        }
+
+    creator = rem.created_by.full_name if rem.created_by else "—"
+
+    if rem.status == Remittance.StatusChoices.DRAFT:
+        return {
+            "state": "draft",
+            "title": "A draft remittance is ready for review",
+            "message": f"A draft for today was prepared by {creator}. Review and finalize it when ready.",
+            "cta_text": "Review Draft",
+            "cta_url": "remittance:add",
+            "created_by": creator,
+        }
 
     return {
-        "show": not has_today,
-        "title": "No remittance for today yet",
-        "message": "Operations are running but no financial data has been logged for this period.",
-        "cta_text": "Create Today's Remittance",
+        "state": "finalized",
+        "title": "Today's remittance is finalized",
+        "message": "Today's financial data has been recorded and finalized.",
+        "cta_text": "View Remittance",
+        "cta_url": "remittance:history",
+        "created_by": creator,
     }
 
 
@@ -230,9 +281,33 @@ def get_dashboard_context(user: "User") -> dict:
     logger.info("[%s] Built dashboard context", user.id)
     return {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
-        "warning_banner": _warning_banner(user),
+        "today_remittance": _today_remittance(user),
         "stats": _build_stats(user),
         "recent_remittances": _recent_remittances(user),
         "outstanding_debts": _outstanding_debts(user),
-        "ai_insights": [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Public per-section selectors — used by the HTMX lazy-load partials so
+# each section only runs its own queries instead of the full dashboard set.
+# ---------------------------------------------------------------------------
+
+def get_stats(user: "User") -> list[dict]:
+    """Stats row cards (6/3/3 grid)."""
+    return _build_stats(user)
+
+
+def get_recent_remittances(user: "User") -> list[dict]:
+    """Recent remittances table rows."""
+    return _recent_remittances(user)
+
+
+def get_outstanding_debts(user: "User") -> list[dict]:
+    """Outstanding debts table rows."""
+    return _outstanding_debts(user)
+
+
+def get_today_remittance(user: "User") -> dict:
+    """Today's remittance status for the dashboard side panel."""
+    return _today_remittance(user)

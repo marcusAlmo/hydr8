@@ -1,0 +1,37 @@
+{% comment %}
+Skeleton placeholder for the outstanding debts table.
+Matches the shape of long_running_debts.html so the swap is seamless.
+{% endcomment %}
+<div class="flex-1">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+            <div class="hydr8-skeleton-bar h-6 w-6 rounded"></div>
+            <div class="hydr8-skeleton-bar h-5 w-40 rounded"></div>
+        </div>
+        <div class="hydr8-skeleton-bar h-4 w-28 rounded"></div>
+    </div>
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-surface-container text-on-surface-variant font-label-caps text-label-caps uppercase border-b border-outline-variant/20">
+                    <th class="py-3 px-4">Customer</th>
+                    <th class="py-3 px-4">Product</th>
+                    <th class="py-3 px-4">Outstanding</th>
+                    <th class="py-3 px-4">Age</th>
+                    <th class="py-3 px-4">Issued</th>
+                </tr>
+            </thead>
+            <tbody class="font-data-mono text-sm">
+                {% for i in skeleton_rows|default:'12345678'|make_list %}
+                <tr class="border-b border-outline-variant/10">
+                    <td class="py-3 px-4"><div class="hydr8-skeleton-bar h-4 w-28 rounded"></div></td>
+                    <td class="py-3 px-4"><div class="hydr8-skeleton-bar h-4 w-32 rounded"></div></td>
+                    <td class="py-3 px-4"><div class="hydr8-skeleton-bar h-4 w-20 rounded"></div></td>
+                    <td class="py-3 px-4"><div class="hydr8-skeleton-bar h-4 w-12 rounded"></div></td>
+                    <td class="py-3 px-4"><div class="hydr8-skeleton-bar h-4 w-24 rounded"></div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

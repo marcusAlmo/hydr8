@@ -34,6 +34,13 @@ Expects context (from _mock_user_detail_data):
     class="flex flex-col h-full"
     x-data='userDetailDrawer({{ trends_seed|default:"null" }})'
 >
+    {% if pin_error %}
+    <div class="mx-6 mt-4 p-4 bg-error-container border-l-4 border-error flex items-center gap-3 rounded-md">
+        <span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">error</span>
+        <p class="font-body-sm text-on-error-container font-medium text-sm">{{ pin_error }}</p>
+    </div>
+    {% endif %}
+
     <!-- Profile Header -->
     <div class="px-6 pt-6 pb-5 border-b border-outline-variant/20 bg-surface-container-low/30 flex-shrink-0">
         <div class="flex items-start gap-4">
@@ -149,15 +156,20 @@ Expects context (from _mock_user_detail_data):
         </div>
 
         <!-- Driver Stat Cards -->
-        <section class="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 pb-2">
+        <section class="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 pb-2 hydr8-stagger">
             {% for stat in driver_stats %}
-            <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between">
+            <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between hydr8-reveal-item">
                 <div class="flex justify-between items-start">
                     <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
                     <span class="material-symbols-outlined {{ stat.icon_class }} text-[18px]">{{ stat.icon }}</span>
                 </div>
                 <div class="mt-3">
-                    <h4 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold">{{ stat.value }}</h4>
+                    <h4 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold"
+                       x-data="countUp({
+                           target: {{ stat.raw_value|default_if_none:'null' }},
+                           prefix: '{{ stat.value_prefix|default:'' }}',
+                           decimals: {{ stat.value_decimals|default:'0' }}
+                       })">{{ stat.value }}</h4>
                     <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
                 </div>
             </div>
@@ -306,15 +318,20 @@ Expects context (from _mock_user_detail_data):
     <div class="flex-1 overflow-y-auto custom-scrollbar">
 
         <!-- Staff Stat Cards -->
-        <section class="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 pb-2">
+        <section class="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 pb-2 hydr8-stagger">
             {% for stat in staff_stats %}
-            <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between">
+            <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between hydr8-reveal-item">
                 <div class="flex justify-between items-start">
                     <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
                     <span class="material-symbols-outlined {{ stat.icon_class }} text-[18px]">{{ stat.icon }}</span>
                 </div>
                 <div class="mt-3">
-                    <h4 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold">{{ stat.value }}</h4>
+                    <h4 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold"
+                       x-data="countUp({
+                           target: {{ stat.raw_value|default_if_none:'null' }},
+                           prefix: '{{ stat.value_prefix|default:'' }}',
+                           decimals: {{ stat.value_decimals|default:'0' }}
+                       })">{{ stat.value }}</h4>
                     <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
                 </div>
             </div>
@@ -424,7 +441,7 @@ Expects context (from _mock_user_detail_data):
     {% endif %}
 
     <!-- ======================= FOOTER ACTIONS ======================= -->
-    <div class="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/30 flex items-center justify-between gap-3 flex-shrink-0" x-data="{ showTempPw: false, showEdit: false }">
+    <div class="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/30 flex items-center justify-between gap-3 flex-shrink-0" x-data="{ showTempPw: false, showEdit: false, showTempPinModal: false, tempPinInput: '', tempPinError: '' }">
         <span class="font-data-mono text-[11px] text-on-surface-variant">{{ profile.id }} · {{ profile.role }}</span>
         <div class="flex items-center gap-2">
             <!-- Generate Temporary Password (admin/staff only, requires real user UUID) -->
@@ -440,15 +457,18 @@ Expects context (from _mock_user_detail_data):
             <form
                 x-show="showTempPw"
                 x-cloak
+                id="temp-password-form"
                 hx-post="{% url 'users:generate_temp_password' profile.user_uuid %}"
                 hx-target="#user-detail-content"
                 hx-swap="innerHTML"
                 class="flex items-center gap-2"
             >
                 {% csrf_token %}
+                <input type="hidden" name="pin" x-model="tempPinInput">
                 <span class="font-body-sm text-body-sm text-on-surface-variant">Generate a temporary password for this user?</span>
                 <button
-                    type="submit"
+                    type="button"
+                    @click="tempPinInput = ''; tempPinError = ''; showTempPinModal = true; $nextTick(() => $refs.tempPinField.focus())"
                     class="px-3 py-1.5 bg-[#D97706] text-white font-body-sm font-bold text-sm rounded-lg hover:bg-[#D97706]/90 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                     <span class="material-symbols-outlined text-[16px]">key</span>
@@ -462,6 +482,68 @@ Expects context (from _mock_user_detail_data):
                     Cancel
                 </button>
             </form>
+
+            <!-- PIN Modal for Generate Temp Password -->
+            <div x-show="showTempPinModal"
+                 x-cloak
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                 @keydown.escape.window="showTempPinModal = false"
+                 style="position: fixed;">
+                <div x-show="showTempPinModal"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 border border-outline-variant/30">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                            <span class="material-symbols-outlined text-on-secondary-container">lock</span>
+                        </div>
+                        <div>
+                            <h3 class="font-headline-sm text-headline-sm text-on-surface">Confirm with PIN</h3>
+                            <p class="font-body-sm text-body-sm text-on-surface-variant">Enter your PIN to generate a temp password.</p>
+                        </div>
+                    </div>
+                    <form @submit.prevent="showTempPinModal = false; $nextTick(() => document.getElementById('temp-password-form').requestSubmit())">
+                        <div class="mb-4">
+                            <input
+                                type="password"
+                                inputmode="numeric"
+                                pattern="[0-9]*"
+                                maxlength="6"
+                                x-model="tempPinInput"
+                                x-ref="tempPinField"
+                                placeholder="••••"
+                                class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                :class="tempPinError ? 'border-error ring-2 ring-error/30' : ''"
+                                autocomplete="off">
+                            <p x-show="tempPinError" x-text="tempPinError"
+                               class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1">
+                            </p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="button" @click="showTempPinModal = false; tempPinInput = ''; tempPinError = ''"
+                                    class="flex-1 px-4 py-2.5 rounded-lg font-bold text-on-surface-variant hover:bg-surface-container transition-all">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                    :disabled="tempPinInput.length < 4"
+                                    class="flex-1 bg-[#D97706] text-white px-4 py-2.5 rounded-lg font-bold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">lock_open</span>
+                                Confirm
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <!-- Edit User (admin/staff only, requires real user UUID) -->
             <button

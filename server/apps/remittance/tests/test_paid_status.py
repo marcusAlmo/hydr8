@@ -13,7 +13,7 @@ from django.test import TestCase
 from apps.remittance.models import Remittance
 from apps.remittance.services import update_remittance_paid_status
 from apps.remittance.selectors import get_remittance_row
-from apps.users.models import User
+from apps.users.models import Role, User
 
 
 class UpdatePaidStatusServiceTests(TestCase):
@@ -249,11 +249,13 @@ class RemittanceHistoryPageRenderTests(TestCase):
     Actions column, and remittanceRow Alpine component."""
 
     def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.user = User.objects.create_user(
             username="operator",
             password="securepassword123",
             first_name="Op",
             last_name="Erator",
+            role=admin_role,
         )
         Remittance.objects.create(
             date=date(2026, 8, 4),

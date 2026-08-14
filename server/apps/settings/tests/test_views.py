@@ -43,7 +43,6 @@ class SettingsViewTests(TestCase):
         self.assertContains(response, 'System Config')
         self.assertContains(response, 'Company')
         self.assertContains(response, 'My Profile')
-        self.assertContains(response, 'AI Model')
 
     def test_settings_page_deep_links_to_profile_tab(self):
         response = self.client.get('/settings/?tab=profile')

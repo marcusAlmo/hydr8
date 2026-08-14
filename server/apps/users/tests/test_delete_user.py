@@ -62,6 +62,7 @@ class DeleteUserViewTests(TestCase):
             is_staff=True,
         )
         self.admin.role = admin_role
+        self.admin.set_pin("1234")
         self.admin.save()
         self.target = User.objects.create_user(
             username="targetuser",
@@ -100,12 +101,12 @@ class DeleteUserViewTests(TestCase):
         self.assertNotContains(response, "Delete User")
 
     def test_delete_with_correct_challenge_succeeds(self):
-        """Posting the correct challenge soft-deletes the user."""
+        """Posting the correct challenge and PIN soft-deletes the user."""
         self._load_edit_form()
         challenge = self._session_challenge()
         response = self.client.post(
             f"/user/{self.target.pk}/delete/",
-            {"delete_challenge": challenge},
+            {"delete_challenge": challenge, "pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
@@ -168,7 +169,7 @@ class DeleteUserViewTests(TestCase):
         challenge = self._session_challenge()
         self.client.post(
             f"/user/{self.target.pk}/delete/",
-            {"delete_challenge": challenge},
+            {"delete_challenge": challenge, "pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         self.assertIsNone(get_user_by_id(self.admin, self.target.pk))

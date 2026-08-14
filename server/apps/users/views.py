@@ -28,6 +28,7 @@ from apps.employees.selectors import get_user_detail_context
 from apps.users.models import Role, User
 from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
+from apps.users.permissions import is_staff_role as user_is_staff_role
 from apps.users.signals import login_failed
 from .selectors import get_roles_for_user, get_user_by_id
 from .services import (
@@ -96,6 +97,18 @@ def _safe_next_url(next_url: str, request) -> str:
     return ''
 
 
+def _post_auth_redirect_url(user) -> str:
+    """Returns the default landing page URL after successful auth/onboarding.
+
+    Staff users land on the Add Remittance page (their primary workflow —
+    recording sales and creating drafts). Admin and platform superusers
+    land on the Dashboard.
+    """
+    if user_is_staff_role(user):
+        return reverse('remittance:add')
+    return reverse('analytics:dashboard')
+
+
 def index(request):
     """
     Renders the full login landing page (users/index.html).
@@ -158,7 +171,7 @@ def login_view(request):
                 return response
 
             safe_next = _safe_next_url(next_url, request)
-            redirect_url = safe_next or reverse('analytics:dashboard')
+            redirect_url = safe_next or _post_auth_redirect_url(user)
             response = HttpResponse()
             response['HX-Redirect'] = redirect_url
             return response
@@ -262,7 +275,7 @@ def password_change_submit_view(request):
     if form.is_valid():
         change_user_password(request.user, form.cleaned_data['new_password'])
         response = HttpResponse()
-        response['HX-Redirect'] = reverse('analytics:dashboard')
+        response['HX-Redirect'] = _post_auth_redirect_url(request.user)
         return response
     return render(request, 'users/partials/password_change_form.html', {'form': form})
 
@@ -283,6 +296,8 @@ def generate_temp_password_view(request, user_id):
     Returns a partial with the plaintext password displayed once for copy.
     The plaintext is never logged (RA 10173).
 
+    Requires the admin's PIN for verification before generating the password.
+
     Protected by the Admin role (or platform superuser) via
     ``_can_change_user`` → ``apps.users.permissions.is_admin``.
     """
@@ -292,6 +307,16 @@ def generate_temp_password_view(request, user_id):
     target_user = get_user_by_id(request.user, user_id)
     if target_user is None:
         return HttpResponse("User not found.", status=404)
+
+    # --- PIN verification (server-side, defence in depth) ---
+    pin = (request.POST.get('pin', '') or '').strip()
+    if not pin or not request.user.check_pin(pin):
+        logger.info("[%s] generate_temp_password PIN verification failed.", request.user.id)
+        context = get_user_detail_context(request.user, target_user.id)
+        if context is None:
+            return HttpResponse("User not found.", status=404)
+        context['pin_error'] = "Incorrect PIN. Please try again." if pin else "PIN is required."
+        return render(request, 'employees/partials/user_detail.html', context, status=403)
 
     raw_password = set_temporary_password(target_user)
 
@@ -310,7 +335,7 @@ class EditUserForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'role', 'is_active']
+        fields = ['username', 'first_name', 'last_name', 'email', 'role', 'is_active', 'daily_rate']
         widgets = {
             'username': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
@@ -330,7 +355,24 @@ class EditUserForm(forms.ModelForm):
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary',
             }),
+            'daily_rate': forms.NumberInput(attrs={
+                'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+                'placeholder': 'e.g. 500.00',
+                'step': '0.01',
+                'min': '0',
+            }),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        role = cleaned.get('role')
+        daily_rate = cleaned.get('daily_rate')
+        if role and role.name == 'Staff':
+            if daily_rate is None:
+                self.add_error('daily_rate', "Daily rate is required for Staff role.")
+            elif daily_rate < 0:
+                self.add_error('daily_rate', "Daily rate cannot be negative.")
+        return cleaned
 
 
 @login_required
@@ -379,6 +421,8 @@ def edit_user_submit_view(request, user_id):
     HTMX endpoint — processes the edit user form submission.
     On success, returns a success toast partial. On failure, re-renders
     the form with errors.
+
+    Requires the admin's PIN for verification before saving changes.
     """
     if not _can_change_user(request.user):
         return HttpResponse("Forbidden", status=403)
@@ -390,7 +434,16 @@ def edit_user_submit_view(request, user_id):
     form = EditUserForm(request.POST, instance=target_user)
     form.fields['role'].queryset = get_roles_for_user(request.user)
 
-    if form.is_valid():
+    # --- PIN verification (server-side, defence in depth) ---
+    pin = (request.POST.get('pin', '') or '').strip()
+    pin_error = ''
+    if not pin:
+        pin_error = "PIN is required to save changes."
+    elif not request.user.check_pin(pin):
+        logger.info("[%s] edit_user PIN verification failed.", request.user.id)
+        pin_error = "Incorrect PIN. Please try again."
+
+    if form.is_valid() and not pin_error:
         try:
             form.save()
         except ValidationError as exc:
@@ -416,6 +469,7 @@ def edit_user_submit_view(request, user_id):
         'roles': get_roles_for_user(request.user),
         'delete_challenge': delete_challenge,
         'can_delete': _can_change_user(request.user) and request.user.pk != target_user.pk,
+        'pin_error': pin_error,
     })
 
 
@@ -476,6 +530,21 @@ def delete_user_view(request, user_id):
             'delete_challenge': expected_challenge,
             'can_delete': request.user.pk != target_user.pk,
             'delete_error': "The code you entered does not match. Please type it exactly as shown.",
+        })
+
+    # --- PIN verification (server-side, defence in depth) ---
+    pin = (request.POST.get('pin', '') or '').strip()
+    if not pin or not request.user.check_pin(pin):
+        logger.info("[%s] delete_user PIN verification failed.", request.user.id)
+        form = EditUserForm(instance=target_user)
+        form.fields['role'].queryset = get_roles_for_user(request.user)
+        return render(request, 'users/partials/edit_user_form.html', {
+            'form': form,
+            'target_user': target_user,
+            'roles': get_roles_for_user(request.user),
+            'delete_challenge': expected_challenge,
+            'can_delete': request.user.pk != target_user.pk,
+            'delete_error': "Incorrect PIN. Please enter your PIN to confirm deletion." if pin else "PIN is required to delete a user.",
         })
 
     try:
@@ -545,12 +614,45 @@ class AddUserForm(forms.Form):
         }),
         required=True,
     )
+    daily_rate = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        widget=forms.NumberInput(attrs={
+            'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
+            'placeholder': 'e.g. 500.00',
+            'step': '0.01',
+            'min': '0',
+        }),
+    )
+    pin = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none',
+            'placeholder': '••••',
+            'inputmode': 'numeric',
+            'pattern': '[0-9]*',
+            'maxlength': '6',
+            'autocomplete': 'off',
+        }),
+        required=False,
+    )
 
     def clean_username(self):
         username = self.cleaned_data.get('username', '').strip()
         if User.objects.filter(username=username, deleted_at__isnull=True).exists():
             raise ValidationError("A user with that username already exists.")
         return username
+
+    def clean(self):
+        cleaned = super().clean()
+        role = cleaned.get('role')
+        daily_rate = cleaned.get('daily_rate')
+        if role and role.name == 'Staff':
+            if daily_rate is None:
+                self.add_error('daily_rate', "Daily rate is required for Staff role.")
+            elif daily_rate < 0:
+                self.add_error('daily_rate', "Daily rate cannot be negative.")
+        return cleaned
 
 
 @login_required
@@ -575,6 +677,8 @@ def add_user_view(request):
 def add_user_submit_view(request):
     """HTMX endpoint — creates the user, sets a temporary password, and
     returns a partial displaying the one-time temporary password.
+
+    Requires the admin's PIN for verification before creating the account.
     """
     if not _can_add_user(request.user):
         return HttpResponse("Forbidden", status=403)
@@ -582,7 +686,15 @@ def add_user_submit_view(request):
     form = AddUserForm(request.POST)
     form.fields['role'].queryset = get_roles_for_user(request.user)
 
-    if form.is_valid():
+    # --- PIN verification (server-side, defence in depth) ---
+    pin = (request.POST.get('pin', '') or '').strip()
+    if not pin:
+        form.add_error(None, "PIN is required to create a new user.")
+    elif not request.user.check_pin(pin):
+        logger.info("[%s] add_user PIN verification failed.", request.user.id)
+        form.add_error(None, "Incorrect PIN. Please try again.")
+
+    if form.is_valid() and not form.non_field_errors():
         try:
             with transaction.atomic():
                 new_user = create_user_account(
@@ -593,6 +705,7 @@ def add_user_submit_view(request):
                     role=form.cleaned_data['role'],
                     company_id=None if request.user.is_superuser else request.user.company_id,
                     performed_by=request.user,
+                    daily_rate=form.cleaned_data.get('daily_rate'),
                 )
                 raw_password = set_temporary_password(new_user)
         except ValidationError as exc:
@@ -692,7 +805,7 @@ def _needs_onboarding(user) -> bool:
 def onboarding_view(request):
     """Renders the first-time onboarding page (password + PIN)."""
     if not _needs_onboarding(request.user):
-        return redirect('analytics:dashboard')
+        return redirect(_post_auth_redirect_url(request.user))
     form = OnboardingForm()
     return render(request, 'users/onboarding.html', {'form': form})
 
@@ -703,7 +816,7 @@ def onboarding_view(request):
 def onboarding_submit_view(request):
     """HTMX endpoint — completes onboarding by setting password and PIN."""
     if not _needs_onboarding(request.user):
-        return redirect('analytics:dashboard')
+        return redirect(_post_auth_redirect_url(request.user))
 
     form = OnboardingForm(request.POST)
     if form.is_valid():
@@ -713,7 +826,7 @@ def onboarding_submit_view(request):
             new_pin=form.cleaned_data['pin'],
         )
         response = HttpResponse()
-        response['HX-Redirect'] = reverse('analytics:dashboard')
+        response['HX-Redirect'] = _post_auth_redirect_url(request.user)
         return response
 
     return render(request, 'users/partials/onboarding_form.html', {'form': form})
@@ -751,6 +864,26 @@ def screen_lock_view(request):
 
 @login_required
 @require_http_methods(["POST"])
+@ratelimit(key='user', rate='30/m', method='POST', block=True)
+def screen_lock_arm_view(request):
+    """JSON endpoint — arms the server-side screen-lock flag.
+
+    Called by the Alpine.js idle lock-screen overlay (in ``base.html``)
+    the moment the client-side idle timer fires.  Setting
+    ``request.session['screen_locked'] = True`` ensures that
+    ``ScreenLockMiddleware`` will redirect *any* subsequent request —
+    including a page refresh — to the full-page lock screen, closing
+    the "refresh to bypass the PIN modal" hole.
+
+    Returns JSON ``{"armed": true}``.
+    """
+    request.session['screen_locked'] = True
+    logger.info("[%s] Idle lock-screen armed via overlay.", request.user.id)
+    return JsonResponse({"armed": True})
+
+
+@login_required
+@require_http_methods(["POST"])
 @ratelimit(key='user', rate='60/m', method='POST', block=True)
 def screen_lock_submit_view(request):
     """
@@ -771,7 +904,7 @@ def screen_lock_submit_view(request):
         request.session.pop('screen_locked', None)
         logger.info("[%s] Screen unlocked via PIN.", user.id)
         response = HttpResponse()
-        response['HX-Redirect'] = reverse('analytics:dashboard')
+        response['HX-Redirect'] = _post_auth_redirect_url(user)
         return response
 
     attempts += 1

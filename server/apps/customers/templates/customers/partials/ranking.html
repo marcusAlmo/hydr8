@@ -13,15 +13,20 @@ Expects context:
 <div class="flex-1 flex flex-col gap-6">
 
     <!-- Ranking summary cards (asymmetric grid) -->
-    <section class="grid grid-cols-1 md:grid-cols-12 gap-6">
+    <section class="grid grid-cols-1 md:grid-cols-12 gap-6 hydr8-stagger">
         {% for stat in ranking_stats %}
-        <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 {{ stat.border_class }} flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default">
+        <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 {{ stat.border_class }} flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default hydr8-reveal-item">
             <div class="flex justify-between items-start">
                 <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
                 <span class="material-symbols-outlined {{ stat.icon_class }}">{{ stat.icon }}</span>
             </div>
             <div class="mt-4">
-                <h3 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold">{{ stat.value }}</h3>
+                <h3 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold"
+                   x-data="countUp({
+                       target: {{ stat.raw_value|default_if_none:'null' }},
+                       prefix: '{{ stat.value_prefix|default:'' }}',
+                       decimals: {{ stat.value_decimals|default:'0' }}
+                   })">{{ stat.value }}</h3>
                 {% if stat.subtitle %}
                 <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
                 {% endif %}

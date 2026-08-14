@@ -188,11 +188,17 @@ def _user_row(user: User) -> dict:
 
 def _directory_stats(users_qs):
     active = users_qs.filter(is_active=True, deactivated_at__isnull=True)
+    active_users_count = active.count()
+    active_riders_count = active.filter(role__name='Driver').count()
+    active_staffs_count = active.filter(role__name='Staff').count()
     return [
         {
             "key": "active_users",
             "label": "Active Users",
-            "value": f"{active.count():,}",
+            "value": f"{active_users_count:,}",
+            "raw_value": active_users_count,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "icon": "badge",
             "accent": "primary",
@@ -201,7 +207,10 @@ def _directory_stats(users_qs):
         {
             "key": "active_riders",
             "label": "Active Riders",
-            "value": f"{active.filter(role__name='Driver').count():,}",
+            "value": f"{active_riders_count:,}",
+            "raw_value": active_riders_count,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "icon": "two_wheeler",
             "accent": "warning",
@@ -210,7 +219,10 @@ def _directory_stats(users_qs):
         {
             "key": "active_staffs",
             "label": "Active Staffs",
-            "value": f"{active.filter(role__name='Staff').count():,}",
+            "value": f"{active_staffs_count:,}",
+            "raw_value": active_staffs_count,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "icon": "work",
             "accent": "tertiary",
@@ -473,6 +485,9 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
                 "key": "total_commissions",
                 "label": "Commissions Paid (30D)",
                 "value": _format_peso(total_commission),
+                "raw_value": float(total_commission),
+                "value_prefix": "₱",
+                "value_decimals": 2,
                 "value_size": "2xl",
                 "subtitle": f"{total_units} units delivered",
                 "icon": "payments",
@@ -483,6 +498,9 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
                 "key": "avg_daily",
                 "label": "Avg Daily Commission",
                 "value": _format_peso(avg_daily),
+                "raw_value": float(avg_daily),
+                "value_prefix": "₱",
+                "value_decimals": 2,
                 "value_size": "2xl",
                 "subtitle": f"Over {days_count} days",
                 "icon": "trending_up",
@@ -493,6 +511,9 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
                 "key": "debts_outstanding",
                 "label": "Outstanding Debts Handled",
                 "value": _format_peso(debts_outstanding),
+                "raw_value": float(debts_outstanding),
+                "value_prefix": "₱",
+                "value_decimals": 2,
                 "value_size": "2xl",
                 "subtitle": f"{len(debts_handled)} customers, {_format_peso(debts_sum)} total",
                 "icon": "dangerous",
@@ -511,11 +532,28 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
     }
 
 
-def _staff_detail_context() -> dict:
-    """Builds the staff expanded report (currently minimal real data)."""
+def _staff_detail_context(user: User) -> dict:
+    """Builds the staff expanded report with daily rate stat card."""
+    daily_rate = user.daily_rate or Decimal("0.00")
+    staff_stats = [
+        {
+            "key": "daily_rate",
+            "label": "Daily Rate",
+            "value": _format_peso(daily_rate),
+            "raw_value": float(daily_rate),
+            "value_prefix": "₱",
+            "value_decimals": 2,
+            "value_size": "2xl",
+            "subtitle": "Fixed daily salary",
+            "icon": "payments",
+            "accent": "tertiary",
+            "col_span": "md:col-span-12",
+        },
+    ]
     return {
         "is_staff": True,
-        "staff_stats": [],
+        "staff_stats": staff_stats,
+        "daily_rate": _format_peso(daily_rate),
         "debts_assigned": [],
         "debts_sum": "₱0.00",
         "debts_outstanding_amount": "₱0.00",
@@ -599,7 +637,7 @@ def get_user_detail_context(request_user: "UserType", user_id: str) -> dict | No
         context.update(_driver_detail_context(request_user, target))
         _apply_stat_accents(context.get("driver_stats", []))
     elif role_name == "staff":
-        context.update(_staff_detail_context())
+        context.update(_staff_detail_context(target))
         _apply_stat_accents(context.get("staff_stats", []))
     else:
         context.update({"is_admin": True})

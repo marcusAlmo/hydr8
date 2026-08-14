@@ -1,0 +1,52 @@
+{% comment %}
+Today's Remittance status panel — centralizes the daily-remittance
+notification on the dashboard.
+
+Replaces the former AI Insights panel. Expects context:
+  - today_remittance: {
+        state: 'none' | 'draft' | 'finalized',
+        title, message, cta_text, cta_url (named URL), created_by
+    }
+{% endcomment %}
+{% load static %}
+<div class="lg:col-span-1">
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm h-full min-h-[28rem] flex flex-col hover:shadow-md transition-shadow">
+
+        {# Header — accent colour depends on state #}
+        <div class="p-4 text-white flex items-center justify-between {% if today_remittance.state == 'draft' %}bg-[#D97706]{% elif today_remittance.state == 'none' %}bg-[#D97706]{% else %}bg-tertiary{% endif %}">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined">{% if today_remittance.state == 'draft' %}edit_note{% elif today_remittance.state == 'none' %}warning{% else %}task_alt{% endif %}</span>
+                <span class="font-headline-sm text-headline-sm">Today's Remittance</span>
+            </div>
+            <span class="text-[10px] bg-white/20 px-2 py-1 rounded-full uppercase font-bold tracking-tighter shadow-sm border border-white/10">
+                {% if today_remittance.state == 'draft' %}Draft{% elif today_remittance.state == 'none' %}Pending{% else %}Done{% endif %}
+            </span>
+        </div>
+
+        {# Body — status message + contextual CTA #}
+        <div class="p-5 flex-1 flex flex-col">
+            <div class="flex-1 flex flex-col items-center justify-center text-center px-2">
+                <span class="material-symbols-outlined text-primary text-5xl mb-3" style="font-variation-settings: 'FILL' 1;">
+                    {% if today_remittance.state == 'draft' %}edit_document{% elif today_remittance.state == 'none' %}note_add{% else %}payments{% endif %}
+                </span>
+                <p class="font-headline-sm text-headline-sm text-on-surface font-bold mb-2">{{ today_remittance.title }}</p>
+                <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+                    {{ today_remittance.message }}
+                </p>
+                {% if today_remittance.state == 'draft' and today_remittance.created_by %}
+                <p class="mt-3 font-data-mono text-[11px] text-on-surface-variant/70">
+                    Prepared by {{ today_remittance.created_by }}
+                </p>
+                {% endif %}
+            </div>
+
+            <a href="{% url today_remittance.cta_url %}"
+               class="mt-4 w-full py-2.5 {% if today_remittance.state == 'finalized' %}bg-surface-tint text-on-surface-variant hover:bg-surface-container-high{% else %}bg-primary text-on-primary hover:bg-primary/90{% endif %} rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm">
+                <span class="material-symbols-outlined text-sm">
+                    {% if today_remittance.state == 'draft' %}edit_note{% elif today_remittance.state == 'none' %}add_circle{% else %}visibility{% endif %}
+                </span>
+                {{ today_remittance.cta_text }}
+            </a>
+        </div>
+    </div>
+</div>

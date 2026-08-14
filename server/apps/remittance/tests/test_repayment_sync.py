@@ -192,6 +192,8 @@ class RepaymentSyncTests(TestCase):
         self.assertEqual(rem.total_commission, Decimal("25.00"))
         # net = 80 + 120 - 0 - 25 = 175
         self.assertEqual(rem.net_profit, Decimal("175.00"))
+        # tithes = 175 * 0.10 = 17.50
+        self.assertEqual(rem.tithe_amount, Decimal("17.50"))
 
         # The CreditPayment is now linked.
         payment = CreditPayment.objects.get(credit_line=self.credit_line)

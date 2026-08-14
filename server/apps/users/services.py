@@ -1,6 +1,7 @@
 import logging
 import secrets
 import string
+from decimal import Decimal, InvalidOperation
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -66,14 +67,28 @@ def create_user_account(
     role: Role,
     company_id: int | None,
     performed_by,
+    daily_rate: Decimal | str | None = None,
 ) -> User:
     """
     Creates a new active user in the same tenant as the requester,
     assigns the requested role, and flags them for onboarding.
     The caller is expected to set a temporary password immediately.
+
+    ``daily_rate`` is stored only for Staff role users; it is ignored
+    for other roles (drivers are commission-based, admins have no rate).
     """
     if User.objects.filter(username=username, deleted_at__isnull=True).exists():
         raise ValidationError("A user with that username already exists.")
+
+    # Parse and validate the daily rate for Staff users.
+    rate_value = Decimal("0.00")
+    if role.name == "Staff" and daily_rate not in (None, ""):
+        try:
+            rate_value = Decimal(str(daily_rate))
+        except (InvalidOperation, ValueError) as exc:
+            raise ValidationError("Daily rate must be a valid decimal number.") from exc
+        if rate_value < 0:
+            raise ValidationError("Daily rate cannot be negative.")
 
     with transaction.atomic():
         user = User(
@@ -85,6 +100,7 @@ def create_user_account(
             company_id=company_id,
             is_active=True,
             is_staff=(role.name in ("Admin", "Staff")),
+            daily_rate=rate_value if role.name == "Staff" else Decimal("0.00"),
         )
         user.set_unusable_password()
         try:

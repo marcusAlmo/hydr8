@@ -20,6 +20,7 @@
     x-data="lockScreenOverlay({
         timeoutMinutes: {{ lockscreen_timeout_minutes }},
         verifyUrl: '{% url 'users:screen_lock_verify' %}',
+        armUrl: '{% url 'users:screen_lock_arm' %}',
         csrfToken: '{{ csrf_token }}',
     })"
     x-init="init()"
@@ -137,6 +138,7 @@ function lockScreenOverlay(config) {
     return {
         timeoutMinutes: config.timeoutMinutes,
         verifyUrl: config.verifyUrl,
+        armUrl: config.armUrl,
         csrfToken: config.csrfToken,
 
         locked: false,
@@ -178,9 +180,32 @@ function lockScreenOverlay(config) {
             this.pinInput = '';
             this.pinError = '';
             this.attemptsLeft = null;
+            // Arm the server-side lock flag so that a page refresh (or
+            // any navigation) is caught by ScreenLockMiddleware and
+            // redirected to the full-page lock screen.  Fire-and-forget:
+            // the overlay shows immediately; the POST runs in the
+            // background.  If it fails the middleware backstop won't
+            // engage for *this* idle event, but the next idle cycle
+            // retries and a manual lock still works.
+            this._armServer();
             this.$nextTick(() => {
                 if (this.$refs.pinField) this.$refs.pinField.focus();
             });
+        },
+
+        async _armServer() {
+            try {
+                await fetch(this.armUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken,
+                    },
+                    body: '{}',
+                });
+            } catch (e) {
+                // Swallow — overlay is already shown client-side.
+            }
         },
 
         async submitPin() {

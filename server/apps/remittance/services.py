@@ -20,7 +20,15 @@ from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.users.models import User, DriverCommission
 
-from .models import Expense, Remittance, RemittanceRider, RemittanceRiderProductLine
+from .models import (
+    Expense,
+    Remittance,
+    RemittanceRider,
+    RemittanceRiderProductLine,
+    RemittanceStaff,
+    RiderDeduction,
+    StaffDeduction,
+)
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -44,6 +52,20 @@ def _active_riders_qs(user: "UserType"):
         role__name__iexact="driver",
         deleted_at__isnull=True,
         is_active=True,
+        deactivated_at__isnull=True,
+    )
+    if not (user.is_superuser or user.company_id is None):
+        qs = qs.filter(company_id=user.company_id)
+    return qs
+
+
+def _active_staff_qs(user: "UserType"):
+    """Tenant-scoped active staff users."""
+    qs = User.objects.filter(
+        role__name__iexact="Staff",
+        deleted_at__isnull=True,
+        is_active=True,
+        deactivated_at__isnull=True,
     )
     if not (user.is_superuser or user.company_id is None):
         qs = qs.filter(company_id=user.company_id)
@@ -135,6 +157,8 @@ def create_remittance(
     tithe_rate,
     remittance_date=None,
     finalize: bool = False,
+    other_sales=0,
+    staff_data: list[dict] | None = None,
 ) -> Remittance:
     """Creates a daily remittance from the client payload.
 
@@ -185,6 +209,8 @@ def create_remittance(
         manual_offering=manual_offering,
         tithe_rate=tithe_rate,
         finalize=finalize,
+        other_sales=other_sales,
+        staff_data=staff_data,
     )
 
 
@@ -197,6 +223,8 @@ def save_remittance_draft(
     manual_offering,
     tithe_rate,
     remittance_date=None,
+    other_sales=0,
+    staff_data: list[dict] | None = None,
 ) -> Remittance:
     """Creates or replaces a DRAFT remittance for the given date.
 
@@ -242,6 +270,8 @@ def save_remittance_draft(
         manual_offering=manual_offering,
         tithe_rate=tithe_rate,
         finalize=False,
+        other_sales=other_sales,
+        staff_data=staff_data,
     )
 
 
@@ -298,6 +328,8 @@ def _build_remittance(
     manual_offering,
     tithe_rate,
     finalize: bool = False,
+    other_sales=0,
+    staff_data: list[dict] | None = None,
 ) -> Remittance:
     """Shared core that creates a Remittance row and all child records.
 
@@ -338,6 +370,8 @@ def _build_remittance(
     total_expenses = Decimal("0.00")
     total_borrowed_items = 0
     total_repayments = Decimal("0.00")
+    other_sales_dec = _to_decimal(other_sales)
+    total_salary_dec = Decimal("0.00")
 
     active_riders = _active_riders_qs(performed_by)
     active_rider_list = list(active_riders)
@@ -433,15 +467,62 @@ def _build_remittance(
         override = rider_payload.get("commission_override")
         if override not in (None, ""):
             rider_commission = _to_decimal(override)
+            remittance_rider.commission_override = rider_commission
+        else:
+            remittance_rider.commission_override = None
 
         remittance_rider.subtotal_payable = rider_payable
         remittance_rider.subtotal_commission = rider_commission
         remittance_rider.save(
-            update_fields=["subtotal_payable", "subtotal_commission", "updated_at"]
+            update_fields=[
+                "subtotal_payable",
+                "subtotal_commission",
+                "commission_override",
+                "updated_at",
+            ]
         )
 
+        # Persist rider-attributed expenses.
+        for exp in rider_payload.get("expenses", []) or []:
+            exp_amount = _to_decimal(exp.get("amount"))
+            exp_desc = (exp.get("description") or "").strip()
+            if not exp_desc and exp_amount == 0:
+                continue
+            if exp_amount < 0:
+                raise ValidationError("Expense amounts cannot be negative.")
+            Expense.objects.create(
+                remittance=remittance,
+                remittance_rider=remittance_rider,
+                description=exp_desc or "(unnamed)",
+                amount=exp_amount,
+                company=company,
+                recorded_by=performed_by,
+            )
+            total_expenses += exp_amount
+
+        # Persist rider commission deductions.
+        rider_deductions_total = Decimal("0.00")
+        for ded in rider_payload.get("deductions", []) or []:
+            ded_amount = _to_decimal(ded.get("amount"))
+            ded_desc = (ded.get("description") or "").strip()
+            if not ded_desc and ded_amount == 0:
+                continue
+            if ded_amount < 0:
+                raise ValidationError("Deduction amounts cannot be negative.")
+            RiderDeduction.objects.create(
+                remittance_rider=remittance_rider,
+                description=ded_desc or "(unnamed)",
+                amount=ded_amount,
+                company=company,
+                recorded_by=performed_by,
+            )
+            rider_deductions_total += ded_amount
+
         total_sales += rider_payable
-        total_commission += rider_commission
+        # total_commission tracks the NET commission (gross minus
+        # deductions) to match the frontend's totalCommission() which
+        # sums riderNetCommission = riderCommission - riderDeductions.
+        total_commission += max(Decimal("0.00"), rider_commission - rider_deductions_total)
 
     # Link ALL CreditPayments to this remittance and accumulate total
     # repayments.  Payments attributed to active riders (via care_of)
@@ -463,7 +544,11 @@ def _build_remittance(
         rr = rider_rows.get(care_of_id)
         if rr is None:
             # Rider not in the payload — create a lightweight row to hold
-            # their repayment commission.
+            # their repayment commission.  These rows have no deductions
+            # (the operator didn't enter any for a rider they didn't
+            # include), so the gross commission is added directly to
+            # total_commission without the max(0, ...) deduction guard
+            # used for payload riders above.
             rider = next((r for r in active_rider_list if r.id == care_of_id), None)
             if rider is None:
                 continue
@@ -482,6 +567,8 @@ def _build_remittance(
             rr.save(update_fields=["subtotal_commission", "updated_at"])
             total_commission += rider_repayment_commission
 
+    # Persist general (unattributed) expenses from the flat expenses_data.
+    # Rider-attributed expenses were already persisted in the rider loop.
     for expense in expenses_data:
         amount = _to_decimal(expense.get("amount"))
         description = (expense.get("description") or "").strip()
@@ -499,15 +586,85 @@ def _build_remittance(
         )
         total_expenses += amount
 
-    net_profit = total_sales + total_repayments - total_expenses - total_commission
-    tithe_amount = net_profit * remittance.tithe_rate_snapshot
+    # Add other_sales (miscellaneous sales not tied to product lines)
+    total_sales += other_sales_dec
+
+    # --- Persist staff payments and deductions ---------------------------
+    active_staff_qs = _active_staff_qs(performed_by)
+    active_staff = {s.pk: s for s in active_staff_qs}
+
+    for staff_entry in staff_data or []:
+        staff_id = staff_entry.get("id")
+        staff_user = active_staff.get(staff_id)
+        if staff_user is None:
+            continue
+
+        daily_rate = _to_decimal(staff_user.daily_rate)
+        salary_override_raw = staff_entry.get("salary_override")
+        salary_override = None
+        if salary_override_raw not in (None, ""):
+            salary_override = _to_decimal(salary_override_raw)
+            if salary_override < 0:
+                raise ValidationError("Salary override cannot be negative.")
+
+        effective_salary = salary_override if salary_override is not None else daily_rate
+
+        remittance_staff = RemittanceStaff.objects.create(
+            remittance=remittance,
+            staff=staff_user,
+            company=company,
+            daily_rate_snapshot=daily_rate,
+            salary_override=salary_override,
+            total_deductions=Decimal("0.00"),
+            net_pay=effective_salary,
+        )
+
+        staff_deductions_total = Decimal("0.00")
+        for ded in staff_entry.get("deductions", []) or []:
+            ded_amount = _to_decimal(ded.get("amount"))
+            ded_desc = (ded.get("description") or "").strip()
+            if not ded_desc and ded_amount == 0:
+                continue
+            if ded_amount < 0:
+                raise ValidationError("Staff deduction amounts cannot be negative.")
+            StaffDeduction.objects.create(
+                remittance_staff=remittance_staff,
+                description=ded_desc or "(unnamed)",
+                amount=ded_amount,
+                company=company,
+                recorded_by=performed_by,
+            )
+            staff_deductions_total += ded_amount
+
+        net_pay = effective_salary - staff_deductions_total
+        remittance_staff.total_deductions = staff_deductions_total
+        remittance_staff.net_pay = net_pay
+        remittance_staff.save(
+            update_fields=["total_deductions", "net_pay", "updated_at"]
+        )
+
+        total_salary_dec += effective_salary
+
+    # Net Remittance = total_sales + total_repayments - total_expenses
+    # Net Profit = net_remittance - total_commission - total_salary
+    # Tithes = net_profit * tithe_rate  (computed FROM net profit)
+    #
+    # Tithes are floored at zero — when the business operates at a loss
+    # (negative net profit) no tithe is owed, so we must not record a
+    # negative tithe_amount.
+    net_remittance = total_sales + total_repayments - total_expenses
+    net_profit = net_remittance - total_commission - total_salary_dec
+    tithe_amount = max(Decimal("0.00"), net_profit) * remittance.tithe_rate_snapshot
 
     remittance.total_sales = total_sales
     remittance.total_credit_sales = total_credit_sales
     remittance.total_commission = total_commission
+    remittance.total_salary = total_salary_dec
     remittance.total_expenses = total_expenses
+    remittance.total_other_sales = other_sales_dec
     remittance.total_borrowed_items = total_borrowed_items
     remittance.total_repayments_received = total_repayments
+    remittance.net_remittance = net_remittance
     remittance.net_profit = net_profit
     remittance.tithe_amount = tithe_amount
 
@@ -526,9 +683,12 @@ def _build_remittance(
             "total_sales",
             "total_credit_sales",
             "total_commission",
+            "total_salary",
             "total_expenses",
+            "total_other_sales",
             "total_borrowed_items",
             "total_repayments_received",
+            "net_remittance",
             "net_profit",
             "tithe_amount",
             *finalize_fields,

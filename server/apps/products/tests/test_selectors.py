@@ -186,7 +186,7 @@ class GetProductsPricingContextTests(TestCase):
         ctx = get_products_pricing_context(self.admin)
         for key in (
             "today_date", "tabs", "products", "active_count",
-            "default_count", "total_count", "ai_insight",
+            "default_count", "total_count",
             "product_columns", "page_size", "rider_count", "riders",
         ):
             self.assertIn(key, ctx, f"Missing key: {key}")

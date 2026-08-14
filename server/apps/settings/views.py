@@ -15,6 +15,7 @@ from apps.core.views import (
     toast_success,
 )
 from apps.users.permissions import is_admin as user_is_admin
+from apps.users.permissions import is_staff_role as user_is_staff_role
 
 from .forms import (
     CompanyForm,
@@ -63,7 +64,11 @@ def settings_view(request):
     # value can't inject arbitrary content into the Alpine x-data attribute.
     valid_tab_ids = {t["id"] for t in context["tabs"]}
     requested_tab = request.GET.get("tab", "").strip()
-    context["initial_tab"] = requested_tab if requested_tab in valid_tab_ids else "system-config"
+    # Staff only have the profile tab — force it regardless of ?tab= param.
+    if user_is_staff_role(request.user):
+        context["initial_tab"] = "profile"
+    else:
+        context["initial_tab"] = requested_tab if requested_tab in valid_tab_ids else "system-config"
 
     return render(request, "settings/settings.html", context)
 

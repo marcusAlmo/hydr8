@@ -17,7 +17,7 @@ from decimal import Decimal
 from django.core.cache import cache
 from django.test import TestCase
 
-from apps.core.models import Product
+from apps.core.models import Product, SystemConfig
 from apps.customers.models import (
     BorrowedContainer,
     CreditLine,
@@ -27,6 +27,7 @@ from apps.customers.services import (
     record_customer_borrowed,
     record_customer_debt,
 )
+from apps.settings.models import Company
 from apps.users.models import User
 from apps.users.presentation import driver_code as user_driver_code
 
@@ -416,6 +417,37 @@ class CustomerAddViewTests(TestCase):
         self.assertContains(response, 'name="address"')
         self.assertContains(response, 'name="credit_limit"')
 
+    def test_add_get_pre_populates_default_credit_limit(self):
+        """The credit limit field is pre-filled with the configured default.
+
+        With no SystemConfig row present, the hardcoded default (3000.00)
+        is used so the operator doesn't have to re-enter the ceiling for
+        every new customer.
+        """
+        response = self.client.get("/customers/add/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="3000.00"')
+        self.assertContains(response, "Pre-filled from System Config")
+
+    def test_add_get_uses_tenant_scoped_credit_limit(self):
+        """A tenant-scoped SystemConfig row overrides the global default."""
+        company = Company.objects.create(name="Tenant Co")
+        self.user.company = company
+        self.user.save()
+        SystemConfig.objects.update_or_create(
+            company=company,
+            key="approved_credit_limit",
+            defaults={"value": "5000.00"},
+        )
+        try:
+            response = self.client.get("/customers/add/")
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'value="5000.00"')
+            self.assertNotContains(response, 'value="3000.00"')
+        finally:
+            self.user.company = None
+            self.user.save()
+
     def test_add_get_requires_login(self):
         """An anonymous request is redirected to the login flow."""
         self.client.logout()
@@ -479,9 +511,11 @@ class RecordDebtViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Record Debt")
         self.assertContains(response, 'name="customer_id"')
+        self.assertContains(response, 'name="customer_name"')
         self.assertContains(response, 'name="product_key"')
         self.assertContains(response, 'name="qty_credited"')
-        # Customer dropdown populated from real data
+        # Customer data embedded for Alpine combobox
+        self.assertContains(response, "debt-customers-data")
         self.assertContains(response, _display_id(self.customer))
         # Product dropdown populated
         self.assertContains(response, "Alkaline Water")
@@ -553,6 +587,67 @@ class RecordDebtViewTests(TestCase):
         response = self.client.get("/customers/record-debt/submit/")
         self.assertEqual(response.status_code, 405)
 
+    def test_record_debt_submit_creates_customer_if_not_found(self):
+        """POST with customer_name (no customer_id) creates a customer on the fly."""
+        existing_count = Customer.objects.count()
+        response = self.client.post("/customers/record-debt/submit/", {
+            "customer_id": "",
+            "customer_name": "Brand New Debt Store",
+            "product_key": str(self.product.pk),
+            "qty_credited": "3",
+            "unit_price": "40.00",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "toast")
+        # A new customer was created
+        self.assertEqual(Customer.objects.count(), existing_count + 1)
+        new_customer = Customer.objects.filter(name="Brand New Debt Store").first()
+        self.assertIsNotNone(new_customer)
+        # The new customer has the debt recorded
+        self.assertEqual(new_customer.credit_lines.count(), 1)
+        self.assertTrue(new_customer.debt_balance > 0)
+
+    def test_record_debt_submit_new_customer_gets_default_credit_limit(self):
+        """A customer created on the fly gets the default credit limit from settings."""
+        response = self.client.post("/customers/record-debt/submit/", {
+            "customer_id": "",
+            "customer_name": "Default Limit Store",
+            "product_key": str(self.product.pk),
+            "qty_credited": "1",
+            "unit_price": "40.00",
+        })
+        self.assertEqual(response.status_code, 200)
+        new_customer = Customer.objects.filter(name="Default Limit Store").first()
+        self.assertIsNotNone(new_customer)
+        # Default credit limit is 3000.00 (from SYSTEM_CONFIG_DEFAULTS)
+        self.assertEqual(new_customer.credit_limit, Decimal("3000.00"))
+
+    def test_record_debt_submit_returns_400_for_no_customer(self):
+        """POST with neither customer_id nor customer_name returns 400."""
+        response = self.client.post("/customers/record-debt/submit/", {
+            "customer_id": "",
+            "customer_name": "",
+            "product_key": str(self.product.pk),
+            "qty_credited": "5",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "select a customer", status_code=400)
+
+    def test_record_debt_submit_prefers_existing_customer_over_name(self):
+        """When both customer_id and customer_name are sent, customer_id wins."""
+        existing_count = Customer.objects.count()
+        response = self.client.post("/customers/record-debt/submit/", {
+            "customer_id": _display_id(self.customer),
+            "customer_name": "Should Not Be Created",
+            "product_key": str(self.product.pk),
+            "qty_credited": "2",
+            "unit_price": "40.00",
+        })
+        self.assertEqual(response.status_code, 200)
+        # No new customer was created — the existing one was used
+        self.assertEqual(Customer.objects.count(), existing_count)
+        self.assertFalse(Customer.objects.filter(name="Should Not Be Created").exists())
+
 
 class RecordBorrowedViewTests(TestCase):
     """Tests for the HTMX record-borrowed modal + submission endpoints."""
@@ -575,8 +670,11 @@ class RecordBorrowedViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Record Borrowed")
         self.assertContains(response, 'name="customer_id"')
+        self.assertContains(response, 'name="customer_name"')
         self.assertContains(response, 'name="container_key"')
         self.assertContains(response, 'name="qty_borrowed"')
+        # Customer data embedded for Alpine combobox
+        self.assertContains(response, "borrow-customers-data")
         # Container type dropdown populated
         self.assertContains(response, "Round 8gal")
 
@@ -635,6 +733,48 @@ class RecordBorrowedViewTests(TestCase):
         """GET is not allowed on the submit endpoint."""
         response = self.client.get("/customers/record-borrowed/submit/")
         self.assertEqual(response.status_code, 405)
+
+    def test_record_borrowed_submit_creates_customer_if_not_found(self):
+        """POST with customer_name (no customer_id) creates a customer on the fly."""
+        existing_count = Customer.objects.count()
+        response = self.client.post("/customers/record-borrowed/submit/", {
+            "customer_id": "",
+            "customer_name": "Brand New Borrow Store",
+            "container_key": "round_8gal",
+            "qty_borrowed": "4",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "toast")
+        # A new customer was created
+        self.assertEqual(Customer.objects.count(), existing_count + 1)
+        new_customer = Customer.objects.filter(name="Brand New Borrow Store").first()
+        self.assertIsNotNone(new_customer)
+        # The new customer has the borrowed container recorded
+        self.assertTrue(new_customer.borrowed_round_8gal > 0)
+
+    def test_record_borrowed_submit_new_customer_gets_default_credit_limit(self):
+        """A customer created on the fly gets the default credit limit."""
+        response = self.client.post("/customers/record-borrowed/submit/", {
+            "customer_id": "",
+            "customer_name": "Borrow Default Limit Store",
+            "container_key": "slim_8gal",
+            "qty_borrowed": "2",
+        })
+        self.assertEqual(response.status_code, 200)
+        new_customer = Customer.objects.filter(name="Borrow Default Limit Store").first()
+        self.assertIsNotNone(new_customer)
+        self.assertEqual(new_customer.credit_limit, Decimal("3000.00"))
+
+    def test_record_borrowed_submit_returns_400_for_no_customer(self):
+        """POST with neither customer_id nor customer_name returns 400."""
+        response = self.client.post("/customers/record-borrowed/submit/", {
+            "customer_id": "",
+            "customer_name": "",
+            "container_key": "round_8gal",
+            "qty_borrowed": "3",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "select a customer", status_code=400)
 
 
 class CustomerDeleteViewTests(TestCase):

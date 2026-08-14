@@ -6,13 +6,11 @@ from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
+from apps.settings.selectors import get_default_credit_limit
 
 from .selectors import (
     DEFAULT_DIR,
     DEFAULT_SORT,
-    DEBT_DEFAULT_DIR,
-    DEBT_DEFAULT_SORT,
-    DEBT_SORT_FIELD_MAP,
     SORT_FIELD_MAP,
     get_customer_by_display_id,
     get_customer_collect_context,
@@ -20,7 +18,6 @@ from .selectors import (
     get_customer_edit_context,
     get_customer_list_context,
     get_customer_table_context,
-    get_debt_table_context,
     get_record_borrowed_context,
     get_record_debt_context,
 )
@@ -59,10 +56,9 @@ def _apply_accent(stats: list[dict]) -> None:
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def customer_list_view(request):
-    """Renders the full Customers page with Summary, Debt, and Ranking tabs."""
+    """Renders the full Customers page with Summary and Ranking tabs."""
     context = get_customer_list_context(request.user)
     _apply_accent(context["stats"])
-    _apply_accent(context["debt_stats"])
     _apply_accent(context["ranking_stats"])
     return render(request, "customers/customer_list.html", context)
 
@@ -83,24 +79,6 @@ def customer_table_view(request):
         page = 1
     context = get_customer_table_context(request.user, sort_field, direction, query, page)
     return render(request, "customers/partials/customer_table.html", context)
-
-
-@login_required
-@require_http_methods(["GET"])
-@ratelimit(key="user", rate="120/m", method="GET", block=True)
-def debt_table_view(request):
-    """HTMX endpoint — returns the sorted/filtered debt-management table partial."""
-    sort_field = request.GET.get("sort", DEBT_DEFAULT_SORT)
-    sort_field = sort_field if sort_field in DEBT_SORT_FIELD_MAP else DEBT_DEFAULT_SORT
-    direction = request.GET.get("dir", DEBT_DEFAULT_DIR)
-    direction = direction if direction in ("asc", "desc") else DEBT_DEFAULT_DIR
-    query = request.GET.get("q", "")
-    try:
-        page = int(request.GET.get("page", 1))
-    except (TypeError, ValueError):
-        page = 1
-    context = get_debt_table_context(request.user, sort_field, direction, query, page)
-    return render(request, "customers/partials/debt_table.html", context)
 
 
 @login_required
@@ -239,8 +217,17 @@ def customer_collect_submit_view(request, customer_id: str):
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_add_view(request):
-    """HTMX endpoint — returns the add-customer modal partial."""
-    return render(request, "customers/partials/add_customer_modal.html")
+    """HTMX endpoint — returns the add-customer modal partial.
+
+    Pre-populates the credit limit field with the tenant's default
+    ``approved_credit_limit`` from System Config so operators don't have
+    to re-enter the same ceiling for every customer.  The value is
+    editable — operators can override it per customer at creation time.
+    """
+    context = {
+        "default_credit_limit": get_default_credit_limit(request.user),
+    }
+    return render(request, "customers/partials/add_customer_modal.html", context)
 
 
 @login_required
@@ -293,6 +280,7 @@ def record_debt_submit_view(request):
             qty_credited=request.POST.get("qty_credited", ""),
             unit_price=request.POST.get("unit_price", ""),
             care_of_id=request.POST.get("care_of_id", ""),
+            customer_name=request.POST.get("customer_name", ""),
             performed_by=request.user,
         )
     except ValidationError as e:
@@ -340,6 +328,7 @@ def record_borrowed_submit_view(request):
             container_key=request.POST.get("container_key", ""),
             qty_borrowed=qty_borrowed,
             care_of_id=request.POST.get("care_of_id", ""),
+            customer_name=request.POST.get("customer_name", ""),
             performed_by=request.user,
         )
     except ValidationError as e:

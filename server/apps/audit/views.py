@@ -13,7 +13,7 @@ from apps.audit.selectors import (
     get_log_entry,
     list_log_entries,
 )
-from apps.users.permissions import is_back_office
+from apps.users.permissions import is_admin
 
 logger = logging.getLogger(__name__)
 
@@ -38,24 +38,36 @@ def _build_list_context(*, user, page: int, query: str = "") -> dict:
         {
             "label": "Total Entries",
             "value": str(data["total"]),
+            "raw_value": data["total"],
+            "value_prefix": "",
+            "value_decimals": 0,
             "icon": "history",
             "accent": "text-primary",
         },
         {
             "label": "Mutations",
             "value": str(mutations),
+            "raw_value": mutations,
+            "value_prefix": "",
+            "value_decimals": 0,
             "icon": "edit_note",
             "accent": "text-tertiary",
         },
         {
             "label": "Access Events",
             "value": str(access_events),
+            "raw_value": access_events,
+            "value_prefix": "",
+            "value_decimals": 0,
             "icon": "login",
             "accent": "text-[#D97706]",
         },
         {
             "label": "Active Actors",
             "value": str(data["active_actors"]),
+            "raw_value": data["active_actors"],
+            "value_prefix": "",
+            "value_decimals": 0,
             "icon": "group",
             "accent": "text-secondary",
         },
@@ -104,13 +116,16 @@ def _build_list_context(*, user, page: int, query: str = "") -> dict:
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def audit_log_view(request):
-    if not is_back_office(request.user):
-        return HttpResponse("Forbidden", status=403)
     """Renders the Audit Log page from real django-auditlog LogEntry records.
+
+    Restricted to Admin (and platform superusers). Staff users do not access
+    the Audit Log.
 
     For HTMX requests (search/pagination), returns just the table partial.
     For full page loads, renders the complete audit_log.html.
     """
+    if not is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
     try:
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
@@ -128,9 +143,12 @@ def audit_log_view(request):
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='60/m', method='GET', block=True)
 def audit_log_detail_view(request, entry_id: int):
-    if not is_back_office(request.user):
+    """HTMX endpoint -- returns the detail modal partial for a single LogEntry.
+
+    Restricted to Admin (and platform superusers).
+    """
+    if not is_admin(request.user):
         return HttpResponse("Forbidden", status=403)
-    """HTMX endpoint -- returns the detail modal partial for a single LogEntry."""
     entry = get_log_entry(entry_id=entry_id, user=request.user)
     if entry is None:
         return HttpResponse("Audit log entry not found.", status=404)

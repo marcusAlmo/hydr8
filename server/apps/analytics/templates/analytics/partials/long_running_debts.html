@@ -7,13 +7,13 @@ Expects context:
                                  age_days, issued_on,
                                  severity ('critical'|'warning'|'normal') }
 {% endcomment %}
-<div class="flex-1">
+<div class="flex-1 hydr8-reveal">
     <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-error">schedule</span>
             <h4 class="font-headline-sm text-headline-sm">Outstanding Debts</h4>
         </div>
-        <a href="{% url 'customers:list' %}" class="text-primary font-bold text-body-sm hover:underline">View All Credits</a>
+        <a href="{% url 'customers:list' %}" class="text-primary font-bold text-body-sm hover:underline">View All Credits -></a>
     </div>
     <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
         <table class="w-full text-left border-collapse">

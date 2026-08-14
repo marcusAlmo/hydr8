@@ -1,5 +1,4 @@
 import logging
-from typing import TYPE_CHECKING
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
@@ -7,10 +6,14 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from .selectors import get_dashboard_context
+from apps.users.permissions import is_admin as user_is_admin
 
-if TYPE_CHECKING:
-    pass
+from .selectors import (
+    get_outstanding_debts,
+    get_recent_remittances,
+    get_stats,
+    get_today_remittance,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,41 +30,84 @@ _ACCENT_CLASSES = {
     "tertiary": {"border": "border-t-tertiary", "icon": "text-tertiary"},
 }
 
-# Tag variant → Tailwind classes for AI insight tag chips.
-_TAG_VARIANT_CLASSES = {
-    "primary": "bg-surface-container-high text-primary border border-primary/10",
-    "error": "bg-error/10 text-error border border-error/10",
-    "neutral": "bg-surface-container-high text-on-secondary-fixed-variant border border-outline-variant/30",
-}
 
-# AI insight card variant → container classes.
-_INSIGHT_VARIANT_CLASSES = {
-    "primary": "bg-primary-container/5 border border-primary-container/10 hover:bg-primary-container/10",
-    "error": "bg-error/5 border border-error/10 hover:bg-error/10",
-}
+def _apply_accent_classes(stats: list[dict]) -> None:
+    """Pre-compute border_class / icon_class on each stat dict in-place."""
+    for stat in stats:
+        accent = _ACCENT_CLASSES.get(stat["accent"], _ACCENT_CLASSES["primary"])
+        stat["border_class"] = accent["border"]
+        stat["icon_class"] = accent["icon"]
 
 
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 @login_required
 def dashboard_view(request: HttpRequest) -> HttpResponse:
-    """Renders the main analytics dashboard from live operational data."""
-    context = get_dashboard_context(request.user)
+    """Renders the dashboard shell with skeletons.
 
-    # Pre-compute accent classes so the template stays clean.
-    for stat in context["stats"]:
-        accent = _ACCENT_CLASSES.get(stat["accent"], _ACCENT_CLASSES["primary"])
-        stat["border_class"] = accent["border"]
-        stat["icon_class"] = accent["icon"]
+    Only lightweight data (today_date, today_remittance) is fetched here.
+    The heavy sections (stats, recent remittances, outstanding debts) are
+    loaded via HTMX lazy-load partials so the user sees the shell + skeleton
+    placeholders immediately.
 
-    # Pre-compute tag and card classes for AI insights.
-    for insight in context["ai_insights"]:
-        insight["card_class"] = _INSIGHT_VARIANT_CLASSES.get(
-            insight["variant"], _INSIGHT_VARIANT_CLASSES["primary"]
-        )
-        for tag in insight["tags"]:
-            tag["class"] = _TAG_VARIANT_CLASSES.get(
-                tag["variant"], _TAG_VARIANT_CLASSES["neutral"]
-            )
+    Restricted to Admin (and platform superusers). Staff users get a focused
+    remittance-first view and do not see the dashboard, charts, or reports.
+    """
+    if not user_is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
 
+    from django.utils import timezone
+
+    context = {
+        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
+        "today_remittance": get_today_remittance(request.user),
+    }
     return render(request, "analytics/dashboard.html", context)
+
+
+# ---------------------------------------------------------------------------
+# HTMX lazy-load partials — each returns a single section's content.
+# The dashboard shell renders skeleton placeholders that fire `hx-get` to
+# these endpoints on load.  Each endpoint only runs its own selector queries.
+# ---------------------------------------------------------------------------
+
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+@login_required
+def dashboard_stats_partial(request: HttpRequest) -> HttpResponse:
+    """Returns the stats row (3 KPI cards) as an HTMX partial."""
+    if not user_is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
+    stats = get_stats(request.user)
+    _apply_accent_classes(stats)
+    return render(request, "analytics/partials/stats_row.html", {"stats": stats})
+
+
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+@login_required
+def dashboard_recent_remittances_partial(request: HttpRequest) -> HttpResponse:
+    """Returns the recent remittances table as an HTMX partial."""
+    if not user_is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
+    recent = get_recent_remittances(request.user)
+    return render(
+        request,
+        "analytics/partials/recent_remittances.html",
+        {"recent_remittances": recent},
+    )
+
+
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+@login_required
+def dashboard_outstanding_debts_partial(request: HttpRequest) -> HttpResponse:
+    """Returns the outstanding debts table as an HTMX partial."""
+    if not user_is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
+    debts = get_outstanding_debts(request.user)
+    return render(
+        request,
+        "analytics/partials/long_running_debts.html",
+        {"outstanding_debts": debts},
+    )

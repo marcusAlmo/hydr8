@@ -69,3 +69,24 @@ def is_admin(user) -> bool:
     if is_superuser(user):
         return True
     return _role_name(user) == ADMIN_ROLE_NAME
+
+
+def is_staff_role(user) -> bool:
+    """
+    True if the user has the **Staff** role specifically.
+
+    Unlike ``is_back_office`` (which is True for both Admin and Staff), this
+    helper returns ``True`` ONLY for the Staff role — never for Admin or
+    platform superusers. Use it to apply Staff-specific restrictions (limited
+    navigation, no dashboard/charts, settings profile-only).
+
+    Staff users get a focused view of the system: the Add Remittance page
+    (draft + create), full Customers access, and their own Profile in Settings.
+    Everything else (Dashboard, Remittance History, Products, Employees, Audit
+    Log, System Config, Company settings) is restricted to Admin.
+    """
+    if not user.is_authenticated:
+        return False
+    if is_superuser(user):
+        return False
+    return _role_name(user) == STAFF_ROLE_NAME

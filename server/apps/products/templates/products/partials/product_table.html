@@ -17,6 +17,17 @@ Edit-then-confirm flow:
   - "Cancel" exits edit mode and reverts all inputs to their originals.
   - The Active toggle is disabled unless edit mode is active.
 
+Inline add flow (no separate page or modal):
+  - Clicking "Add Product" enters edit mode (if not already) and appends
+    an empty draft row at the bottom of the table.  The draft row has
+    editable Name, Variation, and Price inputs plus a remove (×) button.
+  - Multiple draft rows can be added in a single edit session.
+  - Clicking "Save Changes" sends the drafts as a ``creates`` array to
+    the save endpoint alongside any edits/deletes.  On success, each
+    created product is promoted to a read-only row (with a "New" badge)
+    using the real DB id returned by the server.  Drafts are cleared.
+  - Clicking "Cancel" discards all draft rows.
+
 Default products (``is_default=True``):
   - All fields are permanently locked (read-only, never editable).
   - No delete button — default products cannot be removed.
@@ -35,7 +46,6 @@ Expects context:
   - products: list of { id, name, variation, unit_price, is_active,
                         is_default, row_class, name_class, action_activate }
   - active_count, default_count, total_count
-  - ai_insight: optional { product_name, delta_pct, adjustment, impact, region }
 {% endcomment %}
 <div class="flex flex-col gap-6"
      x-data="productInventory({
@@ -81,12 +91,12 @@ Expects context:
                     <span>Save Changes</span>
                 </button>
             </div>
-            <a href="{% url 'products:create' %}"
-               x-show="!editing"
-               class="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-lg font-bold hover:brightness-110 transition-all shadow-sm">
+            <button @click="addNewRow()"
+                    class="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded-lg font-bold hover:brightness-110 transition-all shadow-sm"
+                    title="Add a new product row">
                 <span class="material-symbols-outlined">add</span>
                 Add Product
-            </a>
+            </button>
         </div>
     </div>
 
@@ -225,41 +235,129 @@ Expects context:
                         </td>
                     </tr>
                     {% empty %}
-                    <tr>
+                    <tr x-show="newProducts.length === 0 && createdProducts.length === 0">
                         <td colspan="5" class="py-12 px-6 text-center text-on-surface-variant font-body-sm">
                             <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">inventory_2</span>
                             No products configured yet.
                         </td>
                     </tr>
                     {% endfor %}
+
+                    <!-- Created products (promoted from drafts after a successful save).
+                         Rendered as read-only rows with a "New" badge until the next
+                         page load, at which point the server renders them normally. -->
+                    <template x-for="p in createdProducts" :key="'created-' + p.id">
+                        <tr class="hover:bg-surface-container-low transition-colors group bg-primary-container/5">
+                            <!-- Name + New badge -->
+                            <td class="p-4 font-body-md text-body-md font-bold text-on-surface">
+                                <div class="flex items-center gap-2">
+                                    <span x-text="p.name"></span>
+                                    <span class="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wider font-label-caps text-primary bg-primary-container rounded px-1.5 py-0.5" title="Newly added product">
+                                        <span class="material-symbols-outlined text-[12px]">fiber_new</span>
+                                        New
+                                    </span>
+                                </div>
+                            </td>
+                            <!-- Variation -->
+                            <td class="p-4 font-body-md text-body-md text-on-surface-variant">
+                                <span x-text="p.variation || '—'"></span>
+                            </td>
+                            <!-- Price -->
+                            <td class="p-4">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-data-mono text-data-mono text-on-surface-variant">₱</span>
+                                    <span class="font-data-mono text-data-mono text-on-surface" x-text="p.unit_price"></span>
+                                </div>
+                            </td>
+                            <!-- Active toggle (read-only, active) -->
+                            <td class="p-4 text-center">
+                                <label class="relative inline-flex items-center cursor-not-allowed opacity-50">
+                                    <input type="checkbox" class="sr-only peer" checked disabled>
+                                    <div class="w-9 h-5 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                                </label>
+                            </td>
+                            <!-- Actions: Deactivate (non-editing) -->
+                            <td class="p-4 text-right">
+                                <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                    <button x-show="!editing"
+                                            @click="toggleActivate(p.id, true)"
+                                            class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
+                                            title="Deactivate">
+                                        <span class="material-symbols-outlined text-[20px]">block</span>
+                                    </button>
+                                    <button @click="toggleDelete(String(p.id))"
+                                            x-show="editing"
+                                            x-cloak
+                                            class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
+                                            :class="pendingDeletes[String(p.id)] ? 'bg-error-container ring-1 ring-error/30' : ''"
+                                            :title="pendingDeletes[String(p.id)] ? 'Undo pending deletion' : 'Mark for deletion'">
+                                        <span class="material-symbols-outlined text-[20px]"
+                                              x-text="pendingDeletes[String(p.id)] ? 'undo' : 'delete'"></span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+
+                    <!-- Draft new product rows (inline entry, always editable). -->
+                    <template x-for="p in newProducts" :key="'draft-' + p.tempId">
+                        <tr class="hover:bg-surface-container-low transition-colors group bg-primary-container/5">
+                            <!-- Name (editable) + New badge -->
+                            <td class="p-4 font-body-md text-body-md font-bold text-on-surface">
+                                <div class="flex items-center gap-2">
+                                    <input type="text"
+                                           x-model="p.name"
+                                           placeholder="Product name"
+                                           class="editable-underline bg-transparent p-0 font-body-md text-body-md font-bold text-on-surface outline-none w-full max-w-[200px]"
+                                           aria-label="New product name">
+                                    <span class="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-wider font-label-caps text-primary bg-primary-container rounded px-1.5 py-0.5 flex-shrink-0" title="New product — not yet saved">
+                                        <span class="material-symbols-outlined text-[12px]">fiber_new</span>
+                                        New
+                                    </span>
+                                </div>
+                            </td>
+                            <!-- Variation (editable) -->
+                            <td class="p-4 font-body-md text-body-md text-on-surface-variant">
+                                <input type="text"
+                                       x-model="p.variation"
+                                       placeholder="e.g. 5-Gallon Round"
+                                       class="editable-underline bg-transparent p-0 font-body-md text-body-md text-on-surface-variant outline-none w-full max-w-[180px]"
+                                       aria-label="New product variation">
+                            </td>
+                            <!-- Price (editable) -->
+                            <td class="p-4">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="flex items-center gap-1 px-0 py-0 w-fit editable-underline">
+                                        <span class="font-data-mono text-data-mono text-on-surface-variant">₱</span>
+                                        <input type="text"
+                                               x-model="p.price"
+                                               placeholder="0.00"
+                                               inputmode="decimal"
+                                               class="bg-transparent border-none p-0 w-20 font-data-mono text-data-mono text-on-surface outline-none"
+                                               aria-label="New product unit price">
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- Active: N/A for drafts (defaults to active on save) -->
+                            <td class="p-4 text-center">
+                                <span class="text-[10px] uppercase tracking-wider font-label-caps text-on-surface-variant/60">On save</span>
+                            </td>
+                            <!-- Actions: Remove draft row -->
+                            <td class="p-4 text-right">
+                                <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                    <button @click="removeNewRow(p.tempId)"
+                                            class="p-1.5 rounded-lg hover:bg-error-container text-error transition-colors"
+                                            title="Remove this row">
+                                        <span class="material-symbols-outlined text-[20px]">close</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
                 </tbody>
             </table>
         </div>
     </div>
-
-    <!-- AI Pricing Insight -->
-    {% if ai_insight %}
-    <div class="bg-surface-container-low rounded-xl border border-outline-variant/30 overflow-hidden relative">
-        <div class="ai-shimmer absolute top-0 left-0 w-full h-1"></div>
-        <div class="p-6">
-            <div class="flex items-center gap-2 mb-4">
-                <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-                <h4 class="font-headline-sm text-headline-sm text-primary">AI Pricing Insight</h4>
-            </div>
-            <p class="font-body-md text-body-md text-on-surface mb-4">
-                Based on current market demand in the {{ ai_insight.region }} region, your
-                <strong>{{ ai_insight.product_name }}</strong> is priced {{ ai_insight.delta_pct }} below the regional
-                average. A minor adjustment of <span class="text-tertiary font-bold">{{ ai_insight.adjustment }} per unit</span>
-                could yield an estimated <span class="text-tertiary font-bold">{{ ai_insight.impact }} increase</span> in
-                monthly recurring revenue without affecting churn rates.
-            </p>
-            <button class="text-primary font-bold flex items-center gap-1 hover:underline">
-                Apply suggested prices
-                <span class="material-symbols-outlined text-sm">trending_up</span>
-            </button>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- PIN Verification Modal -->
     <div x-show="showPinModal"
@@ -399,13 +497,21 @@ function productInventory(cfg) {
         pendingDeactivates: {},
         // key -> true after PIN-verified commit (rows hidden via x-show)
         committedDeletes: {},
+        // Draft new products (inline entry, not yet saved).  Each draft:
+        //   { tempId: <negative int>, name: '', variation: '', price: '' }
+        newProducts: [],
+        // Products created in a previous save (promoted from drafts).
+        // Rendered as read-only rows with a "New" badge until page reload.
+        //   { id, name, variation, unit_price }
+        createdProducts: [],
+        // Monotonic counter for draft tempIds (negative to avoid collisions
+        // with real DB IDs).
+        _nextTempId: -1,
         // PIN modal state
         showPinModal: false,
         pinInput: '',
         pinError: '',
         pinVerifying: false,
-        // Toast (rendered into the global #toast-container)
-        toastTimeout: null,
 
         // --- Edit flow ---
         startEdit() {
@@ -415,12 +521,34 @@ function productInventory(cfg) {
             this.changedVariations = {};
         },
 
+        addNewRow() {
+            // Enter edit mode (if not already) so Save/Cancel are visible,
+            // then append an empty draft row at the bottom of the table.
+            if (!this.editing) {
+                this.editing = true;
+                this.changedPrices = {};
+                this.changedNames = {};
+                this.changedVariations = {};
+            }
+            this.newProducts.push({
+                tempId: this._nextTempId--,
+                name: '',
+                variation: '',
+                price: '',
+            });
+        },
+
+        removeNewRow(tempId) {
+            this.newProducts = this.newProducts.filter(p => p.tempId !== tempId);
+        },
+
         hasChanges() {
             const hasPrice = Object.values(this.changedPrices).filter(v => v !== null && v !== undefined).length > 0;
             const hasName = Object.values(this.changedNames).filter(v => v !== null && v !== undefined).length > 0;
             const hasVar = Object.values(this.changedVariations).filter(v => v !== null && v !== undefined).length > 0;
             const hasDel = Object.values(this.pendingDeletes).filter(v => v).length > 0;
-            return hasPrice || hasName || hasVar || hasDel;
+            const hasNew = this.newProducts.some(p => p.name.trim() !== '' || p.price.trim() !== '');
+            return hasPrice || hasName || hasVar || hasDel || hasNew;
         },
 
         toggleDelete(key) {
@@ -453,6 +581,7 @@ function productInventory(cfg) {
             this.pendingDeletes = {};
             this.pendingActivates = {};
             this.pendingDeactivates = {};
+            this.newProducts = [];
             // Revert all current values back to originals
             for (const key of Object.keys(this.originalNames)) {
                 this.currentNames[key] = this.originalNames[key];
@@ -545,6 +674,17 @@ function productInventory(cfg) {
                     .filter(([_, v]) => v)
                     .map(([k]) => parseInt(k, 10));
 
+                // Build creates payload from draft rows — only include
+                // drafts with a non-empty name (price defaults to 0 if
+                // left blank, but name is required).
+                const creates = this.newProducts
+                    .filter(p => p.name.trim() !== '')
+                    .map(p => ({
+                        name: p.name.trim(),
+                        variation: p.variation.trim(),
+                        price: p.price.trim() || '0',
+                    }));
+
                 // Step 3: POST to the real save endpoint (PIN re-verified
                 // server-side as defence in depth).
                 const saveResp = await fetch(this.saveUrl, {
@@ -559,6 +699,7 @@ function productInventory(cfg) {
                         deletes,
                         activates,
                         deactivates,
+                        creates,
                     }),
                 });
                 const saveData = await saveResp.json();
@@ -586,10 +727,30 @@ function productInventory(cfg) {
                     this.pendingDeactivates[id] = false;
                 });
 
+                // Promote created products to read-only rows.  The server
+                // returns each created product with its real DB id and
+                // formatted values.  We also register them in the
+                // original/current dicts so they can be edited/deleted in
+                // the next edit session.
+                const createdList = saveData.created_products || [];
+                createdList.forEach(p => {
+                    const key = String(p.id);
+                    this.originalNames[key] = p.name;
+                    this.originalVariations[key] = p.variation || '';
+                    this.originalPrices[key] = p.unit_price;
+                    this.currentNames[key] = p.name;
+                    this.currentVariations[key] = p.variation || '';
+                    this.currentPrices[key] = p.unit_price;
+                    this.createdProducts.push(p);
+                });
+                // Clear all draft rows (both saved and unsaved blanks).
+                this.newProducts = [];
+
                 const fieldCount = edits.length;
                 const deleteCount = deletes.length;
                 const actCount = activates.length;
                 const deactCount = deactivates.length;
+                const createCount = createdList.length;
                 this.changedPrices = {};
                 this.changedNames = {};
                 this.changedVariations = {};
@@ -599,6 +760,7 @@ function productInventory(cfg) {
                 this.editing = false;
                 this.closePinModal();
                 const parts = [];
+                if (createCount > 0) parts.push(`Added ${createCount} product${createCount > 1 ? 's' : ''}`);
                 if (fieldCount > 0) parts.push(`Saved ${fieldCount} change${fieldCount > 1 ? 's' : ''}`);
                 if (deleteCount > 0) parts.push(`Deleted ${deleteCount} product${deleteCount > 1 ? 's' : ''}`);
                 if (actCount > 0) parts.push(`Activated ${actCount}`);
@@ -613,44 +775,12 @@ function productInventory(cfg) {
         },
 
         // --- Toast ---
-        // Renders a toast into the global ``#toast-container`` (top-right
-        // corner) reusing the shared ``.toast`` / ``.toast-success`` styles
-        // from ``components/toasts/toast.html``.  Auto-dismisses after 3s
-        // with the same Alpine transition as the server-rendered toasts.
+        // Delegates to the shared ``hydr8ShowToast`` helper defined in
+        // base.html, which mirrors the server-rendered
+        // ``components/toasts/toast.html`` template exactly (same classes,
+        // transitions, --toast-duration var, and auto-dismiss).
         showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-            const id = 'toast-' + Date.now();
-            const el = document.createElement('div');
-            el.id = id;
-            el.className = `toast toast-${type}`;
-            el.setAttribute('role', 'alert');
-            el.setAttribute('x-data', '{ show: true }');
-            el.setAttribute('x-show', 'show');
-            el.setAttribute('x-init', `setTimeout(() => show = false, 3000)`);
-            el.setAttribute('x-transition:enter', 'transition ease-out duration-300 transform');
-            el.setAttribute('x-transition:enter-start', 'opacity-0 -translate-y-4 translate-x-8');
-            el.setAttribute('x-transition:enter-end', 'opacity-100 translate-y-0 translate-x-0');
-            el.setAttribute('x-transition:leave', 'transition ease-in duration-200 transform');
-            el.setAttribute('x-transition:leave-start', 'opacity-100 translate-y-0 translate-x-0');
-            el.setAttribute('x-transition:leave-end', 'opacity-0 -translate-y-4 translate-x-8');
-            el.innerHTML = `
-                <div class="toast-indicator-strip"></div>
-                <div class="toast-body">
-                    <span class="toast-message"></span>
-                </div>
-                <button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>
-            `;
-            el.querySelector('.toast-message').textContent = message;
-            container.appendChild(el);
-            // Initialise Alpine on the newly-inserted node so x-show /
-            // transitions work without a full page reload.
-            if (window.Alpine) {
-                window.Alpine.initTree(el);
-            }
-            // Fallback removal in case Alpine is unavailable.
-            if (this.toastTimeout) clearTimeout(this.toastTimeout);
-            this.toastTimeout = setTimeout(() => { el.remove(); }, 3200);
+            window.hydr8ShowToast(message, { type: type });
         },
     };
 }

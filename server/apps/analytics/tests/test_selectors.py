@@ -23,8 +23,8 @@ from apps.analytics.selectors import (
     _recent_remittances,
     _sales_for_date,
     _sales_trend,
+    _today_remittance,
     _unreturned_containers,
-    _warning_banner,
     get_dashboard_context,
 )
 
@@ -198,8 +198,8 @@ class UnreturnedContainersTests(TestCase):
         self.assertEqual(result["total"], 0)
 
 
-class WarningBannerTests(TestCase):
-    """Tests for _warning_banner."""
+class TodayRemittanceTests(TestCase):
+    """Tests for _today_remittance."""
 
     def setUp(self):
         self.user = User.objects.create_user(
@@ -210,20 +210,34 @@ class WarningBannerTests(TestCase):
     def tearDown(self):
         cache.clear()
 
-    def test_shows_banner_when_no_remittance_today(self):
-        """Banner shows when no remittance exists for today."""
-        banner = _warning_banner(self.user)
-        self.assertTrue(banner["show"])
-        self.assertIn("No remittance", banner["title"])
+    def test_state_none_when_no_remittance_today(self):
+        """State is 'none' with a create CTA when no remittance exists."""
+        result = _today_remittance(self.user)
+        self.assertEqual(result["state"], "none")
+        self.assertIn("No remittance", result["title"])
+        self.assertEqual(result["cta_url"], "remittance:add")
 
-    def test_hides_banner_when_remittance_exists(self):
-        """Banner is hidden when a remittance exists for today."""
+    def test_state_draft_when_draft_exists(self):
+        """State is 'draft' with a review CTA when a draft exists."""
         Remittance.objects.create(
             date=timezone.localdate(),
             created_by=self.user,
+            status=Remittance.StatusChoices.DRAFT,
         )
-        banner = _warning_banner(self.user)
-        self.assertFalse(banner["show"])
+        result = _today_remittance(self.user)
+        self.assertEqual(result["state"], "draft")
+        self.assertEqual(result["cta_url"], "remittance:add")
+
+    def test_state_finalized_when_finalized_exists(self):
+        """State is 'finalized' with a view CTA when finalized."""
+        Remittance.objects.create(
+            date=timezone.localdate(),
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+        )
+        result = _today_remittance(self.user)
+        self.assertEqual(result["state"], "finalized")
+        self.assertEqual(result["cta_url"], "remittance:history")
 
 
 class RecentRemittancesTests(TestCase):
@@ -243,21 +257,21 @@ class RecentRemittancesTests(TestCase):
         result = _recent_remittances(self.user)
         self.assertEqual(result, [])
 
-    def test_returns_up_to_five_remittances(self):
-        """Returns at most 5 remittances ordered by date descending."""
+    def test_returns_up_to_eight_remittances(self):
+        """Returns at most 8 remittances ordered by date descending."""
         today = timezone.localdate()
-        for i in range(7):
+        for i in range(10):
             Remittance.objects.create(
                 date=today - timedelta(days=i),
                 created_by=self.user,
-                total_sales=Decimal(f"{100 * (7 - i)}.00"),
+                total_sales=Decimal(f"{100 * (10 - i)}.00"),
                 net_profit=Decimal("50.00"),
                 tithe_amount=Decimal("10.00"),
                 tithes_paid=True,
                 offering_paid=True,
             )
         result = _recent_remittances(self.user)
-        self.assertEqual(len(result), 5)
+        self.assertEqual(len(result), 8)
         # Most recent first
         self.assertEqual(result[0]["date"], today.strftime("%b %d, %Y"))
 
@@ -386,11 +400,10 @@ class GetDashboardContextTests(TestCase):
         ctx = get_dashboard_context(self.user)
         expected_keys = {
             "today_date",
-            "warning_banner",
+            "today_remittance",
             "stats",
             "recent_remittances",
             "outstanding_debts",
-            "ai_insights",
         }
         self.assertEqual(set(ctx.keys()), expected_keys)
 
@@ -398,11 +411,6 @@ class GetDashboardContextTests(TestCase):
         """The stats list contains exactly 3 stat cards."""
         ctx = get_dashboard_context(self.user)
         self.assertEqual(len(ctx["stats"]), 3)
-
-    def test_ai_insights_is_empty_list(self):
-        """ai_insights is an empty list (no AI insights configured)."""
-        ctx = get_dashboard_context(self.user)
-        self.assertEqual(ctx["ai_insights"], [])
 
     def test_today_date_is_formatted(self):
         """today_date is a formatted string."""

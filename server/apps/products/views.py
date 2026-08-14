@@ -3,12 +3,14 @@ import logging
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
+from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
 
 from .selectors import get_products_pricing_context
@@ -76,11 +78,10 @@ def _serialize_for_alpine(data: dict) -> dict:
 def _is_admin_or_staff(user) -> bool:
     """Returns True if the user may mutate products/commission rates.
 
-    Back-office roles (Admin/Staff) and platform superusers are allowed.
-    Drivers are not. Authorization is driven by the Role model — the only
-    editable permission surface — via apps.users.permissions.is_back_office.
+    Restricted to Admin role (and platform superusers). Staff users get a
+    focused remittance/customers view and do not access Products & Pricing.
     """
-    return user_is_back_office(user)
+    return user_is_admin(user)
 
 
 def _forbidden() -> HttpResponse:
@@ -92,48 +93,20 @@ def _forbidden() -> HttpResponse:
 # ---------------------------------------------------------------------------
 
 @login_required
-@require_http_methods(["GET", "POST"])
-@ratelimit(key='user', rate='30/m', method='POST', block=True)
-def product_create_view(request):
-    """Renders the Add Product form and handles creation.
-
-    Staff/superusers only.  On a successful POST, the user is redirected
-    back to the Products & Pricing list so the new product is visible.
-    """
-    if not _is_admin_or_staff(request.user):
-        return _forbidden()
-
-    if request.method == "GET":
-        return render(request, "products/create_product.html")
-
-    try:
-        create_product(
-            name=request.POST.get("name", ""),
-            variation=request.POST.get("variation", "") or None,
-            price=request.POST.get("price", ""),
-            category=request.POST.get("category", "WATER"),
-            description=request.POST.get("description", "") or None,
-            performed_by=request.user,
-        )
-    except (ValidationError, ValueError, TypeError) as e:
-        logger.info("[%s] product_create validation error: %s", request.user.id, e)
-        return render(request, "products/create_product.html", {"error": error_message(e)}, status=400)
-
-    return redirect("products:list")
-
-
-@login_required
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def products_pricing_view(request):
     """Renders the Products & Pricing management page.
 
+    Restricted to Admin (and platform superusers). Staff users do not
+    access Products & Pricing.
+
     Pulls real data from ``get_products_pricing_context`` which reads
     from ``Product`` and ``DriverCommission`` via tenant-scoped
-    selectors.  The AI pricing insight block remains mock — it will be
-    driven by the browser-local Gemma 2B WebGPU engine in a separate
-    effort.
+    selectors.
     """
+    if not user_is_admin(request.user):
+        return _forbidden()
     context = _serialize_for_alpine(get_products_pricing_context(request.user))
     return render(request, "products/products_pricing.html", context)
 
@@ -195,15 +168,20 @@ def products_save_view(request):
           "edits":   [ {"id": 1, "name": "...", "variation": "...", "price": "40.00"} ],
           "deletes": [ 2, 3 ],
           "activates": [ 4 ],
-          "deactivates": [ 5 ]
+          "deactivates": [ 5 ],
+          "creates":  [ {"name": "...", "variation": "...", "price": "40.00"} ]
         }
 
     The PIN is re-verified server-side — never trust the client's
-    claim that it was verified.  All edits/deletes/activations are
-    applied atomically; any failure rolls back the whole batch.
+    claim that it was verified.  All edits/deletes/activations/creates
+    are applied atomically inside a single transaction; any failure
+    rolls back the whole batch.
 
-    Returns JSON ``{"ok": true, "saved": N, "deleted": N, ...}`` on
-    success, or ``{"ok": false, "error": "..."}`` on failure.
+    Returns JSON ``{"ok": true, "saved": N, "deleted": N, ...,
+    "created": N, "created_products": [...]}`` on success, or
+    ``{"ok": false, "error": "..."}`` on failure.  ``created_products``
+    contains the real DB id and formatted values for each new product so
+    the client can promote draft rows to read-only rows.
     """
     if not _is_admin_or_staff(request.user):
         return _forbidden()
@@ -225,35 +203,50 @@ def products_save_view(request):
     deletes = body.get("deletes", []) or []
     activates = body.get("activates", []) or []
     deactivates = body.get("deactivates", []) or []
+    creates = body.get("creates", []) or []
 
-    if not (edits or deletes or activates or deactivates):
+    if not (edits or deletes or activates or deactivates or creates):
         return JsonResponse({"ok": False, "error": "No changes to save."}, status=400)
 
     saved = 0
     deleted = 0
     activated = 0
     deactivated = 0
-    errors: list[str] = []
+    created_products: list[dict] = []
 
     try:
-        for item in edits:
-            update_product(
-                product_id=int(item["id"]),
-                performed_by=request.user,
-                name=item.get("name"),
-                variation=item.get("variation"),
-                price=item.get("price"),
-            )
-            saved += 1
-        for pid in deletes:
-            delete_product(product_id=int(pid), performed_by=request.user)
-            deleted += 1
-        for pid in activates:
-            activate_product(product_id=int(pid), performed_by=request.user)
-            activated += 1
-        for pid in deactivates:
-            deactivate_product(product_id=int(pid), performed_by=request.user)
-            deactivated += 1
+        with transaction.atomic():
+            for item in edits:
+                update_product(
+                    product_id=int(item["id"]),
+                    performed_by=request.user,
+                    name=item.get("name"),
+                    variation=item.get("variation"),
+                    price=item.get("price"),
+                )
+                saved += 1
+            for pid in deletes:
+                delete_product(product_id=int(pid), performed_by=request.user)
+                deleted += 1
+            for pid in activates:
+                activate_product(product_id=int(pid), performed_by=request.user)
+                activated += 1
+            for pid in deactivates:
+                deactivate_product(product_id=int(pid), performed_by=request.user)
+                deactivated += 1
+            for item in creates:
+                product = create_product(
+                    name=item.get("name", ""),
+                    variation=item.get("variation", "") or None,
+                    price=item.get("price", ""),
+                    performed_by=request.user,
+                )
+                created_products.append({
+                    "id": product.id,
+                    "name": product.name,
+                    "variation": product.variation or "",
+                    "unit_price": f"{product.price:.2f}",
+                })
     except ValidationError as e:
         logger.info("[%s] products_save validation error: %s", request.user.id, e)
         return JsonResponse({"ok": False, "error": error_message(e)}, status=400)
@@ -262,8 +255,8 @@ def products_save_view(request):
         return JsonResponse({"ok": False, "error": f"Invalid input: {e}"}, status=400)
 
     logger.info(
-        "[%s] products_save ok saved=%s deleted=%s activated=%s deactivated=%s",
-        request.user.id, saved, deleted, activated, deactivated,
+        "[%s] products_save ok saved=%s deleted=%s activated=%s deactivated=%s created=%s",
+        request.user.id, saved, deleted, activated, deactivated, len(created_products),
     )
     return JsonResponse({
         "ok": True,
@@ -271,6 +264,8 @@ def products_save_view(request):
         "deleted": deleted,
         "activated": activated,
         "deactivated": deactivated,
+        "created": len(created_products),
+        "created_products": created_products,
     })
 
 

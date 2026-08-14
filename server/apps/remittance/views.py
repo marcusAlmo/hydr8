@@ -18,6 +18,7 @@ from apps.core.views import error_message, toast_for_exception
 from .selectors import (
     get_add_remittance_context,
     get_recent_remittances,
+    get_remittance_date_data,
     get_remittance_history_context,
     get_remittance_row,
     remittance_exists_for_date,
@@ -43,8 +44,21 @@ logger = logging.getLogger(__name__)
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def add_remittance_view(request):
-    """Renders the 'Add Remittance' workflow page with live product/rider data."""
-    context = get_add_remittance_context(request.user)
+    """Renders the 'Add Remittance' workflow page with live product/rider data.
+
+    Accepts an optional ``date`` query parameter (ISO ``YYYY-MM-DD``) so
+    the history page's "Finalize" button can deep-link to a draft for a
+    specific date.  When omitted, defaults to today.
+    """
+    target_date = None
+    date_str = request.GET.get("date")
+    if date_str:
+        try:
+            target_date = date.fromisoformat(date_str)
+        except (ValueError, TypeError):
+            target_date = None
+
+    context = get_add_remittance_context(request.user, remittance_date=target_date)
     riders = context["riders"]
     products = context["products"]
 
@@ -57,7 +71,9 @@ def add_remittance_view(request):
         "riders": riders,
         "products": products,
         "repayments": context["repayments"],
-        "expenses": context["expenses"],
+        "totalCredits": context.get("total_credits", 0),
+        "staff": context.get("staff", []),
+        "otherSales": context.get("other_sales", 0),
         "titheRate": context["tithe_rate"],
         "manualOffering": context["offering_amount"],
         "selectedRiderId": selected_rider_id,
@@ -129,6 +145,8 @@ def create_remittance_view(request):
                 tithe_rate=body.get("titheRate", "0.10"),
                 remittance_date=remittance_date,
                 finalize=True,
+                other_sales=body.get("otherSales", 0),
+                staff_data=body.get("staff", []) or [],
             )
         else:
             # Draft mode uses the upsert so a staff member can save,
@@ -140,6 +158,8 @@ def create_remittance_view(request):
                 manual_offering=body.get("manualOffering", "0"),
                 tithe_rate=body.get("titheRate", "0.10"),
                 remittance_date=remittance_date,
+                other_sales=body.get("otherSales", 0),
+                staff_data=body.get("staff", []) or [],
             )
     except ValidationError as e:
         logger.info("[%s] create remittance validation error: %s", request.user.id, e)
@@ -240,14 +260,36 @@ def check_remittance_date_view(request):
 
     exists = remittance_exists_for_date(request.user, target_date)
     status = remittance_status_for_date(request.user, target_date)
-    return JsonResponse({"ok": True, "exists": exists, "status": status})
+
+    # Only return credit data when the date is available for a new/ draft
+    # remittance.  A FINALIZED date is locked — no need to send credit
+    # data the form can't use.
+    credit_data = None
+    if status != "FINALIZED":
+        credit_data = get_remittance_date_data(request.user, target_date)
+
+    return JsonResponse({
+        "ok": True,
+        "exists": exists,
+        "status": status,
+        "repayments": credit_data["repayments"] if credit_data else [],
+        "total_credits": credit_data["total_credits"] if credit_data else 0,
+        "credit_repaid_counts": credit_data["credit_repaid_counts"] if credit_data else {},
+    })
 
 
 @login_required
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def remittance_history_view(request):
-    """Renders the 'Remittance History' list page with live DB-backed data."""
+    """Renders the 'Remittance History' list page with live DB-backed data.
+
+    Restricted to Admin (and platform superusers). Staff users do not see
+    completed records, charts, or financial reports — they work in the
+    Add Remittance page (draft + create) only.
+    """
+    if not is_admin_user(request.user):
+        return HttpResponse("Forbidden", status=403)
     context = get_remittance_history_context(request.user)
     recent = get_recent_remittances(request.user)
 

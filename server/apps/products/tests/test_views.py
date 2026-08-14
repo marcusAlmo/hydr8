@@ -12,9 +12,12 @@ class ProductsPricingViewTests(TestCase):
     """Tests for the main page render — GET /products/."""
 
     def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.user = User.objects.create_user(
             username="staff", password="pw1234567",
         )
+        self.user.role = admin_role
+        self.user.save()
         cache.clear()
         self.client.force_login(self.user)
 
@@ -48,6 +51,17 @@ class ProductsPricingViewTests(TestCase):
     def test_page_contains_commission_bulk_set_url(self):
         response = self.client.get("/products/")
         self.assertContains(response, "commission/bulk-set")
+
+    def test_page_contains_inline_add_button(self):
+        """The Add Product button should use addNewRow() (inline), not a link to /products/create."""
+        response = self.client.get("/products/")
+        self.assertContains(response, "addNewRow()")
+        self.assertNotContains(response, "/products/create")
+
+    def test_page_contains_draft_row_template(self):
+        """The page should include the Alpine x-for template for draft new product rows."""
+        response = self.client.get("/products/")
+        self.assertContains(response, "newProducts")
 
     def test_requires_login(self):
         self.client.logout()
@@ -254,6 +268,157 @@ class ProductsSaveViewTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 302)
+
+    # --- Inline create flow (creates array) ---
+
+    def test_create_with_correct_pin(self):
+        """POSTing a creates array creates products and returns them with real IDs."""
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [
+                    {"name": "Spring Water", "variation": "1L", "price": "15.00"},
+                    {"name": "Distilled Water", "variation": "500ml", "price": "10.00"},
+                ],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["created"], 2)
+        self.assertEqual(len(data["created_products"]), 2)
+        # Each created product has a real DB id and formatted values.
+        for cp in data["created_products"]:
+            self.assertIn("id", cp)
+            self.assertIn("name", cp)
+            self.assertIn("variation", cp)
+            self.assertIn("unit_price", cp)
+        # Products exist in the DB.  Note: create_product applies .title()
+        # to name and variation, so "500ml" becomes "500Ml".
+        self.assertTrue(Product.objects.filter(name="Spring Water", variation="1L").exists())
+        self.assertTrue(Product.objects.filter(name="Distilled Water", variation="500Ml").exists())
+
+    def test_create_with_wrong_pin_returns_403(self):
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "9999",
+                "creates": [{"name": "Spring Water", "variation": "1L", "price": "15.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Product.objects.filter(name="Spring Water").exists())
+
+    def test_create_with_empty_name_returns_400(self):
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "", "variation": "1L", "price": "15.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data["ok"])
+
+    def test_create_with_negative_price_returns_400(self):
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "Bad Water", "variation": "1L", "price": "-5.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Product.objects.filter(name="Bad Water").exists())
+
+    def test_create_duplicate_name_variation_returns_400(self):
+        """Creating a product with the same name+variation as an existing one fails."""
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "Custom Water", "variation": "1L", "price": "99.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertFalse(data["ok"])
+
+    def test_create_without_variation_works(self):
+        """Variation is optional — an empty string should create the product with variation=None."""
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "Plain Water", "variation": "", "price": "12.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["created"], 1)
+        product = Product.objects.get(name="Plain Water")
+        self.assertIsNone(product.variation)
+
+    def test_driver_cannot_create(self):
+        """Drivers (non-staff) should get 403 on the save endpoint."""
+        self.client.logout()
+        self.client.force_login(self.driver)
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "Spring Water", "variation": "1L", "price": "15.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_create_and_edit_are_atomic(self):
+        """If an edit fails after a create succeeds, both should roll back."""
+        initial_count = Product.objects.filter(deleted_at__isnull=True).count()
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "New Water", "variation": "1L", "price": "15.00"}],
+                # Edit a default product — this raises ValidationError.
+                "edits": [{"id": self.default_product.id, "price": "99.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        # The create should have been rolled back.
+        self.assertFalse(Product.objects.filter(name="New Water").exists())
+        # Total product count unchanged.
+        self.assertEqual(
+            Product.objects.filter(deleted_at__isnull=True).count(),
+            initial_count,
+        )
+
+    def test_create_only_with_no_other_changes(self):
+        """A batch with only creates (no edits/deletes/activates) should succeed."""
+        response = self.client.post(
+            "/products/save/",
+            data=json.dumps({
+                "pin": "1234",
+                "creates": [{"name": "Only Create", "variation": "2L", "price": "20.00"}],
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["created"], 1)
+        self.assertEqual(data["saved"], 0)
 
 
 class CommissionSaveViewTests(TestCase):

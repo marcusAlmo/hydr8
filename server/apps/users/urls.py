@@ -12,6 +12,7 @@ urlpatterns = [
     path('onboarding/', views.onboarding_view, name='onboarding'),
     path('onboarding/submit/', views.onboarding_submit_view, name='onboarding_submit'),
     path('lock/', views.screen_lock_view, name='screen_lock'),
+    path('lock/arm/', views.screen_lock_arm_view, name='screen_lock_arm'),
     path('lock/submit/', views.screen_lock_submit_view, name='screen_lock_submit'),
     path('lock/verify/', views.screen_lock_verify_view, name='screen_lock_verify'),
     path('user/<uuid:user_id>/temp-password/', views.generate_temp_password_view, name='generate_temp_password'),

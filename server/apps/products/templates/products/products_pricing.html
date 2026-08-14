@@ -14,11 +14,6 @@
             <div class="h-4 w-px bg-outline-variant mx-2"></div>
             <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
         </div>
-        <div class="flex items-center gap-4">
-            <button class="p-2 text-on-surface-variant hover:text-primary transition-all duration-200" title="AI Assistant">
-                <span class="material-symbols-outlined">smart_toy</span>
-            </button>
-        </div>
     </header>
 
     <!-- Content Canvas — Alpine.js owns the active tab state -->
@@ -49,12 +44,12 @@
         </p>
 
         <!-- Products Section -->
-        <section x-show="activeTab === 'products'" class="block animate-in fade-in duration-500">
+        <section x-show="activeTab === 'products'" class="block hydr8-reveal">
             {% include "products/partials/product_table.html" %}
         </section>
 
         <!-- Commissions Section -->
-        <section x-show="activeTab === 'commissions'" x-cloak class="animate-in fade-in duration-500">
+        <section x-show="activeTab === 'commissions'" x-cloak class="hydr8-reveal">
             {% include "products/partials/commission_matrix.html" %}
         </section>
 

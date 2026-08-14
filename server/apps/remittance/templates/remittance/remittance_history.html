@@ -155,11 +155,6 @@
                 <span class="material-symbols-outlined">add</span>
                 <span class="text-body-md font-body-md">Add Remittance</span>
             </a>
-            <div class="flex items-center gap-2 ml-2">
-                <button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors">
-                    <span class="material-symbols-outlined">smart_toy</span>
-                </button>
-            </div>
         </div>
     </header>
 
@@ -176,9 +171,9 @@
                 <span class="text-primary font-data-mono font-bold" x-text="rangeLabel()"></span>
             </span>
         </div>
-        <div class="grid grid-cols-12 gap-gutter">
+        <div class="grid grid-cols-12 gap-gutter hydr8-stagger">
             {% for card in summary_cards %}
-            <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 shadow-sm relative overflow-hidden {% if card.shimmer %}ai-shimmer{% endif %}">
+            <div class="col-span-12 md:col-span-4 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 shadow-sm relative overflow-hidden hydr8-reveal-item">
                 <div class="absolute top-0 left-0 w-full h-1 bg-[{{ card.accent_bar }}]"></div>
                 <div class="flex justify-between items-start mb-2">
                     <span class="text-label-caps font-label-caps text-outline uppercase">{{ card.label }}</span>
@@ -195,25 +190,9 @@
             {% endfor %}
         </div>
 
-        <!-- Operational Efficiency Insight — shown before trends so the
-             narrative leads, then the charts provide the supporting data -->
-        <div class="grid grid-cols-12 gap-gutter">
-            <div class="col-span-12 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-4 flex gap-4 items-start shadow-sm">
-                <div class="w-10 h-10 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center text-primary flex-shrink-0">
-                    <span class="material-symbols-outlined">auto_awesome</span>
-                </div>
-                <div class="flex-1">
-                    <h4 class="font-headline-sm text-body-md font-bold mb-1">Operational Efficiency Insight</h4>
-                    <p class="text-on-surface-variant text-body-sm leading-relaxed">
-                        {{ ai_insight|safe }}
-                    </p>
-                </div>
-            </div>
-        </div>
-
         <!-- Financial Report — P&L breakdown for the selected date range.
              Reactive to the global date-range filter via Alpine.js. -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden hydr8-reveal">
             <div class="p-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low/30">
                 <div class="flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
@@ -515,7 +494,7 @@
         </div>
 
         <!-- Main Data Table Container -->
-        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden">
+        <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm overflow-hidden hydr8-reveal">
             <div class="p-4 border-b border-outline-variant/20 flex justify-between items-center bg-surface-container-low/30">
                 <div class="flex items-center gap-4">
                     <div class="relative">
@@ -552,10 +531,10 @@
                             <th class="px-6 py-3"></th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-outline-variant/10">
-                        {% for rem in remittances %}
-                            {% include "remittance/partials/remittance_row.html" %}
-                        {% empty %}
+                    {% for rem in remittances %}
+                        {% include "remittance/partials/remittance_row.html" %}
+                    {% empty %}
+                    <tbody>
                         <tr>
                             <td colspan="11" class="px-6 py-10 text-center text-on-surface-variant text-body-sm">
                                 {% if request.GET %}
@@ -565,8 +544,8 @@
                                 {% endif %}
                             </td>
                         </tr>
-                        {% endfor %}
                     </tbody>
+                    {% endfor %}
                 </table>
             </div>
             <div class="p-4 border-t border-outline-variant/20 flex justify-between items-center text-body-sm text-outline font-body-sm">
@@ -622,11 +601,8 @@
                 tithesPaid: seed.tithes_paid,
                 offeringPaid: seed.offering_paid,
                 saving: false,
-                // --- Draft finalize state ---
-                isDraft: seed.is_draft || false,
-                showFinalize: false,
-                finalizePin: '',
-                finalizing: false,
+                // --- Accordion expand state ---
+                expanded: false,
                 get dirty() {
                     return !this.saving
                         && (this.tithesPaid !== this.origTithes

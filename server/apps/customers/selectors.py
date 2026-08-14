@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Min, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
@@ -52,30 +52,6 @@ _DB_SORT_MAP: dict[str, str] = {
     "payable_amount": "debt_balance",     # same value as debt_balance
     "last_credit": "last_credit_at",      # direction inverted below
 }
-
-# ---------------------------------------------------------------------------
-# Sort mapping for the debt-management table HTMX partial.
-# ---------------------------------------------------------------------------
-DEBT_SORT_FIELD_MAP: dict[str, str] = {
-    "name": "name",
-    "debt_balance": "debt_balance",
-    "age": "oldest_credit_at",            # annotated (min active CreditLine.created_at)
-    "days_overdue": "last_credit_at",      # direction inverted below
-    "borrowed_total": "borrowed_total",    # annotated
-}
-DEBT_DEFAULT_SORT = "debt_balance"
-DEBT_DEFAULT_DIR = "desc"
-DEBT_PER_PAGE = 25
-
-# Maps debt sort field names to actual DB column/annotation names for DB-side sorting.
-_DEBT_DB_SORT_MAP: dict[str, str] = {
-    "name": "name",
-    "debt_balance": "debt_balance",
-    "age": "oldest_credit_at",             # annotated
-    "days_overdue": "last_credit_at",       # direction inverted below
-    "borrowed_total": "borrowed_total",     # annotated
-}
-
 
 def _display_id(customer: Customer) -> str:
     """Human-readable customer code, e.g. ``HY-0001``."""
@@ -212,42 +188,6 @@ def _customer_row(customer: Customer) -> dict:
     }
 
 
-def _debt_row(customer: Customer, overdue_threshold: int = 7) -> dict:
-    """Converts a ``Customer`` into the debt-management row shape.
-
-    ``overdue_threshold`` is the configured number of days after which
-    a debt is considered overdue (from SystemConfig). It drives the
-    ``days_overdue_class`` severity coloring.
-
-    ``customer.oldest_credit_at`` is expected to be annotated on the
-    queryset by ``get_debt_table_context`` — it is the min ``created_at``
-    among the customer's active credit lines (``qty_remaining > 0``).
-    The ``age`` field is the number of days since that date.
-    """
-    days_overdue = _days_since(customer.last_credit_at)
-    oldest_credit_at = getattr(customer, "oldest_credit_at", None)
-    age = _days_since(oldest_credit_at) if oldest_credit_at else 0
-
-    if days_overdue > overdue_threshold:
-        days_class = "text-error"
-    else:
-        days_class = "text-on-surface-variant"
-
-    return {
-        "id": _display_id(customer),
-        "name": customer.name,
-        "initials": _customer_initials(customer.name),
-        "debt_balance": _format_peso(customer.debt_balance),
-        "age": age,
-        "days_overdue": days_overdue,
-        "days_overdue_class": days_class,
-        "is_overdue": days_overdue > overdue_threshold,
-        "borrowed_total": _customer_borrowed_total(customer),
-        "status": customer.status,
-        "anomaly_badge": _customer_anomaly_badge(customer.status),
-    }
-
-
 def _last_payment_dt(customer: Customer) -> datetime | None:
     payment = (
         CreditPayment.objects.filter(credit_line__customer=customer)
@@ -332,6 +272,14 @@ def _customer_filters(user: "UserType") -> list[dict]:
 
 
 def _customer_stats(user: "UserType") -> list[dict]:
+    """Summary stat cards for the Summary tab.
+
+    Includes both customer-directory metrics (total customers, unreturned
+    containers) and debt-management metrics (total outstanding, overdue
+    7+ days, avg days overdue) — the latter were migrated from the now-
+    retired Debt Management tab so all KPIs are visible in one place.
+    """
+    threshold = get_overdue_threshold_days(user)
     base = Customer.objects.for_user(user).filter(deleted_at__isnull=True)
     total = base.count()
     debtor_count = base.filter(debt_balance__gt=0).count()
@@ -356,11 +304,28 @@ def _customer_stats(user: "UserType") -> list[dict]:
         | Q(borrowed_slim_8gal__gt=0)
         | Q(borrowed_other__gt=0)
     ).count()
+
+    # Debt-management metrics (migrated from the retired Debt Management tab).
+    debtors_list = list(
+        base.filter(debt_balance__gt=0).only("last_credit_at", "debt_balance")
+    )
+    overdue_count = sum(
+        1 for c in debtors_list if _days_since(c.last_credit_at) > threshold
+    )
+    avg_days = (
+        round(sum(_days_since(c.last_credit_at) for c in debtors_list) / debtor_count)
+        if debtor_count
+        else 0
+    )
+
     return [
         {
             "key": "total_customers",
             "label": "Total Customers",
             "value": f"{total:,}",
+            "raw_value": total,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "subtitle": "Active accounts",
             "icon": "group",
@@ -369,8 +334,11 @@ def _customer_stats(user: "UserType") -> list[dict]:
         },
         {
             "key": "total_debt",
-            "label": "Total Outstanding Debt",
+            "label": "Total Outstanding",
             "value": _format_peso(total_debt),
+            "raw_value": float(total_debt),
+            "value_prefix": "₱",
+            "value_decimals": 2,
             "value_size": "3xl",
             "subtitle": f"{debtor_count} active debtors",
             "icon": "dangerous",
@@ -381,73 +349,42 @@ def _customer_stats(user: "UserType") -> list[dict]:
             "key": "pending_containers",
             "label": "Unreturned Containers",
             "value": f"{borrowed_total:,}",
+            "raw_value": borrowed_total,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "subtitle": f"Across {borrowed_count} customers",
             "icon": "water_damage",
             "accent": "warning",
             "col_span": "md:col-span-4",
         },
-    ]
-
-
-def _debt_stats(user: "UserType") -> list[dict]:
-    """Summary stat cards for the debt-management tab."""
-    threshold = get_overdue_threshold_days(user)
-    debtors = (
-        Customer.objects.for_user(user)
-        .filter(deleted_at__isnull=True, debt_balance__gt=0)
-    )
-    debtor_count = debtors.count()
-    total_debt = (
-        debtors.aggregate(Sum("debt_balance"))["debt_balance__sum"]
-        or Decimal("0.00")
-    )
-
-    # Stats are computed across the full debtor set (not the paginated page).
-    debtors_list = list(debtors.only("last_credit_at", "debt_balance"))
-    overdue_count = sum(1 for c in debtors_list if _days_since(c.last_credit_at) > threshold)
-    overdue_amount = sum(
-        c.debt_balance for c in debtors_list if _days_since(c.last_credit_at) > threshold
-    )
-    avg_days = (
-        round(sum(_days_since(c.last_credit_at) for c in debtors_list) / debtor_count)
-        if debtor_count
-        else 0
-    )
-
-    stats = [
-        {
-            "key": "total_debt",
-            "label": "Total Outstanding",
-            "value": _format_peso(total_debt),
-            "value_size": "3xl",
-            "subtitle": f"Across {debtor_count} debtors",
-            "icon": "dangerous",
-            "accent": "error",
-            "col_span": "md:col-span-6",
-        },
         {
             "key": "overdue",
             "label": f"Overdue {threshold}+ Days",
             "value": str(overdue_count),
+            "raw_value": overdue_count,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
-            "subtitle": _format_peso(overdue_amount) + " at risk",
+            "subtitle": "Debtors past the threshold",
             "icon": "schedule",
             "accent": "warning",
-            "col_span": "md:col-span-3",
+            "col_span": "md:col-span-6",
         },
         {
             "key": "avg_days_overdue",
             "label": "Avg Days Overdue",
             "value": str(avg_days),
+            "raw_value": avg_days,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "subtitle": "Across active debtors",
             "icon": "hourglass_top",
             "accent": "warning",
-            "col_span": "md:col-span-3",
+            "col_span": "md:col-span-6",
         },
     ]
-    return stats
 
 
 def _ranking_context(user: "UserType") -> dict:
@@ -493,6 +430,9 @@ def _ranking_context(user: "UserType") -> dict:
             "key": "top_payers",
             "label": "Reliable Payers",
             "value": str(payer_count),
+            "raw_value": payer_count,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "subtitle": "Recorded payments",
             "icon": "verified",
@@ -503,6 +443,9 @@ def _ranking_context(user: "UserType") -> dict:
             "key": "prompt_returners",
             "label": "Prompt Returners",
             "value": "0",
+            "raw_value": 0,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "subtitle": "No return data yet",
             "icon": "cached",
@@ -513,6 +456,9 @@ def _ranking_context(user: "UserType") -> dict:
             "key": "avg_pay_time",
             "label": "Avg Pay Turnaround",
             "value": "—",
+            "raw_value": None,
+            "value_prefix": "",
+            "value_decimals": 0,
             "value_size": "4xl",
             "subtitle": "Across all debtors",
             "icon": "timer",
@@ -597,79 +543,15 @@ def get_customer_table_context(
     }
 
 
-def get_debt_table_context(
-    user: "UserType",
-    sort_field: str = DEBT_DEFAULT_SORT,
-    direction: str = DEBT_DEFAULT_DIR,
-    query: str = "",
-    page: int = 1,
-) -> dict:
-    """Returns the debt-management table partial context.
-
-    Filters to customers with ``debt_balance > 0``. When ``query`` is
-    non-empty, filters by ``name__icontains``. Uses DB-side sorting and
-    real pagination (``DEBT_PER_PAGE``).
-    """
-    next_dir = "desc" if direction == "asc" else "asc"
-
-    qs = (
-        Customer.objects.for_user(user)
-        .filter(deleted_at__isnull=True, debt_balance__gt=0)
-    )
-
-    # Apply search filter
-    query = (query or "").strip()
-    if query:
-        qs = qs.filter(name__icontains=query)
-
-    # Annotate borrowed_total and oldest_credit_at for sorting/display.
-    # oldest_credit_at = min created_at among active credit lines
-    # (qty_remaining > 0), used to compute the "age" of the debt.
-    qs = qs.annotate(
-        borrowed_total=F("borrowed_round_8gal") + F("borrowed_slim_8gal") + F("borrowed_other"),
-        oldest_credit_at=Min(
-            "credit_lines__created_at",
-            filter=Q(credit_lines__qty_remaining__gt=0),
-        ),
-    )
-
-    # DB-side sorting
-    db_sort = _DEBT_DB_SORT_MAP.get(sort_field, _DEBT_DB_SORT_MAP[DEBT_DEFAULT_SORT])
-    if sort_field == "days_overdue":
-        # Invert direction: days_overdue asc = last_credit_at desc (recent = fewer days)
-        if direction == "asc":
-            qs = qs.order_by(F("last_credit_at").desc(nulls_last=True))
-        else:
-            qs = qs.order_by(F("last_credit_at").asc(nulls_last=True))
-    else:
-        if direction == "desc":
-            db_sort = f"-{db_sort}"
-        qs = qs.order_by(db_sort)
-
-    # Real pagination
-    paginator = Paginator(qs, DEBT_PER_PAGE)
-    page_obj = paginator.get_page(page)
-
-    threshold = get_overdue_threshold_days(user)
-    rows = [_debt_row(c, overdue_threshold=threshold) for c in page_obj.object_list]
-
-    return {
-        "debt_rows": rows,
-        "debt_pagination": _pagination_from_page(page_obj),
-        "debt_sort_state": {
-            "field": sort_field,
-            "direction": direction,
-            "next_dir": next_dir,
-        },
-        "debt_search_query": query,
-    }
-
-
 def get_customer_list_context(user: "UserType") -> dict:
-    """Returns the full Customers page context for all three tabs."""
+    """Returns the full Customers page context for the Summary and Ranking tabs.
+
+    The Debt Management tab has been retired — its KPIs (total outstanding,
+    overdue 7+ days, avg days overdue) have been migrated into the Summary
+    tab's stats row, and the Record Borrowed / Record Debt actions now live
+    in the Summary tab's action bar.
+    """
     table_context = get_customer_table_context(user)
-    debt_stats = _debt_stats(user)
-    debt_table_context = get_debt_table_context(user)
     ranking_context = _ranking_context(user)
 
     return {
@@ -680,12 +562,6 @@ def get_customer_list_context(user: "UserType") -> dict:
         "pagination": table_context["pagination"],
         "sort_state": table_context["sort_state"],
         "search_query": table_context["search_query"],
-        "debt_count": debt_table_context["debt_pagination"]["total"],
-        "debt_stats": debt_stats,
-        "debt_rows": debt_table_context["debt_rows"],
-        "debt_pagination": debt_table_context["debt_pagination"],
-        "debt_sort_state": debt_table_context["debt_sort_state"],
-        "debt_search_query": debt_table_context["debt_search_query"],
         **ranking_context,
     }
 
@@ -892,10 +768,12 @@ def get_record_debt_context(user: "UserType") -> dict:
         .filter(deleted_at__isnull=True, deactivated_at__isnull=True)
         .order_by("name", "variation")
     )
+    customer_list = [
+        {"id": _display_id(c), "name": c.name} for c in customers
+    ]
     return {
-        "customers": [
-            {"id": _display_id(c), "name": c.name} for c in customers
-        ],
+        "customers": customer_list,
+        "customers_json": customer_list,
         "products": [
             {
                 "key": str(p.pk),
@@ -915,10 +793,12 @@ def get_record_borrowed_context(user: "UserType") -> dict:
         .filter(deleted_at__isnull=True)
         .order_by("name")
     )
+    customer_list = [
+        {"id": _display_id(c), "name": c.name} for c in customers
+    ]
     return {
-        "customers": [
-            {"id": _display_id(c), "name": c.name} for c in customers
-        ],
+        "customers": customer_list,
+        "customers_json": customer_list,
         "container_types": [
             {"key": "round_8gal", "label": "Round 8gal"},
             {"key": "slim_8gal", "label": "Slim 8gal"},

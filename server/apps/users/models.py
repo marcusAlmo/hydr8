@@ -1,6 +1,7 @@
 import uuid
 import secrets
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db import models
 from django.conf import settings
@@ -87,6 +88,14 @@ class User(AbstractUser):
         related_name='users',
         db_index=True,
         help_text='NULL = platform superuser (sees all tenants).',
+    )
+    daily_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        default=Decimal("0.00"),
+        help_text="Fixed daily salary rate for Staff role users. Drivers are commission-based.",
     )
     deactivated_at = models.DateTimeField(null=True, blank=True)
     force_password_change = models.BooleanField(

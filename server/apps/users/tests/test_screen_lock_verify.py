@@ -16,16 +16,18 @@ import json
 from django.test import TestCase
 from django.urls import reverse
 
-from apps.users.models import User
+from apps.users.models import Role, User
 
 
 class ScreenLockVerifyViewTests(TestCase):
     def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.user = User.objects.create_user(
             username="staff1",
             password="securepassword123",
             is_staff=True,
         )
+        self.user.role = admin_role
         self.user.set_pin("1234")
         self.user.save()
         self.client.force_login(self.user)
@@ -169,3 +171,92 @@ class ScreenLockVerifyViewTests(TestCase):
         # user (no company) it falls back to the default (5).
         self.assertIn("lockscreen_timeout_minutes", resp.context)
         self.assertGreater(resp.context["lockscreen_timeout_minutes"], 0)
+
+
+class ScreenLockArmViewTests(TestCase):
+    """Tests for ``screen_lock_arm_view`` — the idle-overlay endpoint that
+    sets the server-side ``screen_locked`` session flag so a page refresh
+    cannot bypass the lock.
+    """
+
+    def setUp(self):
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        self.user = User.objects.create_user(
+            username="staff1",
+            password="securepassword123",
+            is_staff=True,
+        )
+        self.user.role = admin_role
+        self.user.set_pin("1234")
+        self.user.save()
+        self.client.force_login(self.user)
+        self.url = reverse("users:screen_lock_arm")
+
+    def test_arm_sets_session_flag(self):
+        """POST sets ``screen_locked`` in the session and returns armed=True."""
+        self.assertNotIn("screen_locked", self.client.session)
+        resp = self.client.post(self.url, "{}", content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["armed"])
+        self.assertTrue(self.client.session.get("screen_locked"))
+
+    def test_anonymous_user_redirected(self):
+        """Unauthenticated requests hit @login_required → redirect."""
+        client = self.client_class()
+        resp = client.post(self.url, "{}", content_type="application/json")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_get_method_not_allowed(self):
+        """GET is rejected by @require_http_methods."""
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 405)
+
+    def test_arm_then_refresh_redirects_to_lock_page(self):
+        """After arming, a GET to a protected page redirects to the lock page.
+
+        This is the core fix: refreshing the page after the idle overlay
+        fires can no longer bypass the PIN prompt.
+        """
+        self.client.post(self.url, "{}", content_type="application/json")
+        resp = self.client.get(reverse("analytics:dashboard"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], reverse("users:screen_lock"))
+
+    def test_arm_then_htmx_request_returns_hx_redirect(self):
+        """HTMX requests while locked get an HX-Redirect header."""
+        self.client.post(self.url, "{}", content_type="application/json")
+        resp = self.client.get(
+            reverse("analytics:dashboard"),
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["HX-Redirect"], reverse("users:screen_lock"))
+
+    def test_verify_clears_arm_flag(self):
+        """A successful PIN verify clears the armed flag, unlocking the session."""
+        self.client.post(self.url, "{}", content_type="application/json")
+        self.assertTrue(self.client.session.get("screen_locked"))
+        resp = self.client.post(
+            reverse("users:screen_lock_verify"),
+            json.dumps({"pin": "1234"}),
+            content_type="application/json",
+        )
+        self.assertTrue(resp.json()["verified"])
+        self.assertNotIn("screen_locked", self.client.session)
+        # Dashboard is now reachable again.
+        resp = self.client.get(reverse("analytics:dashboard"))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_lock_endpoints_reachable_while_armed(self):
+        """The lock page and verify/submit endpoints stay reachable while locked."""
+        self.client.post(self.url, "{}", content_type="application/json")
+        # Lock page itself.
+        resp = self.client.get(reverse("users:screen_lock"))
+        self.assertEqual(resp.status_code, 200)
+        # Verify endpoint.
+        resp = self.client.post(
+            reverse("users:screen_lock_verify"),
+            json.dumps({"pin": "1234"}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)

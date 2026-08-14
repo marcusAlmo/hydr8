@@ -4,12 +4,14 @@ Verifies the read-side enrichment and formatting that the templates
 consume — especially the tithe_rate display conversion (the inverse of
 the service's raw→display conversion).
 """
+from decimal import Decimal
+
 from django.core.cache import cache
 from django.test import TestCase
 
 from apps.core.models import SystemConfig
 from apps.settings.models import Company
-from apps.settings.selectors import get_settings_context
+from apps.settings.selectors import get_default_credit_limit, get_settings_context
 from apps.users.models import User
 
 
@@ -30,7 +32,7 @@ class GetSettingsContextTests(TestCase):
     def test_context_has_all_tabs(self):
         ctx = get_settings_context(self.user)
         tab_ids = {t['id'] for t in ctx['tabs']}
-        self.assertEqual(tab_ids, {'system-config', 'company', 'profile', 'ai-model'})
+        self.assertEqual(tab_ids, {'system-config', 'company', 'profile'})
 
     def test_system_config_has_five_rows(self):
         ctx = get_settings_context(self.user)
@@ -93,15 +95,80 @@ class GetSettingsContextTests(TestCase):
         self.assertEqual(ctx['profile']['avatar_initials'], 'AT')
         self.assertEqual(ctx['profile']['full_name'], 'Adrian Thorne')
 
-    def test_ai_model_context_has_status_and_progress(self):
-        ctx = get_settings_context(self.user)
-        ai = ctx['ai_model']
-        self.assertIn(ai['status'], ['Not Started', 'Downloading', 'Ready'])
-        self.assertIsInstance(ai['download_progress'], int)
-
     def test_falls_back_to_defaults_when_rows_missing(self):
         """If SystemConfig rows are missing, defaults are used (no crash)."""
         SystemConfig.objects.filter(company=self.company).delete()
         ctx = get_settings_context(self.user)
         # Should still render all 5 rows with default values.
         self.assertEqual(len(ctx['system_config']), 5)
+
+
+class GetDefaultCreditLimitTests(TestCase):
+    """Tests for the get_default_credit_limit domain helper.
+
+    This selector feeds the Add Customer modal so the credit limit field
+    is pre-populated with the tenant's configured ceiling.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.company = Company.objects.create(name="Test Co")
+        self.user = User.objects.create_user(
+            username="admin", password="securepassword123",
+            is_staff=True, company=self.company,
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_returns_hardcoded_default_when_no_rows(self):
+        """With no SystemConfig rows, the 3000.00 default is returned."""
+        SystemConfig.objects.all().delete()
+        self.assertEqual(get_default_credit_limit(self.user), Decimal("3000.00"))
+
+    def test_returns_tenant_scoped_value_when_present(self):
+        """A tenant-scoped row takes precedence over the global row."""
+        SystemConfig.objects.update_or_create(
+            company=self.company, key="approved_credit_limit",
+            defaults={"value": "5000.00"},
+        )
+        self.assertEqual(get_default_credit_limit(self.user), Decimal("5000.00"))
+
+    def test_falls_back_to_global_when_no_tenant_row(self):
+        """A global (company=NULL) row is used when no tenant row exists."""
+        SystemConfig.objects.update_or_create(
+            company=None, key="approved_credit_limit",
+            defaults={"value": "1500.00"},
+        )
+        self.assertEqual(get_default_credit_limit(self.user), Decimal("1500.00"))
+
+    def test_tenant_row_overrides_global_row(self):
+        """Tenant-scoped value wins over a present global row."""
+        SystemConfig.objects.update_or_create(
+            company=None, key="approved_credit_limit",
+            defaults={"value": "1500.00"},
+        )
+        SystemConfig.objects.update_or_create(
+            company=self.company, key="approved_credit_limit",
+            defaults={"value": "7500.00"},
+        )
+        self.assertEqual(get_default_credit_limit(self.user), Decimal("7500.00"))
+
+    def test_returns_decimal_quantized_to_two_places(self):
+        """The returned value is always quantized to two decimal places."""
+        SystemConfig.objects.update_or_create(
+            company=self.company, key="approved_credit_limit",
+            defaults={"value": "1234.5"},
+        )
+        self.assertEqual(
+            get_default_credit_limit(self.user), Decimal("1234.50"),
+        )
+
+    def test_user_without_company_uses_global_row(self):
+        """A user with no tenant falls back to the global row, then default."""
+        SystemConfig.objects.all().delete()
+        root = User.objects.create_user(
+            username="root", password="securepassword123",
+            is_superuser=True, company=None,
+        )
+        self.assertEqual(get_default_credit_limit(root), Decimal("3000.00"))

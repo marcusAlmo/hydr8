@@ -1,34 +1,42 @@
-"""Tests for the analytics dashboard view.
+"""Tests for the analytics dashboard view and HTMX lazy-load partials.
 
-Covers authentication, method gating, and rendering of the dashboard
-page with live operational data.
+The dashboard is now split into a lightweight shell (header + skeletons +
+today-remittance panel) and three HTMX partial endpoints that fetch the
+heavy data (stats, recent remittances, outstanding debts).  Tests cover
+both the shell and each partial.
 """
 from decimal import Decimal
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.core.models import Product
 from apps.customers.models import Customer
 from apps.customers.services import record_customer_borrowed, record_customer_debt
 from apps.remittance.models import Remittance
-from apps.users.models import User
+from apps.users.models import Role, User
 
 
-class DashboardViewTests(TestCase):
-    """Tests for GET /analytics/dashboard/."""
+def _make_admin_user(username: str, password: str = "securepassword123") -> User:
+    """Creates a user with the Admin role (required for dashboard access)."""
+    admin_role, _ = Role.objects.get_or_create(name="Admin")
+    user = User.objects.create_user(username=username, password=password)
+    user.role = admin_role
+    user.save()
+    return user
+
+
+class DashboardShellTests(TestCase):
+    """Tests for GET /analytics/dashboard/ (the shell with skeletons)."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="analytics_staff",
-            password="securepassword123",
-        )
+        self.user = _make_admin_user("analytics_admin")
         self.product = Product.objects.create(
             name="Alkaline Water",
             variation="Round",
             price=Decimal("40.00"),
         )
-        # Customer with debt + borrowed
         self.customer = Customer.objects.create(name="Dashboard Test Store")
         record_customer_debt(
             customer_id=f"HY-{self.customer.pk:04d}",
@@ -50,14 +58,7 @@ class DashboardViewTests(TestCase):
         cache.clear()
 
     def _make_todays_remittance(self) -> Remittance:
-        """Creates today's FINALIZED remittance for tests that need one.
-
-        Created per-test (not in setUp) so the 'no remittance' banner test
-        can simply omit it — the DB immutability trigger (migration 0005)
-        prevents deleting a FINALIZED row, so we avoid creating one when
-        it isn't needed.
-        """
-        from django.utils import timezone
+        """Creates today's FINALIZED remittance for tests that need one."""
         return Remittance.objects.create(
             date=timezone.localdate(),
             created_by=self.user,
@@ -68,6 +69,8 @@ class DashboardViewTests(TestCase):
             tithes_paid=True,
             offering_paid=True,
         )
+
+    # --- Shell: basic HTTP behaviour ---
 
     def test_dashboard_returns_200_for_authenticated_user(self):
         """GET /analytics/dashboard/ returns 200 for an authenticated user."""
@@ -86,71 +89,236 @@ class DashboardViewTests(TestCase):
         response = self.client.post("/analytics/dashboard/")
         self.assertEqual(response.status_code, 405)
 
+    # --- Shell: lightweight content ---
+
     def test_dashboard_renders_today_date(self):
-        """The dashboard renders the formatted today's date."""
-        from django.utils import timezone
+        """The dashboard shell renders the formatted today's date."""
         response = self.client.get("/analytics/dashboard/")
         expected = timezone.localtime().strftime("%A, %b %d, %Y")
         self.assertContains(response, expected)
 
-    def test_dashboard_renders_stat_cards(self):
-        """The dashboard renders all three summary stat cards."""
+    def test_dashboard_renders_skeletons(self):
+        """The shell renders skeleton placeholders for lazy-loaded sections."""
         response = self.client.get("/analytics/dashboard/")
-        self.assertContains(response, "Outstanding Debt")
-        self.assertContains(response, "Unreturned Containers")
-        # "Today's" may be HTML-escaped, so check for the escaped form
-        content = response.content.decode()
-        self.assertIn("Total Sales", content)
+        self.assertContains(response, "hydr8-skeleton")
+        self.assertContains(response, "hx-get")
+        self.assertContains(response, "/analytics/dashboard/partials/stats/")
+        self.assertContains(
+            response, "/analytics/dashboard/partials/recent-remittances/"
+        )
+        self.assertContains(
+            response, "/analytics/dashboard/partials/outstanding-debts/"
+        )
 
-    def test_dashboard_renders_sales_value(self):
-        """The dashboard renders the today's sales value from the remittance."""
-        self._make_todays_remittance()
+    def test_dashboard_does_not_render_stat_values_in_shell(self):
+        """The shell should NOT contain the actual stat values (those are
+        in the HTMX partial now)."""
         response = self.client.get("/analytics/dashboard/")
-        content = response.content.decode()
-        # The peso sign may be HTML-encoded; check for the numeric value
-        self.assertIn("1,000.00", content)
+        # The stat labels are in the partial, not the shell
+        self.assertNotContains(response, "Outstanding Debt")
+        self.assertNotContains(response, "Unreturned Containers")
 
-    def test_dashboard_renders_debt_value(self):
-        """The dashboard renders the outstanding debt value."""
-        response = self.client.get("/analytics/dashboard/")
-        content = response.content.decode()
-        self.assertIn("200.00", content)
-
-    def test_dashboard_renders_recent_remittances(self):
-        """The dashboard renders the recent remittances table."""
-        self._make_todays_remittance()
-        response = self.client.get("/analytics/dashboard/")
-        self.assertContains(response, "Recent Remittances")
-
-    def test_dashboard_renders_outstanding_debts(self):
-        """The dashboard renders the outstanding debts section."""
-        response = self.client.get("/analytics/dashboard/")
-        self.assertContains(response, "Outstanding Debts")
-        self.assertContains(response, "Dashboard Test Store")
-
-    def test_dashboard_shows_warning_banner_when_no_remittance(self):
-        """The warning banner shows when today's remittance is missing."""
-        # No remittance created for today — banner should appear.
+    def test_dashboard_shows_create_cta_when_no_remittance(self):
+        """The Today's Remittance panel shows the create CTA when today's
+        remittance is missing."""
         response = self.client.get("/analytics/dashboard/")
         self.assertContains(response, "No remittance for today yet")
+        self.assertContains(response, "Create a Remittance")
 
-    def test_dashboard_hides_warning_banner_when_remittance_exists(self):
-        """The warning banner is hidden when today's remittance exists."""
+    def test_dashboard_shows_finalized_state_when_remittance_exists(self):
+        """The Today's Remittance panel shows the finalized state when
+        today's remittance exists."""
         self._make_todays_remittance()
         response = self.client.get("/analytics/dashboard/")
         self.assertNotContains(response, "No remittance for today yet")
+        # Use html=True because Django autoescapes the apostrophe in "Today's"
+        self.assertContains(
+            response, "Today's remittance is finalized", html=True
+        )
 
     def test_dashboard_renders_with_no_data(self):
-        """The dashboard renders successfully with no customers or remittances."""
-        # Create a fresh user with no data
-        fresh = User.objects.create_user(
-            username="empty_user",
-            password="securepassword123",
-        )
+        """The dashboard shell renders successfully with no data at all."""
+        fresh = _make_admin_user("empty_admin")
         self.client.logout()
         self.client.force_login(fresh)
         response = self.client.get("/analytics/dashboard/")
         self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-        # With no data, sales and debt should show 0.00
-        self.assertIn("0.00", content)
+
+
+class DashboardStatsPartialTests(TestCase):
+    """Tests for GET /analytics/dashboard/partials/stats/."""
+
+    def setUp(self):
+        self.user = _make_admin_user("stats_admin")
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+        self.customer = Customer.objects.create(name="Stats Test Store")
+        record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            performed_by=self.user,
+        )
+        cache.clear()
+        self.client.force_login(self.user)
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_stats_partial_returns_200(self):
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_stats_partial_requires_login(self):
+        self.client.logout()
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertEqual(response.status_code, 302)
+
+    def test_stats_partial_renders_cards(self):
+        """The stats partial renders all three summary stat cards."""
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertContains(response, "Outstanding Debt")
+        self.assertContains(response, "Unreturned Containers")
+        self.assertContains(response, "Total Sales")
+
+    def test_stats_partial_renders_debt_value(self):
+        """The stats partial renders the outstanding debt value."""
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertContains(response, "200.00")
+
+    def test_stats_partial_has_countup_animation(self):
+        """The stats partial includes the Alpine countUp component."""
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertContains(response, "countUp")
+        self.assertContains(response, "target:")
+
+    def test_stats_partial_has_reveal_animation(self):
+        """The stats partial includes the reveal animation class."""
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertContains(response, "hydr8-reveal")
+
+    def test_stats_partial_renders_sales_value(self):
+        """The stats partial renders today's sales value from the remittance."""
+        Remittance.objects.create(
+            date=timezone.localdate(),
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("1000.00"),
+            net_profit=Decimal("800.00"),
+            tithe_amount=Decimal("100.00"),
+            tithes_paid=True,
+            offering_paid=True,
+        )
+        response = self.client.get("/analytics/dashboard/partials/stats/")
+        self.assertContains(response, "1,000.00")
+
+
+class DashboardRecentRemittancesPartialTests(TestCase):
+    """Tests for GET /analytics/dashboard/partials/recent-remittances/."""
+
+    def setUp(self):
+        self.user = _make_admin_user("rem_admin")
+        cache.clear()
+        self.client.force_login(self.user)
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_recent_remittances_partial_returns_200(self):
+        response = self.client.get(
+            "/analytics/dashboard/partials/recent-remittances/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_recent_remittances_partial_requires_login(self):
+        self.client.logout()
+        response = self.client.get(
+            "/analytics/dashboard/partials/recent-remittances/"
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_recent_remittances_partial_renders_table(self):
+        """The partial renders the recent remittances table header."""
+        response = self.client.get(
+            "/analytics/dashboard/partials/recent-remittances/"
+        )
+        self.assertContains(response, "Recent Remittances")
+
+    def test_recent_remittances_partial_has_reveal_animation(self):
+        response = self.client.get(
+            "/analytics/dashboard/partials/recent-remittances/"
+        )
+        self.assertContains(response, "hydr8-reveal")
+
+    def test_recent_remittances_partial_shows_data(self):
+        """The partial renders remittance row data."""
+        Remittance.objects.create(
+            date=timezone.localdate(),
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("1000.00"),
+            net_profit=Decimal("800.00"),
+            tithe_amount=Decimal("100.00"),
+            tithes_paid=True,
+            offering_paid=True,
+        )
+        response = self.client.get(
+            "/analytics/dashboard/partials/recent-remittances/"
+        )
+        self.assertContains(response, "1,000.00")
+
+
+class DashboardOutstandingDebtsPartialTests(TestCase):
+    """Tests for GET /analytics/dashboard/partials/outstanding-debts/."""
+
+    def setUp(self):
+        self.user = _make_admin_user("debts_admin")
+        self.product = Product.objects.create(
+            name="Alkaline Water",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+        self.customer = Customer.objects.create(name="Debts Test Store")
+        record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            performed_by=self.user,
+        )
+        cache.clear()
+        self.client.force_login(self.user)
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_outstanding_debts_partial_returns_200(self):
+        response = self.client.get(
+            "/analytics/dashboard/partials/outstanding-debts/"
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_outstanding_debts_partial_requires_login(self):
+        self.client.logout()
+        response = self.client.get(
+            "/analytics/dashboard/partials/outstanding-debts/"
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_outstanding_debts_partial_renders_section(self):
+        """The partial renders the outstanding debts section."""
+        response = self.client.get(
+            "/analytics/dashboard/partials/outstanding-debts/"
+        )
+        self.assertContains(response, "Outstanding Debts")
+        self.assertContains(response, "Debts Test Store")
+
+    def test_outstanding_debts_partial_has_reveal_animation(self):
+        response = self.client.get(
+            "/analytics/dashboard/partials/outstanding-debts/"
+        )
+        self.assertContains(response, "hydr8-reveal")

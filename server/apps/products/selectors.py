@@ -180,9 +180,7 @@ def list_riders_with_rates(user: "UserType") -> list[dict]:
 def get_products_pricing_context(user: "UserType") -> dict:
     """Builds the full context dict for the ``products_pricing_view``.
 
-    Centralises the assembly so the view stays thin.  The AI insight
-    block remains mock — it will be driven by the browser-local Gemma 2B
-    engine in a separate effort.
+    Centralises the assembly so the view stays thin.
     """
     products = list_products(user)
     columns = list_product_columns(user)
@@ -203,9 +201,6 @@ def get_products_pricing_context(user: "UserType") -> dict:
         "active_count": sum(1 for p in products if p["is_active"]),
         "default_count": sum(1 for p in products if p["is_default"]),
         "total_count": len(products),
-
-            # --- AI pricing insight (placeholder for future Gemma 2B integration) ---
-        "ai_insight": None,
 
         # --- Commissions tab ---
         "product_columns": columns,

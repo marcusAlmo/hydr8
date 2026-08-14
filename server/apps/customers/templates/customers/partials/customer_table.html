@@ -36,7 +36,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                     id="customerSearch"
                     name="q"
                     value="{{ search_query|default:'' }}"
-                    placeholder="Search by name or customer ID..."
+                    placeholder="Search by name"
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
                     hx-get="{% url 'customers:table' %}"
                     hx-trigger="keyup changed delay:300ms, search"
@@ -55,6 +55,24 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                 title="Add a new customer">
                 <span class="material-symbols-outlined text-[16px]">person_add</span>
                 Add Customer
+            </button>
+            <button
+                hx-get="{% url 'customers:record_borrowed' %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                class="px-4 py-2 bg-[#D97706] text-on-primary text-xs font-bold rounded-lg hover:bg-[#D97706]/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                title="Record containers borrowed by a customer">
+                <span class="material-symbols-outlined text-[16px]">water_damage</span>
+                Record Borrowed
+            </button>
+            <button
+                hx-get="{% url 'customers:record_debt' %}"
+                hx-target="#modal-root"
+                hx-swap="innerHTML"
+                class="px-4 py-2 bg-error text-on-primary text-xs font-bold rounded-lg hover:bg-error/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                title="Record credited items owed by a customer">
+                <span class="material-symbols-outlined text-[16px]">receipt_long</span>
+                Record Debt
             </button>
         </div>
     </div>
@@ -172,7 +190,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                         <!-- Actions -->
                         <td class="px-6 py-4 whitespace-nowrap text-right">
                             <div class="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                {% if customer.has_debt %}
+                                {% if customer.has_debt or customer.borrowed_total > 0 %}
                                 <button @click.stop
                                     hx-get="{% url 'customers:collect' customer.id %}"
                                     hx-target="#modal-root"

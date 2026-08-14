@@ -100,7 +100,7 @@ error banner is swapped into ``#form-error``.
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface resize-none"></textarea>
             </div>
 
-            <!-- Credit Limit (optional) -->
+            <!-- Credit Limit (pre-filled with tenant default, overridable) -->
             <div>
                 <label for="cust-credit-limit" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
                     Approved Credit Limit (₱)
@@ -111,8 +111,12 @@ error banner is swapped into ``#form-error``.
                     name="credit_limit"
                     min="0"
                     step="0.01"
-                    placeholder="0.00"
+                    value="{{ default_credit_limit }}"
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
+                <p class="text-[10px] text-on-surface-variant/70 font-data-mono mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">info</span>
+                    <span>Pre-filled from System Config. Override only if this customer needs a different ceiling.</span>
+                </p>
             </div>
 
         </form>

@@ -6,7 +6,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from apps.users.permissions import is_back_office as user_is_back_office
+from apps.users.permissions import is_admin as user_is_admin
 
 from .selectors import (
     get_employee_directory_context,
@@ -18,8 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 def _can_view_employees(user) -> bool:
-    """Back-office roles (Admin/Staff) and platform superusers may view the directory."""
-    return user_is_back_office(user)
+    """Admin role (and platform superusers) may view the directory.
+
+    Staff users get a focused remittance/customers view and do not access
+    the Employees & Users directory.
+    """
+    return user_is_admin(user)
 
 
 @login_required

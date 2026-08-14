@@ -1,7 +1,7 @@
 {% comment %}
 Record debt modal — rendered via HTMX into #modal-root.
 Lets the operator record a new credit line (debt) against a customer:
-  - Required: Customer, Product, Quantity credited
+  - Required: Customer (search existing or type a new name to create on the fly), Product, Quantity credited
   - Optional override: Unit price (pre-filled from product default)
   - Optional: Care of (the user responsible for extending credit)
   - Footer: Cancel, Record Debt
@@ -11,10 +11,13 @@ success the server returns a toast + closes the modal. On validation
 error an inline error banner is swapped into ``#form-error``.
 
 Expects context:
-  - customers: list of { id, name }
+  - customers_json: list of { id, name } (for Alpine.js combobox)
   - products: list of { key, label, unit_price }
   - care_of_users: list of { id, label }
 {% endcomment %}
+
+<!-- Customer data for Alpine combobox (safe JSON via json_script) -->
+{{ customers_json|json_script:"debt-customers-data" }}
 
 <!-- Modal Backdrop -->
 <div
@@ -32,9 +35,56 @@ Expects context:
         },
         get totalCredit() {
             return ((parseFloat(this.qty) || 0) * (parseFloat(this.price) || 0)).toFixed(2);
+        },
+        // --- Customer combobox state ---
+        allCustomers: [],
+        customerSearch: '',
+        selectedCustomerId: '',
+        selectedCustomerName: '',
+        isNewCustomer: false,
+        showCustomerDropdown: false,
+        initCustomers() {
+            this.allCustomers = JSON.parse(document.getElementById('debt-customers-data').textContent);
+        },
+        get filteredCustomers() {
+            const q = this.customerSearch.toLowerCase().trim();
+            if (!q) return this.allCustomers.slice(0, 10);
+            return this.allCustomers.filter(c => c.name.toLowerCase().includes(q)).slice(0, 10);
+        },
+        get hasExactNameMatch() {
+            const q = this.customerSearch.toLowerCase().trim();
+            return q && this.allCustomers.some(c => c.name.toLowerCase() === q);
+        },
+        get canCreateNew() {
+            return this.customerSearch.trim() && !this.hasExactNameMatch && !this.selectedCustomerId;
+        },
+        selectExistingCustomer(c) {
+            this.selectedCustomerId = c.id;
+            this.selectedCustomerName = c.name;
+            this.customerSearch = c.name + ' — ' + c.id;
+            this.isNewCustomer = false;
+            this.showCustomerDropdown = false;
+        },
+        selectNewCustomer() {
+            this.selectedCustomerId = '';
+            this.selectedCustomerName = this.customerSearch.trim();
+            this.isNewCustomer = true;
+            this.showCustomerDropdown = false;
+        },
+        clearCustomer() {
+            this.customerSearch = '';
+            this.selectedCustomerId = '';
+            this.selectedCustomerName = '';
+            this.isNewCustomer = false;
+        },
+        onCustomerInput() {
+            this.selectedCustomerId = '';
+            this.selectedCustomerName = '';
+            this.isNewCustomer = false;
+            this.showCustomerDropdown = true;
         }
     }"
-    x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
+    x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0); initCustomers()"
     x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
 >
     <!-- Modal Panel -->
@@ -78,21 +128,84 @@ Expects context:
             <!-- Error placeholder -->
             <div id="form-error"></div>
 
-            <!-- Customer (required) -->
-            <div>
-                <label for="debt-customer" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+            <!-- Customer (required — searchable combobox with create-if-not-found) -->
+            <div class="relative" @click.outside="showCustomerDropdown = false">
+                <label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
                     Customer <span class="text-error">*</span>
                 </label>
-                <select
-                    id="debt-customer"
-                    name="customer_id"
-                    required
-                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface">
-                    <option value="">Select a customer…</option>
-                    {% for c in customers %}
-                    <option value="{{ c.id }}">{{ c.name }} — {{ c.id }}</option>
-                    {% endfor %}
-                </select>
+                <!-- Search input -->
+                <div class="relative">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-[18px]">search</span>
+                    <input
+                        type="text"
+                        x-model="customerSearch"
+                        @focus="showCustomerDropdown = true"
+                        @click="showCustomerDropdown = true"
+                        @input="onCustomerInput()"
+                        placeholder="Search by name, or type a new name to create…"
+                        class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-10 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface"
+                        autocomplete="off">
+                    <!-- Clear button -->
+                    <button
+                        type="button"
+                        x-show="customerSearch"
+                        @click="clearCustomer()"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors">
+                        <span class="material-symbols-outlined text-[18px]">close</span>
+                    </button>
+                </div>
+                <!-- Hidden fields for form submission -->
+                <input type="hidden" name="customer_id" :value="selectedCustomerId">
+                <input type="hidden" name="customer_name" :value="isNewCustomer ? selectedCustomerName : ''">
+                <!-- Selection badge -->
+                <div x-show="selectedCustomerId || isNewCustomer" class="mt-2 flex items-center gap-2">
+                    <span
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+                        :class="isNewCustomer ? 'bg-tertiary-container/30 text-tertiary' : 'bg-primary/10 text-primary'">
+                        <span class="material-symbols-outlined text-[14px]" x-text="isNewCustomer ? 'person_add' : 'check_circle'"></span>
+                        <span x-text="isNewCustomer ? 'New: ' + selectedCustomerName : selectedCustomerName + ' — ' + selectedCustomerId"></span>
+                    </span>
+                </div>
+                <!-- Dropdown results -->
+                <div
+                    x-show="showCustomerDropdown"
+                    x-transition.opacity.duration.150ms
+                    class="absolute z-50 left-0 right-0 mt-1 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg max-h-56 overflow-y-auto custom-scrollbar"
+                    style="display: none;">
+                    <!-- Existing customer matches -->
+                    <template x-for="c in filteredCustomers" :key="c.id">
+                        <button
+                            type="button"
+                            @click="selectExistingCustomer(c)"
+                            class="w-full text-left px-4 py-2.5 hover:bg-surface-container-low transition-colors flex items-center gap-2 border-b border-outline-variant/10">
+                            <span class="material-symbols-outlined text-[16px] text-on-surface-variant">person</span>
+                            <span class="flex-1 font-body-md text-on-surface" x-text="c.name"></span>
+                            <span class="font-data-mono text-[10px] text-on-surface-variant" x-text="c.id"></span>
+                        </button>
+                    </template>
+                    <!-- Create new customer option -->
+                    <button
+                        type="button"
+                        x-show="canCreateNew"
+                        @click="selectNewCustomer()"
+                        class="w-full text-left px-4 py-2.5 hover:bg-tertiary-container/20 transition-colors flex items-center gap-2 border-t-2 border-tertiary/20">
+                        <span class="material-symbols-outlined text-[16px] text-tertiary">person_add</span>
+                        <span class="flex-1 font-body-md text-on-surface">
+                            Create new: <span class="font-bold text-tertiary" x-text="customerSearch"></span>
+                        </span>
+                        <span class="font-data-mono text-[10px] text-tertiary bg-tertiary-container/30 px-1.5 py-0.5 rounded">NEW</span>
+                    </button>
+                    <!-- Empty state -->
+                    <div
+                        x-show="filteredCustomers.length === 0 && !canCreateNew"
+                        class="px-4 py-3 text-center text-on-surface-variant font-body-sm">
+                        No customers found. Type a name above to create one.
+                    </div>
+                </div>
+                <p class="text-[10px] text-on-surface-variant/70 mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">info</span>
+                    <span>Search for an existing customer or type a new name to create one on the fly.</span>
+                </p>
             </div>
 
             <!-- Product (required) -->
