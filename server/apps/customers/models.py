@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.conf import settings
 
@@ -22,11 +23,23 @@ class Customer(models.Model):
     name = models.CharField(max_length=255)
     address = models.TextField(null=True, blank=True)
     contact_number = models.CharField(max_length=20, null=True, blank=True)
-    debt_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    credit_limit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    borrowed_round_8gal = models.SmallIntegerField(default=0)
-    borrowed_slim_8gal = models.SmallIntegerField(default=0)
-    borrowed_other = models.SmallIntegerField(default=0)
+    debt_balance = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00,
+        validators=[MinValueValidator(0)],
+    )
+    credit_limit = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00,
+        validators=[MinValueValidator(0)],
+    )
+    borrowed_round_8gal = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    borrowed_slim_8gal = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    borrowed_other = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
     last_credit_at = models.DateTimeField(null=True, blank=True)
     company = models.ForeignKey(
         'settings.Company',
@@ -61,9 +74,41 @@ class Customer(models.Model):
     class Meta:
         db_table = 'customers_customer'
         indexes = [
+            models.Index(fields=['company', 'deleted_at']),
             models.Index(fields=['company', 'debt_balance']),
             models.Index(fields=['company', 'last_credit_at']),
             models.Index(fields=['company', 'status']),
+        ]
+        constraints = [
+            # Prevents race conditions where concurrent payment collections
+            # could drive debt_balance below zero.
+            models.CheckConstraint(
+                condition=models.Q(debt_balance__gte=0),
+                name='customer_debt_balance_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(credit_limit__gte=0),
+                name='customer_credit_limit_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(borrowed_round_8gal__gte=0),
+                name='customer_borrowed_round_8gal_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(borrowed_slim_8gal__gte=0),
+                name='customer_borrowed_slim_8gal_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(borrowed_other__gte=0),
+                name='customer_borrowed_other_non_negative',
+            ),
+            # Unique active customer name per company — soft-deleted rows
+            # are excluded so the name can be reused after deletion.
+            models.UniqueConstraint(
+                fields=['company', 'name'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_customer_name_per_company',
+            ),
         ]
 
     def __str__(self) -> str:
@@ -87,10 +132,18 @@ class CreditLine(models.Model):
         related_name='credit_lines'
     )
     product = models.ForeignKey('core.Product', on_delete=models.PROTECT)
-    qty_credited = models.SmallIntegerField()
-    unit_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2)
-    total_credit_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    qty_remaining = models.SmallIntegerField()
+    qty_credited = models.SmallIntegerField(validators=[MinValueValidator(1)])
+    unit_price_snapshot = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+    total_credit_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+    qty_remaining = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
     # The user responsible for extending this credit to the customer.
     # May be an admin, staff, or driver — not necessarily the recorder.
     care_of = models.ForeignKey(
@@ -115,9 +168,25 @@ class CreditLine(models.Model):
 
     class Meta:
         db_table = 'customers_credit_line'
+        indexes = [
+            models.Index(fields=['customer', 'qty_remaining']),
+        ]
+        constraints = [
+            # Prevents race conditions where concurrent payments could
+            # drive qty_remaining below zero.
+            models.CheckConstraint(
+                condition=models.Q(qty_remaining__gte=0),
+                name='credit_line_qty_remaining_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(qty_remaining__lte=models.F('qty_credited')),
+                name='credit_line_qty_remaining_not_exceeds_credited',
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.customer.name} - {self.product.name} ({self.qty_remaining} left)"
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        return f"CL-{self.pk} ({self.qty_remaining} left)"
 
 
 class BorrowedContainer(models.Model):
@@ -142,8 +211,10 @@ class BorrowedContainer(models.Model):
         max_length=20,
         choices=ContainerType.choices,
     )
-    qty_borrowed = models.SmallIntegerField()
-    qty_returned = models.SmallIntegerField(default=0)
+    qty_borrowed = models.SmallIntegerField(validators=[MinValueValidator(1)])
+    qty_returned = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
     # The user responsible for lending these containers to the customer.
     # May be an admin, staff, or driver — ensures accountability even when
     # the admin lends directly to a walk-in customer.
@@ -182,9 +253,22 @@ class BorrowedContainer(models.Model):
             models.Index(fields=['company', 'customer']),
             models.Index(fields=['company', 'care_of']),
         ]
+        constraints = [
+            # Prevents race conditions where concurrent returns could
+            # drive qty_returned above qty_borrowed.
+            models.CheckConstraint(
+                condition=models.Q(qty_returned__gte=0),
+                name='borrowed_qty_returned_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(qty_returned__lte=models.F('qty_borrowed')),
+                name='borrowed_qty_returned_not_exceeds_borrowed',
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.customer.name} - {self.get_container_key_display()} ({self.qty_remaining} out)"
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        return f"BC-{self.pk} ({self.get_container_key_display()}, {self.qty_remaining} out)"
 
     @property
     def qty_remaining(self) -> int:
@@ -208,8 +292,13 @@ class CreditPayment(models.Model):
         help_text='The rider remittance this payment was collected through, if any. '
                   'Null for counter collections recorded via the Collect modal.',
     )
-    containers_paid = models.SmallIntegerField()
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    containers_paid = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
     company = models.ForeignKey(
         'settings.Company',
         on_delete=models.CASCADE,
@@ -229,6 +318,17 @@ class CreditPayment(models.Model):
             models.Index(fields=['company', 'credit_line']),
             models.Index(fields=['company', 'remittance']),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(containers_paid__gte=0),
+                name='credit_payment_containers_paid_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(amount__gte=0),
+                name='credit_payment_amount_non_negative',
+            ),
+        ]
 
     def __str__(self):
-        return f"Payment of {self.amount} for {self.credit_line}"
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        return f"CP-{self.pk} ({self.amount})"

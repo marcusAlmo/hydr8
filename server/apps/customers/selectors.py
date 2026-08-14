@@ -282,13 +282,16 @@ def _customer_stats(user: "UserType") -> list[dict]:
     threshold = get_overdue_threshold_days(user)
     base = Customer.objects.for_user(user).filter(deleted_at__isnull=True)
     total = base.count()
-    debtor_count = base.filter(debt_balance__gt=0).count()
-    total_debt = (
-        base.filter(debt_balance__gt=0).aggregate(Sum("debt_balance"))[
-            "debt_balance__sum"
-        ]
-        or Decimal("0.00")
+
+    # Combine the debtor_count + total_debt queries into a single
+    # aggregate pass over the debtors subset.
+    debt_stats = base.filter(debt_balance__gt=0).aggregate(
+        debtor_count=Count("id"),
+        total_debt=Sum("debt_balance"),
     )
+    debtor_count = debt_stats["debtor_count"] or 0
+    total_debt = debt_stats["total_debt"] or Decimal("0.00")
+
     borrowed_total = (
         base.aggregate(
             total=Sum(
@@ -306,17 +309,27 @@ def _customer_stats(user: "UserType") -> list[dict]:
     ).count()
 
     # Debt-management metrics (migrated from the retired Debt Management tab).
-    debtors_list = list(
-        base.filter(debt_balance__gt=0).only("last_credit_at", "debt_balance")
-    )
-    overdue_count = sum(
-        1 for c in debtors_list if _days_since(c.last_credit_at) > threshold
-    )
-    avg_days = (
-        round(sum(_days_since(c.last_credit_at) for c in debtors_list) / debtor_count)
-        if debtor_count
-        else 0
-    )
+    # Compute overdue_count and avg_days_overdue DB-side so we don't load
+    # every debtor row into memory.  Customers with no last_credit_at are
+    # treated as "Never credited" — they are debtors but never overdue
+    # (no clock has started).
+    threshold_date = timezone.now() - timedelta(days=threshold)
+    overdue_count = base.filter(
+        debt_balance__gt=0,
+        last_credit_at__lt=threshold_date,
+    ).count()
+
+    # Average days overdue across active debtors.  We still need a single
+    # pass over debtors for the average, but we limit to only the columns
+    # we need and let the DB do the date math where possible.
+    avg_days = 0
+    if debtor_count:
+        debtors_list = list(
+            base.filter(debt_balance__gt=0).only("last_credit_at")
+        )
+        avg_days = round(
+            sum(_days_since(c.last_credit_at) for c in debtors_list) / debtor_count
+        )
 
     return [
         {

@@ -10,3 +10,5 @@ class CustomersConfig(AppConfig):
         auditlog.register(Customer)
         auditlog.register(CreditLine)
         auditlog.register(CreditPayment)
+        # Import signal handlers so they are registered at startup.
+        from . import signals  # noqa: F401

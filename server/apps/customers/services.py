@@ -211,6 +211,10 @@ def record_customer_debt(
     If ``customer_id`` is provided, resolves the existing customer.  If
     only ``customer_name`` is provided (insert-if-not-exists workflow),
     creates a new customer on the fly with the default credit limit.
+
+    Raises ``ValidationError`` if extending the credit would push the
+    customer's debt balance above their configured ``credit_limit`` (a
+    ``credit_limit`` of 0 means "no limit" for legacy customers).
     """
     customer = _resolve_or_create_customer(customer_id, customer_name, performed_by)
     product = _resolve_product(product_key, performed_by)
@@ -228,10 +232,33 @@ def record_customer_debt(
         price = product.price
     total = Decimal(qty) * price
 
+    # --- Credit limit enforcement ---------------------------------------
+    # Re-read the customer row inside the transaction with a row lock so
+    # concurrent debt extensions cannot both pass the limit check.  A
+    # credit_limit of 0 means "no limit" (preserves legacy behaviour for
+    # customers created before limits were introduced).
     with transaction.atomic():
+        locked_customer = (
+            Customer.objects
+            .select_for_update()
+            .filter(pk=customer.pk)
+            .first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Please select a customer.")
+
+        if locked_customer.credit_limit > 0:
+            projected_balance = locked_customer.debt_balance + total
+            if projected_balance > locked_customer.credit_limit:
+                raise ValidationError(
+                    f"Credit limit exceeded. The customer's limit is "
+                    f"₱{locked_customer.credit_limit:,.2f} and the new "
+                    f"balance would be ₱{projected_balance:,.2f}."
+                )
+
         credit_line = CreditLine.objects.create(
             company=getattr(performed_by, "company", None),
-            customer=customer,
+            customer=locked_customer,
             product=product,
             remittance_rider_product=None,
             qty_credited=qty,
@@ -240,7 +267,7 @@ def record_customer_debt(
             total_credit_amount=total,
             care_of=care_of,
         )
-        Customer.objects.filter(pk=customer.pk).update(
+        Customer.objects.filter(pk=locked_customer.pk).update(
             debt_balance=F("debt_balance") + total,
             last_credit_at=timezone.now(),
         )
@@ -446,6 +473,42 @@ def record_customer_collection(
             "Nothing to record — enter a return quantity or payment amount."
         )
 
+    # --- Re-lock rows inside the atomic block to prevent race conditions --
+    # The validation above read qty_remaining / qty_returned without a lock.
+    # Re-fetch with SELECT FOR UPDATE so concurrent collections cannot
+    # double-spend the same credit line or borrowed container.
+    locked_borrowed: dict[int, BorrowedContainer] = {}
+    if parsed_returns:
+        locked_borrowed = {
+            b.pk: b for b in
+            BorrowedContainer.objects
+            .select_for_update()
+            .filter(pk__in=[b.pk for b, _ in parsed_returns])
+        }
+        for borrowed, qty in parsed_returns:
+            current = locked_borrowed.get(borrowed.pk)
+            if current is None or qty > current.qty_remaining:
+                raise ValidationError(
+                    "Cannot return that many containers — the outstanding "
+                    "balance changed during submission. Please retry."
+                )
+
+    locked_lines: dict[int, CreditLine] = {}
+    if parsed_payments:
+        locked_lines = {
+            cl.pk: cl for cl in
+            CreditLine.objects
+            .select_for_update()
+            .filter(pk__in=[cl.pk for cl, _, _ in parsed_payments])
+        }
+        for credit_line, qty_paid, _ in parsed_payments:
+            current = locked_lines.get(credit_line.pk)
+            if current is None or qty_paid > current.qty_remaining:
+                raise ValidationError(
+                    "Cannot pay that many units — the remaining balance "
+                    "changed during submission. Please retry."
+                )
+
     # --- Apply returns -----------------------------------------------------
     returns_recorded = 0
     for borrowed, qty in parsed_returns:
@@ -496,3 +559,92 @@ def record_customer_collection(
         "payments_recorded": payments_recorded,
         "total_collected": total_collected,
     }
+
+
+# ---------------------------------------------------------------------------
+# Status transitions — the documented lifecycle
+#     ACTIVE → FLAGGED → BLACKLISTED
+#         ↑___________|
+# is enforced here so audit logging, timestamps, and the reason field are
+# always kept in sync.  Direct status mutations via the admin or shell
+# bypass this and are discouraged.
+# ---------------------------------------------------------------------------
+
+_VALID_TRANSITIONS: dict[str, set[str]] = {
+    Customer.Status.ACTIVE: {Customer.Status.FLAGGED, Customer.Status.BLACKLISTED},
+    Customer.Status.FLAGGED: {Customer.Status.BLACKLISTED, Customer.Status.ACTIVE},
+    Customer.Status.BLACKLISTED: {Customer.Status.ACTIVE},
+}
+
+
+def _transition_status(
+    *,
+    customer: Customer,
+    target: str,
+    reason: str,
+    performed_by: "UserType",
+) -> Customer:
+    """Internal helper that applies a status transition with validation."""
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValidationError("A reason is required for status changes.")
+
+    allowed = _VALID_TRANSITIONS.get(customer.status, set())
+    if target not in allowed:
+        raise ValidationError(
+            f"Cannot move a {customer.get_status_display()} customer to "
+            f"{dict(Customer.Status.choices).get(target, target)}."
+        )
+
+    now = timezone.now()
+    Customer.objects.filter(pk=customer.pk).update(
+        status=target,
+        flagged_reason=reason if target != Customer.Status.ACTIVE else "",
+        flagged_at=now if target != Customer.Status.ACTIVE else None,
+        updated_at=now,
+    )
+    customer.refresh_from_db()
+    logger.info(
+        "[%s] Transitioned Customer id=%s status=%s reason_len=%d",
+        performed_by.id,
+        customer.id,
+        target,
+        len(reason),
+    )
+    return customer
+
+
+def flag_customer(
+    *, customer: Customer, reason: str, performed_by: "UserType"
+) -> Customer:
+    """Promotes a customer to FLAGGED status (anomaly detected)."""
+    return _transition_status(
+        customer=customer,
+        target=Customer.Status.FLAGGED,
+        reason=reason,
+        performed_by=performed_by,
+    )
+
+
+def blacklist_customer(
+    *, customer: Customer, reason: str, performed_by: "UserType"
+) -> Customer:
+    """Promotes a customer to BLACKLISTED status (manual ops)."""
+    return _transition_status(
+        customer=customer,
+        target=Customer.Status.BLACKLISTED,
+        reason=reason,
+        performed_by=performed_by,
+    )
+
+
+def reset_customer_status(
+    *, customer: Customer, reason: str, performed_by: "UserType"
+) -> Customer:
+    """Resets a customer to ACTIVE status (admin-only escape hatch)."""
+    return _transition_status(
+        customer=customer,
+        target=Customer.Status.ACTIVE,
+        reason=reason,
+        performed_by=performed_by,
+    )
