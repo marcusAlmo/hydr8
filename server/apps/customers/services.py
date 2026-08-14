@@ -5,12 +5,14 @@ All customer mutations (add, debt, borrowed, delete) live here.
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
+from django.db.models.functions import Greatest
 from django.utils import timezone
 
 from apps.core.models import Product
@@ -204,6 +206,7 @@ def record_customer_debt(
     unit_price="",
     care_of_id: str = "",
     customer_name: str = "",
+    transaction_date: str = "",
     performed_by: "UserType",
 ) -> CreditLine:
     """Creates a credit line for a customer and increases their debt balance.
@@ -212,6 +215,10 @@ def record_customer_debt(
     only ``customer_name`` is provided (insert-if-not-exists workflow),
     creates a new customer on the fly with the default credit limit.
 
+    ``transaction_date`` (YYYY-MM-DD string) overrides the business date
+    of the credit extension — useful for recording backlog entries. It
+    defaults to today and cannot be set in the future.
+
     Raises ``ValidationError`` if extending the credit would push the
     customer's debt balance above their configured ``credit_limit`` (a
     ``credit_limit`` of 0 means "no limit" for legacy customers).
@@ -219,6 +226,7 @@ def record_customer_debt(
     customer = _resolve_or_create_customer(customer_id, customer_name, performed_by)
     product = _resolve_product(product_key, performed_by)
     care_of = _resolve_care_of(care_of_id, performed_by)
+    tx_date = _parse_transaction_date(transaction_date)
 
     try:
         qty = int(qty_credited)
@@ -266,10 +274,15 @@ def record_customer_debt(
             unit_price_snapshot=price,
             total_credit_amount=total,
             care_of=care_of,
+            transaction_date=tx_date,
         )
+        # ``last_credit_at`` tracks the most recent credit extension, so a
+        # backdated entry must not move it backwards — keep the greater of
+        # the existing value and the new transaction date (start of day).
+        tx_dt = timezone.make_aware(datetime.combine(tx_date, datetime.min.time()))
         Customer.objects.filter(pk=locked_customer.pk).update(
             debt_balance=F("debt_balance") + total,
-            last_credit_at=timezone.now(),
+            last_credit_at=Greatest(F("last_credit_at"), tx_dt),
         )
 
     customer.refresh_from_db()
@@ -291,6 +304,7 @@ def record_customer_borrowed(
     qty_borrowed,
     care_of_id: str = "",
     customer_name: str = "",
+    transaction_date: str = "",
     performed_by: "UserType",
 ) -> BorrowedContainer:
     """Records containers borrowed by a customer.
@@ -299,12 +313,17 @@ def record_customer_borrowed(
     responsible (``care_of``) and updates the aggregate counters on the
     ``Customer`` row for backward compatibility with the table/detail views.
 
+    ``transaction_date`` (YYYY-MM-DD string) overrides the business date
+    of the lending event — useful for recording backlog entries. It
+    defaults to today and cannot be set in the future.
+
     If ``customer_id`` is provided, resolves the existing customer.  If
     only ``customer_name`` is provided (insert-if-not-exists workflow),
     creates a new customer on the fly with the default credit limit.
     """
     customer = _resolve_or_create_customer(customer_id, customer_name, performed_by)
     care_of = _resolve_care_of(care_of_id, performed_by)
+    tx_date = _parse_transaction_date(transaction_date)
 
     if not container_key or container_key not in _CONTAINER_FIELDS:
         raise ValidationError("Please select a container type.")
@@ -326,6 +345,7 @@ def record_customer_borrowed(
             qty_returned=0,
             care_of=care_of,
             recorded_by=performed_by,
+            transaction_date=tx_date,
         )
         Customer.objects.filter(pk=customer.pk).update(**{field: F(field) + qty})
     customer.refresh_from_db()
@@ -372,6 +392,29 @@ def _parse_int(value, field_label: str) -> int:
     if qty < 0:
         raise ValidationError(f"{field_label} cannot be negative.")
     return qty
+
+
+def _parse_transaction_date(value: str) -> date:
+    """Parses an optional YYYY-MM-DD transaction date for backlog entries.
+
+    Returns ``timezone.localdate()`` when ``value`` is empty.  Rejects
+    malformed strings and future dates — credit/borrowing events cannot
+    have happened in the future.
+    """
+    if not value or not value.strip():
+        return timezone.localdate()
+    raw = value.strip()
+    try:
+        parsed = datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValidationError(
+            "Enter a valid date (YYYY-MM-DD)."
+        )
+    if parsed > timezone.localdate():
+        raise ValidationError(
+            "Transaction date cannot be in the future."
+        )
+    return parsed
 
 
 @transaction.atomic

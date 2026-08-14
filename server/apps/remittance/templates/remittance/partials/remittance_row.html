@@ -13,13 +13,19 @@
    Clicking the row toggles an expandable accordion (second <tr>) showing
    the full 4-column KPI summary (Revenue · Deductions · Summary · Obligations).
 
-   Both <tr>s are wrapped in a <tbody x-data> so they share one Alpine scope.{% endcomment %}
+   Both <tr>s are wrapped in a <tbody x-data> so they share one Alpine scope.
+
+   Optimistic UI: checkboxes update instantly via x-model; the row border
+   reacts via :class. On Confirm, a saving spinner shows on the button.
+   If the server returns an error (4xx/5xx), the rollback() method
+   reverts the checkbox states and clears saving so the user can retry.{% endcomment %}
 <tbody class="rem-row-group"
        x-data="remittanceRow({
            tithes_paid: {{ rem.tithes_paid|yesno:'true,false' }},
            offering_paid: {{ rem.offering_paid|yesno:'true,false' }},
            is_draft: {{ rem.is_draft|yesno:'true,false' }}
-       })">
+       })"
+       @rollback-row="rollback()">
     <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 rem-row"
         :class="(!tithesPaid || !offeringPaid) ? 'border-l-[#f59e0b]' : 'border-l-transparent'">
         <td class="px-6 py-3 font-data-mono text-on-surface whitespace-nowrap cursor-pointer" @click="expanded = !expanded">
@@ -90,10 +96,14 @@
                             hx-target="closest .rem-row-group"
                             hx-swap="outerHTML"
                             hx-include="closest .rem-row-group"
-                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-on-primary text-label font-label-caps hover:bg-primary/90 transition-colors"
+                            hx-disabled-elt="this"
+                            hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('rollback-row', {bubbles: true}))"
+                            :disabled="saving"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-on-primary text-label font-label-caps hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Confirm payment status update">
-                        <span class="material-symbols-outlined text-[16px]">check</span>
-                        Confirm
+                        <span x-show="!saving" class="material-symbols-outlined text-[16px]">check</span>
+                        <span x-show="saving" x-cloak class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        <span x-text="saving ? 'Saving…' : 'Confirm'">Confirm</span>
                     </button>
                     <button type="button"
                             @click="cancel()"

@@ -1,6 +1,18 @@
 <!-- SideNavBar (The Abyss Sidebar) -->
 {% with active_item=active_page|default:request.resolver_match.url_name|default:request.resolver_match.app_name %}
-<aside x-data="{ expanded: $persist(true).as('hydr8_sidebar_expanded') }"
+<aside x-data="{
+        expanded: $persist(true).as('hydr8_sidebar_expanded'),
+        isTablet: window.matchMedia('(max-width: 1023px)').matches,
+        init() {
+            const mq = window.matchMedia('(max-width: 1023px)');
+            const handler = (e) => {
+                this.isTablet = e.matches;
+                if (e.matches) this.expanded = false;
+            };
+            handler(mq);
+            mq.addEventListener('change', handler);
+        }
+     }"
        :style="{ width: expanded ? '240px' : '80px' }"
        style="width: var(--sidebar-width, 240px)"
        class="relative h-full bg-inverse-surface flex flex-col py-4 px-3 shadow-md z-50 transition-all duration-300 flex-shrink-0 overflow-hidden">

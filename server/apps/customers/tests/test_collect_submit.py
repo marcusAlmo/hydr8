@@ -301,7 +301,9 @@ class CollectSubmitViewTests(TestCase):
             f"returned_BC-{self.borrowed.pk}": "3",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "container(s) returned")
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn("container(s) returned", trigger)
         self.borrowed.refresh_from_db()
         self.assertEqual(self.borrowed.qty_returned, 3)
 
@@ -312,18 +314,26 @@ class CollectSubmitViewTests(TestCase):
             f"amount_paid_CL-{self.credit_line.pk}": "80.00",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "collected")
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn("collected", trigger)
         self.credit_line.refresh_from_db()
         self.assertEqual(self.credit_line.qty_remaining, 2)
         payment = CreditPayment.objects.get(credit_line=self.credit_line)
         self.assertEqual(payment.amount, Decimal("80.00"))
 
-    def test_submit_sets_hx_redirect(self):
-        """The response includes HX-Redirect to refresh the customer list."""
+    def test_submit_sets_hx_trigger_refresh(self):
+        """The response includes HX-Trigger to refresh the customer table.
+
+        Replaced HX-Redirect with HX-Trigger for optimistic UI — the modal
+        closes via the form_success script and the table re-fetches via
+        the refreshCustomerTable event.
+        """
         response = self.client.post(self._url, {
             f"returned_BC-{self.borrowed.pk}": "1",
         })
-        self.assertEqual(response["HX-Redirect"], "/customers/")
+        self.assertIn("refreshCustomerTable", response["HX-Trigger"])
+        self.assertNotIn("HX-Redirect", response)
 
     def test_submit_returns_400_for_empty_submission(self):
         """POST with all-zero values returns 400."""

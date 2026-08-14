@@ -1,6 +1,7 @@
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 from apps.core.managers import TenantManager
 
@@ -162,6 +163,14 @@ class CreditLine(models.Model):
         related_name='credit_lines',
         db_index=True,
     )
+    # Business date of the credit extension — defaults to today but can be
+    # backdated when recording backlog entries. ``created_at`` below remains
+    # the immutable audit timestamp of when the row was actually inserted.
+    transaction_date = models.DateField(
+        default=timezone.localdate,
+        db_index=True,
+        help_text='Date the credit was actually extended (may be backdated for backlog).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = TenantManager()
@@ -170,6 +179,7 @@ class CreditLine(models.Model):
         db_table = 'customers_credit_line'
         indexes = [
             models.Index(fields=['customer', 'qty_remaining']),
+            models.Index(fields=['company', 'transaction_date']),
         ]
         constraints = [
             # Prevents race conditions where concurrent payments could
@@ -242,6 +252,14 @@ class BorrowedContainer(models.Model):
         related_name='borrowed_containers',
         db_index=True,
     )
+    # Business date of the lending event — defaults to today but can be
+    # backdated when recording backlog entries. ``created_at`` below remains
+    # the immutable audit timestamp of when the row was actually inserted.
+    transaction_date = models.DateField(
+        default=timezone.localdate,
+        db_index=True,
+        help_text='Date the containers were actually lent (may be backdated for backlog).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -252,6 +270,7 @@ class BorrowedContainer(models.Model):
         indexes = [
             models.Index(fields=['company', 'customer']),
             models.Index(fields=['company', 'care_of']),
+            models.Index(fields=['company', 'transaction_date']),
         ]
         constraints = [
             # Prevents race conditions where concurrent returns could

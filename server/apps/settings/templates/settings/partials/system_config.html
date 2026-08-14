@@ -4,6 +4,7 @@
     x-data="{
         editing: false,
         dirty: false,
+        saving: false,
         originals: {
             {% for setting in system_config %}'{{ setting.key }}': '{{ setting.value }}'{% if not forloop.last %}, {% endif %}{% endfor %}
         },
@@ -133,10 +134,13 @@
             hx-post="{% url 'settings:save_system_config' %}"
             hx-include="#system-config-form"
             hx-swap="none"
-            @click="editing = false; dirty = false"
-            class="flex items-center gap-2 bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
-            <span class="material-symbols-outlined text-[18px]">save</span>
-            <span>Save System Config</span>
+            hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))"
+            @click="saving = true; editing = false; dirty = false"
+            @save-failed="saving = false"
+            :disabled="saving"
+            class="flex items-center gap-2 bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            <span x-show="!saving" class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">save</span><span>Save System Config</span></span>
+            <span x-show="saving" x-cloak class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>Saving…</span>
         </button>
     </div>
 

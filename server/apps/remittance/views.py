@@ -168,7 +168,27 @@ def create_remittance_view(request):
         logger.info("[%s] create remittance input error: %s", request.user.id, e)
         return JsonResponse({"ok": False, "error": f"Invalid input: {e}"}, status=400)
 
-    return JsonResponse({"ok": True, "redirect_url": reverse("remittance:history")})
+    # Finalize always lands on the history page (admin-only surface).
+    if mode == "finalize":
+        return JsonResponse({"ok": True, "redirect_url": reverse("remittance:history")})
+
+    # Draft mode: admins are sent to the history page (where the draft
+    # row appears for them to finalize).  Staff cannot access history, so
+    # we keep them on the Add Remittance page and let the client show a
+    # "Draft saved" confirmation with the date and an Add Remittance
+    # button instead of redirecting them to a Forbidden page.
+    if is_admin_user(request.user):
+        return JsonResponse({"ok": True, "redirect_url": reverse("remittance:history")})
+
+    logger.info(
+        "[%s] Draft saved for date=%s (staff; no redirect).",
+        request.user.id, remittance_date,
+    )
+    return JsonResponse({
+        "ok": True,
+        "draft_saved": True,
+        "remittance_date": remittance_date.isoformat(),
+    })
 
 
 @login_required
@@ -348,17 +368,11 @@ def update_paid_status_view(request, remittance_id: int):
         {"rem": row, "is_admin": is_admin_user(request.user)},
         request=request,
     )
-    toast_html = render_to_string(
-        "components/toasts/toast.html",
-        {
-            "id": int(timezone.now().timestamp() * 1000),
-            "message": "Payment status updated.",
-            "type": "success",
-            "duration": 4000,
-        },
-        request=request,
-    )
-    return HttpResponse(row_html + toast_html)
+    response = HttpResponse(row_html)
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": "Payment status updated.", "type": "success"},
+    })
+    return response
 
 
 @login_required
@@ -397,17 +411,11 @@ def finalize_remittance_view(request, remittance_id: int):
             if row
             else ""
         )
-        toast_html = render_to_string(
-            "components/toasts/toast.html",
-            {
-                "id": int(timezone.now().timestamp() * 1000),
-                "message": error_message(exc),
-                "type": "error",
-                "duration": 6000,
-            },
-            request=request,
-        )
-        return HttpResponse(row_html + toast_html, status=400)
+        response = HttpResponse(row_html, status=400)
+        response["HX-Trigger"] = json.dumps({
+            "showToast": {"msg": error_message(exc), "type": "error", "duration": 6000},
+        })
+        return response
 
     row = get_remittance_row(request.user, remittance_id)
     if row is None:
@@ -420,17 +428,11 @@ def finalize_remittance_view(request, remittance_id: int):
         {"rem": row, "is_admin": admin},
         request=request,
     )
-    toast_html = render_to_string(
-        "components/toasts/toast.html",
-        {
-            "id": int(timezone.now().timestamp() * 1000),
-            "message": "Remittance finalized.",
-            "type": "success",
-            "duration": 4000,
-        },
-        request=request,
-    )
-    return HttpResponse(row_html + toast_html)
+    response = HttpResponse(row_html)
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": "Remittance finalized.", "type": "success"},
+    })
+    return response
 
 
 @login_required

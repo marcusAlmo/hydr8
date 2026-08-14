@@ -198,9 +198,12 @@ class UpdatePaidStatusViewTests(TestCase):
         self.remittance.refresh_from_db()
         self.assertTrue(self.remittance.tithes_paid)
         self.assertTrue(self.remittance.offering_paid)
-        # The response contains the row partial + OOB toast.
+        # The response contains the row partial. The toast is sent via
+        # HX-Trigger (client-side hydr8ShowToast), not in the body.
         self.assertContains(response, "rem-row")
-        self.assertContains(response, "Payment status updated.")
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn("Payment status updated.", trigger)
 
     def test_post_with_no_checkboxes_sets_both_false(self):
         """An empty POST (no checkboxes) clears both flags — standard

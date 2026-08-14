@@ -16,7 +16,11 @@
     {% else %}
     <form id="company-form"
           hx-post="{% url 'settings:save_company' %}"
-          hx-swap="none">
+          hx-swap="none"
+          x-data="{ saving: false }"
+          x-on:submit="saving = true"
+          hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))"
+          @save-failed="saving = false">
         {% csrf_token %}
         <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-8 shadow-sm">
             <div class="flex items-center gap-3 mb-6">
@@ -71,8 +75,10 @@
 
         <div class="flex justify-end pt-6">
             <button type="submit"
-                    class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md">
-                Save Company Data
+                    :disabled="saving"
+                    class="bg-primary text-on-primary font-label-caps text-label-caps px-8 py-3 rounded uppercase hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!saving">Save Company Data</span>
+                <span x-show="saving" x-cloak class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>Saving…</span>
             </button>
         </div>
     </form>

@@ -25,9 +25,10 @@ Expects context:
     class="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm p-4"
     @click="$dispatch('close-modal')"
     @keydown.escape.window="$dispatch('close-modal')"
-    x-data="{ totalPaid: 0.00, totalReturned: 0 }"
+    x-data="{ totalPaid: 0.00, totalReturned: 0, saving: false }"
     x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
     x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
+    @save-failed="saving = false"
 >
     <!-- Modal Panel -->
     <div
@@ -69,7 +70,9 @@ Expects context:
               class="overflow-y-auto custom-scrollbar p-5 space-y-6"
               hx-post="{% url 'customers:collect_submit' customer.id %}"
               hx-target="#collect-form-error-{{ customer.id }}"
-              hx-swap="innerHTML">
+              hx-swap="innerHTML"
+              x-on:submit="saving = true"
+              hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))">
             {% csrf_token %}
 
             <!-- Error placeholder -->
@@ -233,8 +236,13 @@ Expects context:
                 <button
                     type="submit"
                     form="collect-form-{{ customer.id }}"
-                    class="px-4 py-2 bg-primary text-on-primary text-sm font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm">
-                    Record Collection
+                    :disabled="saving"
+                    class="px-4 py-2 bg-primary text-on-primary text-sm font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!saving">Record Collection</span>
+                    <span x-show="saving" x-cloak class="flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        Saving…
+                    </span>
                 </button>
             </div>
         </div>

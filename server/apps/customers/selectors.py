@@ -630,7 +630,7 @@ def get_customer_collect_context(customer: Customer) -> dict:
     open_borrowed = (
         BorrowedContainer.objects.filter(customer=customer, qty_returned__lt=F("qty_borrowed"))
         .select_related("care_of", "care_of__role")
-        .order_by("-created_at")
+        .order_by("-transaction_date", "-created_at")
     )
 
     groups: dict[str, dict] = {}

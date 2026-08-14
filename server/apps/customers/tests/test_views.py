@@ -464,8 +464,12 @@ class CustomerAddViewTests(TestCase):
         """POST /customers/add/submit/ with a name returns a success toast."""
         response = self.client.post("/customers/add/submit/", {"name": "Test Customer"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "toast")
-        self.assertContains(response, "Test Customer")
+        # Toast is sent via HX-Trigger (client-side hydr8ShowToast), not
+        # in the response body. The body is just the close-modal script.
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn("Test Customer", trigger)
+        self.assertContains(response, "close-modal")
 
     def test_add_submit_returns_400_for_missing_name(self):
         """POST without a name returns 400 with an error fragment."""
@@ -541,8 +545,10 @@ class RecordDebtViewTests(TestCase):
             "unit_price": "40.00",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "toast")
-        self.assertContains(response, _display_id(self.customer))
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn(_display_id(self.customer), trigger)
+        self.assertContains(response, "close-modal")
 
     def test_record_debt_submit_returns_400_for_missing_customer(self):
         """POST without a customer returns 400."""
@@ -598,7 +604,8 @@ class RecordDebtViewTests(TestCase):
             "unit_price": "40.00",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "toast")
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
         # A new customer was created
         self.assertEqual(Customer.objects.count(), existing_count + 1)
         new_customer = Customer.objects.filter(name="Brand New Debt Store").first()
@@ -698,8 +705,10 @@ class RecordBorrowedViewTests(TestCase):
             "qty_borrowed": "3",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "toast")
-        self.assertContains(response, _display_id(self.customer))
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn(_display_id(self.customer), trigger)
+        self.assertContains(response, "close-modal")
 
     def test_record_borrowed_submit_returns_400_for_missing_customer(self):
         """POST without a customer returns 400."""
@@ -744,7 +753,8 @@ class RecordBorrowedViewTests(TestCase):
             "qty_borrowed": "4",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "toast")
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
         # A new customer was created
         self.assertEqual(Customer.objects.count(), existing_count + 1)
         new_customer = Customer.objects.filter(name="Brand New Borrow Store").first()
@@ -828,13 +838,21 @@ class CustomerDeleteViewTests(TestCase):
         cache.clear()
 
     def test_delete_succeeds_for_customer_with_no_pending_items(self):
-        """POST /customers/<id>/delete/ succeeds (no debt, no borrowed)."""
+        """POST /customers/<id>/delete/ succeeds (no debt, no borrowed).
+
+        Returns a close-modal script (form_success.html) + a showToast
+        HX-Trigger. The row was faded out optimistically client-side; no
+        HX-Redirect — the row is visually gone and will be absent on the
+        next table refresh.
+        """
         response = self.client.post(f"/customers/{_display_id(self.clean)}/delete/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "toast")
-        self.assertContains(response, _display_id(self.clean))
-        # HX-Redirect header set so the list refreshes
-        self.assertEqual(response["HX-Redirect"], "/customers/")
+        trigger = response.headers.get("HX-Trigger", "")
+        self.assertIn("showToast", trigger)
+        self.assertIn(_display_id(self.clean), trigger)
+        self.assertContains(response, "close-modal")
+        # No HX-Redirect — optimistic UI handles the row removal client-side
+        self.assertNotIn("HX-Redirect", response)
 
     def test_delete_returns_400_for_customer_with_debt(self):
         """POST for a customer with debt + borrowed returns 400."""

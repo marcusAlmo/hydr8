@@ -26,6 +26,7 @@ Expects context:
     x-data="{
         // --- Customer combobox state ---
         allCustomers: [],
+        saving: false,
         customerSearch: '',
         selectedCustomerId: '',
         selectedCustomerName: '',
@@ -74,6 +75,7 @@ Expects context:
     }"
     x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0); initCustomers()"
     x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
+    @save-failed="saving = false"
 >
     <!-- Modal Panel -->
     <div
@@ -110,7 +112,9 @@ Expects context:
               class="overflow-y-auto custom-scrollbar p-5 space-y-4"
               hx-post="{% url 'customers:record_borrowed_submit' %}"
               hx-target="#form-error"
-              hx-swap="innerHTML">
+              hx-swap="innerHTML"
+              x-on:submit="saving = true"
+              hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))">
             {% csrf_token %}
 
             <!-- Error placeholder -->
@@ -213,6 +217,25 @@ Expects context:
                 </select>
             </div>
 
+            <!-- Transaction Date (defaults to today; backdatable for backlog) -->
+            <div>
+                <label for="borrow-date" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
+                    Transaction Date
+                    <span class="text-on-surface-variant/60 normal-case tracking-normal font-body-sm">(backdate for backlog)</span>
+                </label>
+                <input
+                    type="date"
+                    id="borrow-date"
+                    name="transaction_date"
+                    value="{% now 'Y-m-d' %}"
+                    max="{% now 'Y-m-d' %}"
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-data-mono text-on-surface">
+                <p class="text-[10px] text-on-surface-variant/70 mt-1 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">info</span>
+                    <span>Defaults to today. Set an earlier date to record a backlog lending.</span>
+                </p>
+            </div>
+
             <!-- Quantity (required) -->
             <div>
                 <label for="borrow-qty" class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-1.5">
@@ -268,9 +291,11 @@ Expects context:
                 <button
                     type="submit"
                     form="record-borrowed-form"
-                    class="px-4 py-2 bg-[#D97706] text-on-primary text-xs font-bold rounded-lg hover:bg-[#D97706]/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5">
-                    <span class="material-symbols-outlined text-[14px]">water_damage</span>
-                    Record Borrowed
+                    :disabled="saving"
+                    class="px-4 py-2 bg-[#D97706] text-on-primary text-xs font-bold rounded-lg hover:bg-[#D97706]/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!saving" class="material-symbols-outlined text-[14px]">water_damage</span>
+                    <span x-show="saving" x-cloak class="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                    <span x-text="saving ? 'Saving…' : 'Record Borrowed'">Record Borrowed</span>
                 </button>
             </div>
         </div>

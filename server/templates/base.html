@@ -107,6 +107,11 @@
                 // $persist stores booleans as JSON strings "true"/"false".
                 // Default to expanded (240px) when unset or unparseable.
                 var expanded = v === null ? true : (v === 'true');
+                // Auto-collapse on tablet/portrait (< 1024px) so the
+                // sidebar doesn't eat 31% of the screen width.
+                if (window.matchMedia && window.matchMedia('(max-width: 1023px)').matches) {
+                    expanded = false;
+                }
                 document.documentElement.style.setProperty(
                     '--sidebar-width', expanded ? '240px' : '80px'
                 );
@@ -118,7 +123,7 @@
 
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-background text-on-surface font-body-md overflow-hidden h-screen flex flex-row">
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-dvh flex flex-row">
     <!-- Dynamic Ambient Backgrounds -->
     <div class="ambient-glow"></div>
     <div class="ambient-glow-alt"></div>
@@ -261,8 +266,24 @@
         })
     </script>
 
+    <!-- Bridge HX-Trigger "showToast" events to the shared hydr8ShowToast
+         helper.  This lets any HTMX endpoint fire a toast via:
+             response['HX-Trigger'] = '{"showToast": {"msg": "...", "type": "success"}}'
+         without relying on OOB swaps (which don't always work reliably
+         when the main swap target is inside a modal that closes itself). -->
+    <script>
+        document.body.addEventListener('showToast', function (e) {
+            var d = e.detail || {};
+            window.hydr8ShowToast(d.msg || d.message || '', {
+                type: d.type || 'success',
+                title: d.title || '',
+                duration: d.duration || 4000,
+            });
+        });
+    </script>
+
     <!-- Scroll restoration for the inner content canvas.
-         The body is overflow-hidden/h-screen, so the document itself never
+         The body is overflow-hidden/h-dvh, so the document itself never
          scrolls and the browser can't restore position on reload. We persist
          the scrollTop of the main overflow-y-auto container per URL. -->
     <script>

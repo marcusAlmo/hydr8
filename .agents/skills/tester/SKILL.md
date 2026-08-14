@@ -374,28 +374,42 @@ For every hand-off received from Developer, verify:
 - [ ] Fixture passwords meet Django's password validators (8+ chars, mixed case, digits, symbols)
 - [ ] No test data leaks between tests (Django TestCase rolls back transactions)
 - [ ] HTMX tests include `HTTP_HX_REQUEST='true'` header to simulate HTMX requests
+- [ ] **No test creates a user with `username="admin"`** — use a non-default
+      username like `test_admin` or `testuser` to avoid any risk of colliding
+      with the dev DB's real `admin` superuser (see Dev Credentials below)
+
+## Dev Credentials — NEVER Modify the Admin User
+
+The dev DB (`hydr8`) has a superuser the user logs in with: `admin` / `admin`
+(PIN: `1234`). **NEVER write a test that calls `set_password`, `set_pin`, or
+`.save()` on a user with `username="admin"`.** Even though `TestCase` rolls
+back, this creates confusion and risks leaking to the dev DB if settings are
+misconfigured. Always create test users with clearly non-default usernames
+(e.g. `test_admin`, `staff1`, `driver1`).
 
 ## Running Tests
 
 ```bash
-# Run all tests
-uv run python manage.py test apps --verbosity=2
+# Run all tests (uses test DB — never touches dev DB)
+uv run python manage.py test apps --settings=config.settings.test --verbosity=2
 
 # Run a specific app
-uv run python manage.py test apps.remittance --verbosity=2
+uv run python manage.py test apps.remittance --settings=config.settings.test --verbosity=2
 
 # Run a specific test module
-uv run python manage.py test apps.remittance.tests.test_services --verbosity=2
+uv run python manage.py test apps.remittance.tests.test_services --settings=config.settings.test --verbosity=2
 
 # Run a specific test class
-uv run python manage.py test apps.remittance.tests.test_services.CreateCreditLineServiceTests --verbosity=2
+uv run python manage.py test apps.remittance.tests.test_services.CreateCreditLineServiceTests --settings=config.settings.test --verbosity=2
 
 # Run with coverage (if coverage is installed)
-uv run coverage run manage.py test apps && uv run coverage report
-
-# Run with settings override (if needed)
-uv run python manage.py test apps --settings=config.settings.test
+uv run coverage run manage.py test apps --settings=config.settings.test && uv run coverage report
 ```
+
+**Always pass `--settings=config.settings.test`** to ensure tests run against
+the `hydr8_test` database, not the dev `hydr8` database. Without this flag,
+Django auto-creates `test_hydr8` (also safe), but being explicit prevents any
+ambiguity.
 
 ## Tester Superpowers
 

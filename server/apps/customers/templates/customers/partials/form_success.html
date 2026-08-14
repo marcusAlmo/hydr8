@@ -1,17 +1,16 @@
 {% comment %}
 Form success response — returned by HTMX POST handlers for the customer
-modals (add, record-debt, record-borrowed, delete).
+modals (add, edit, record-debt, record-borrowed, collect, delete).
 
-Renders a toast partial with an OOB swap into ``#toast-container`` (the
-toast auto-dismisses via Alpine.js after 4 seconds) plus a ``<script>``
-that dispatches ``close-modal`` on the window so the open modal removes
-itself and restores body scroll.
+Dispatches ``close-modal`` on the window so the open modal removes
+itself and restores body scroll.  The toast is NOT rendered here —
+the view sets ``HX-Trigger: {"showToast": ...}`` so the toast is
+created client-side via the shared ``hydr8ShowToast`` helper (defined
+in base.html).  This avoids OOB-swap issues that occur when the main
+swap target is inside a modal that closes itself immediately after.
 
-Expects context:
-  - message: str — toast message text
+Expects context: (none — the toast message is sent via HX-Trigger)
 {% endcomment %}
-{% now "U" as ts %}
-{% include "components/toasts/toast.html" with id=ts timestamp=ts message=message type="success" duration=4000 %}
 <script>
     window.dispatchEvent(new CustomEvent('close-modal'));
     document.body.style.overflow = '';

@@ -4,6 +4,7 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,31 @@ def error_message(exc: Exception) -> str:
     return str(exc)
 
 
+def render_toast_string(
+    request,
+    message: str,
+    type: str = "success",
+    duration: int = 4000,
+) -> str:
+    """Renders the shared toast partial as a string.
+
+    Use this when you need to combine the toast HTML with other content
+    (e.g. a refreshed table row) in a single ``HttpResponse``.  For
+    standalone toast responses, use :func:`toast_response` or the
+    ``toast_success`` / ``toast_error`` helpers instead.
+    """
+    return render_to_string(
+        "components/toasts/toast.html",
+        {
+            "id": int(timezone.now().timestamp() * 1000),
+            "message": message,
+            "type": type,
+            "duration": duration,
+        },
+        request=request,
+    )
+
+
 def toast_response(
     request,
     message: str,
@@ -31,15 +57,8 @@ def toast_response(
     status: int = 200,
 ) -> HttpResponse:
     """Renders the shared OOB toast partial for HTMX mutation endpoints."""
-    return render(
-        request,
-        "components/toasts/toast.html",
-        {
-            "id": int(timezone.now().timestamp() * 1000),
-            "message": message,
-            "type": type,
-            "duration": duration,
-        },
+    return HttpResponse(
+        render_toast_string(request, message, type=type, duration=duration),
         status=status,
     )
 

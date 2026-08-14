@@ -615,6 +615,15 @@
                     this.tithesPaid = this.origTithes;
                     this.offeringPaid = this.origOffering;
                 },
+                // Rollback — called when the HTMX POST returns an error
+                // (4xx/5xx). Reverts the optimistic checkbox state to the
+                // DB-backed originals and clears the saving spinner so the
+                // user can adjust and retry.
+                rollback() {
+                    this.tithesPaid = this.origTithes;
+                    this.offeringPaid = this.origOffering;
+                    this.saving = false;
+                },
             };
         }
 

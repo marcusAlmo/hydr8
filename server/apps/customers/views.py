@@ -1,3 +1,5 @@
+import json
+
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -50,6 +52,31 @@ def _apply_accent(stats: list[dict]) -> None:
         accent = _ACCENT_CLASSES.get(stat["accent"], _ACCENT_CLASSES["primary"])
         stat["border_class"] = accent["border"]
         stat["icon_class"] = accent["icon"]
+
+
+def _success_response(
+    request,
+    message: str,
+    *,
+    refresh_table: bool = False,
+):
+    """Returns the form-success partial (close-modal script) with an
+    ``HX-Trigger`` that fires ``showToast`` (rendered client-side via
+    ``hydr8ShowToast``) and optionally ``refreshCustomerTable``.
+
+    The toast is triggered via HX-Trigger instead of an OOB swap because
+    OOB swaps are unreliable when the main swap target (``#form-error``)
+    lives inside a modal that closes itself immediately after the
+    response is processed.
+    """
+    response = render(request, "customers/partials/form_success.html", {})
+    trigger: dict = {
+        "showToast": {"msg": message, "type": "success"},
+    }
+    if refresh_table:
+        trigger["refreshCustomerTable"] = ""
+    response["HX-Trigger"] = json.dumps(trigger)
+    return response
 
 
 @login_required
@@ -131,11 +158,16 @@ def customer_edit_submit_view(request, customer_id: str):
             status=400,
         )
 
-    return render(
+    response = render(
         request,
         "customers/partials/form_success.html",
         {"message": f"Customer {customer_id} updated."},
     )
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": f"Customer {customer_id} updated.", "type": "success"},
+        "refreshCustomerTable": "",
+    })
+    return response
 
 
 @login_required
@@ -209,7 +241,10 @@ def customer_collect_submit_view(request, customer_id: str):
         "customers/partials/form_success.html",
         {"message": message},
     )
-    response["HX-Redirect"] = "/customers/"
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": message, "type": "success"},
+        "refreshCustomerTable": "",
+    })
     return response
 
 
@@ -252,11 +287,16 @@ def customer_add_submit_view(request):
         )
 
     message = f'Customer "{customer.name}" added.'
-    return render(
+    response = render(
         request,
         "customers/partials/form_success.html",
         {"message": message},
     )
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": message, "type": "success"},
+        "refreshCustomerTable": "",
+    })
+    return response
 
 
 @login_required
@@ -281,6 +321,7 @@ def record_debt_submit_view(request):
             unit_price=request.POST.get("unit_price", ""),
             care_of_id=request.POST.get("care_of_id", ""),
             customer_name=request.POST.get("customer_name", ""),
+            transaction_date=request.POST.get("transaction_date", ""),
             performed_by=request.user,
         )
     except ValidationError as e:
@@ -297,11 +338,16 @@ def record_debt_submit_view(request):
         f"Recorded {credit_line.qty_credited} credited unit(s) "
         f"for {customer_id}."
     )
-    return render(
+    response = render(
         request,
         "customers/partials/form_success.html",
         {"message": message},
     )
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": message, "type": "success"},
+        "refreshCustomerTable": "",
+    })
+    return response
 
 
 @login_required
@@ -329,6 +375,7 @@ def record_borrowed_submit_view(request):
             qty_borrowed=qty_borrowed,
             care_of_id=request.POST.get("care_of_id", ""),
             customer_name=request.POST.get("customer_name", ""),
+            transaction_date=request.POST.get("transaction_date", ""),
             performed_by=request.user,
         )
     except ValidationError as e:
@@ -343,11 +390,16 @@ def record_borrowed_submit_view(request):
         f"Recorded {qty_borrowed} borrowed container(s) "
         f"for {customer_id}."
     )
-    return render(
+    response = render(
         request,
         "customers/partials/form_success.html",
         {"message": message},
     )
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": message, "type": "success"},
+        "refreshCustomerTable": "",
+    })
+    return response
 
 
 @login_required
@@ -369,10 +421,18 @@ def customer_delete_view(request, customer_id: str):
             status=400,
         )
 
+    # Return toast + close-modal script (form_success.html). The row was
+    # already faded out optimistically via the customer-deleting event;
+    # the modal closes via the script. No HX-Redirect — the row is
+    # visually gone and will be absent on the next table refresh.
+    message = f"Customer {customer_id} deleted."
     response = render(
         request,
         "customers/partials/form_success.html",
-        {"message": f"Customer {customer_id} deleted."},
+        {"message": message},
     )
-    response["HX-Redirect"] = "/customers/"
+    response["HX-Trigger"] = json.dumps({
+        "showToast": {"msg": message, "type": "success"},
+        "refreshCustomerTable": "",
+    })
     return response

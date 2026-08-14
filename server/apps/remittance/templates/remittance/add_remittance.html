@@ -28,10 +28,10 @@
         <p class="text-on-surface-variant font-body-md text-body-md max-w-[1440px] mx-auto px-margin-page pt-6">Record a new remittance entry with rider sales, commissions, and tithes.</p>
 
         <!-- Two-column workspace: left = inputs, right = sticky rider commission panel -->
-        <div class="max-w-[1440px] mx-auto p-margin-page pb-24 grid grid-cols-1 lg:grid-cols-12 gap-6 hydr8-stagger">
+        <div class="max-w-[1440px] mx-auto p-margin-page pb-24 grid grid-cols-1 md:grid-cols-12 gap-6 hydr8-stagger">
 
             <!-- Remittance Date -->
-            <div class="lg:col-span-12 hydr8-reveal-item">
+            <div class="md:col-span-12 hydr8-reveal-item">
                 <div class="bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-5">
                     <div class="flex flex-col sm:flex-row sm:items-center gap-4">
                         <div class="flex-1">
@@ -52,17 +52,17 @@
             <!-- ============ FULL-WIDTH SUMMARY KPI CARD ============ -->
             <!-- Categorized into 4 columns:
                  Revenue    → Sales · Repayments
-                 Deductions → Credits · Expenses · Commissions · Salary
-                 Summary    → Net Remittance · Net Profit
+                 Deductions → Credits · Expenses · Net Commissions · Salary
+                 Summary    → Net Remittance · Total Commissions · Net Commissions
                  Obligations→ Tithes · Offerings -->
-            <div class="lg:col-span-12 hydr8-reveal-item">
+            <div class="md:col-span-12 hydr8-reveal-item">
                 <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm p-5">
                     <div class="flex items-center gap-2 mb-4">
                         <span class="material-symbols-outlined text-primary text-[20px]">summarize</span>
                         <h3 class="font-headline-sm text-body-md font-bold text-on-surface">Remittance Summary</h3>
                         <span class="text-label-caps font-label-caps text-outline uppercase ml-auto">Live KPIs</span>
                     </div>
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
 
                         <!-- ===== REVENUE COLUMN ===== -->
                         <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-4">
@@ -89,7 +89,7 @@
                                 <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
                                 <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission())"></h3>
                             </div>
                             <div class="flex flex-col">
@@ -106,8 +106,12 @@
                                 <h3 class="font-data-mono text-[18px] text-tertiary font-bold" x-text="peso(netRemittance())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Profit</p>
-                                <h3 class="font-data-mono text-[18px] text-primary font-bold" x-text="peso(netProfit())"></h3>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalGrossCommission())"></h3>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-primary font-bold" x-text="peso(totalCommission())"></h3>
                             </div>
                         </div>
 
@@ -129,7 +133,7 @@
             </div>
 
             <!-- ============ LEFT COLUMN: input fields ============ -->
-            <div class="lg:col-span-8 space-y-6 hydr8-reveal-item">
+            <div class="md:col-span-8 space-y-6 hydr8-reveal-item">
 
                 <!-- Rider/Staff Section with tab navigation -->
                 <section class="bg-surface-container-lowest border border-outline-variant/20 rounded-lg p-6 space-y-4">
@@ -235,7 +239,7 @@
                                         <span class="block text-[10px] text-on-surface-variant/60 normal-case font-normal leading-tight">/ comm</span>
                                     </th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">SOLD</th>
-                                    <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">CREDITED</th>
+                                    <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">CREDIT</th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-center">REPAID</th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">SUBTOTAL</th>
                                     <th class="py-3 px-4 font-label-caps text-label-caps text-on-surface-variant text-right">COMM. AMOUNT</th>
@@ -477,24 +481,109 @@
                         </div>
                     </div>
 
-                    <!-- ===== NET REMITTABLE & NET COMMISSION FOOTER ===== -->
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <tfoot>
-                                <tr class="border-t-2 border-on-surface/20">
-                                    <td class="py-3.5 px-4 font-body-md font-bold text-on-surface">Net Remittable</td>
-                                    <td class="py-3.5 px-4 text-right font-data-mono text-data-mono text-primary font-bold text-lg"
-                                        x-text="peso(riderNetRemittable(selectedRiderId))"></td>
-                                    <td class="py-3.5 px-2"></td>
-                                </tr>
-                                <tr class="border-t-2 border-on-surface/30">
-                                    <td class="py-3.5 px-4 font-body-md font-bold text-on-surface">Net Commission</td>
-                                    <td class="py-3.5 px-4 text-right font-data-mono text-data-mono text-tertiary font-bold text-lg"
-                                        x-text="peso(riderNetCommission(selectedRiderId))"></td>
-                                    <td class="py-3.5 px-2"></td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                    <!-- ===== REMITTANCE & COMMISSION FORMULA FOOTER ===== -->
+                    <!-- Two-column card:
+                         LEFT  — Remittance reconciliation:
+                                 Net Remittable − Remitted (input) = Balance
+                         RIGHT — Commission computation:
+                                 Gross Commission − Balance − Comm. Deductions = Net Commission -->
+                    <div class="rounded-lg border border-outline-variant/30 overflow-hidden bg-surface-container-low/30">
+                        <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-outline-variant/20">
+                            <!-- ============ LEFT: Remittance Reconciliation ============ -->
+                            <div class="px-4 py-3">
+                                <div class="flex items-center gap-1.5 mb-2.5">
+                                    <span class="material-symbols-outlined text-primary text-[16px]">payments</span>
+                                    <span class="font-label-caps text-label-caps text-primary">Remittance Reconciliation</span>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <!-- Net Remittable -->
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="font-body-sm text-on-surface-variant">Net Remittable</span>
+                                        <span class="font-data-mono text-data-mono text-primary font-medium"
+                                              x-text="peso(riderNetRemittable(selectedRiderId))"></span>
+                                    </div>
+                                    <!-- − Remitted (input) -->
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="font-body-sm text-on-surface-variant flex items-center gap-1">
+                                            <span class="font-data-mono text-data-mono text-on-surface-variant/50">−</span>
+                                            Remitted
+                                        </span>
+                                        <span class="relative inline-flex items-center">
+                                            <span class="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant/60 font-data-mono text-data-mono pointer-events-none">₱</span>
+                                            <input x-model.number="selectedRider().remitted" type="number" min="0" step="0.01"
+                                                   placeholder="0.00"
+                                                   @input="selectedRider().remitted = sanitizeAmount(selectedRider().remitted)"
+                                                   :style="`min-width: 10ch; width: ${Math.max(12, String(selectedRider().remitted ?? '').length + 6)}ch`"
+                                                   class="bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 pl-5 pr-1 py-1 text-right font-data-mono text-data-mono text-on-surface focus:ring-0 focus:outline-none transition-[width] duration-75">
+                                        </span>
+                                    </div>
+                                    <!-- Balance (result) -->
+                                    <div class="flex items-center justify-between gap-3 pt-1.5 border-t border-outline-variant/20">
+                                        <span class="font-body-sm font-bold text-on-surface flex items-center gap-1">
+                                            Balance
+                                        </span>
+                                        <span class="font-data-mono text-data-mono font-bold text-base"
+                                              :class="riderBalance(selectedRiderId) > 0 ? 'text-error' : (riderBalance(selectedRiderId) < 0 ? 'text-primary' : 'text-on-surface-variant')"
+                                              x-text="peso(riderBalance(selectedRiderId))"></span>
+                                    </div>
+                                    <!-- Balance hint -->
+                                    <p x-show="riderBalance(selectedRiderId) > 0"
+                                       class="font-body-sm text-error/80 italic text-[11px] leading-tight">
+                                        Unremitted — deducted from commission below.
+                                    </p>
+                                    <p x-show="riderBalance(selectedRiderId) < 0" x-cloak
+                                       class="font-body-sm text-primary/80 italic text-[11px] leading-tight">
+                                        Over-remitted — no commission deduction.
+                                    </p>
+                                    <p x-show="riderBalance(selectedRiderId) === 0 && riderRemitted(selectedRiderId) > 0" x-cloak
+                                       class="font-body-sm text-on-surface-variant/70 italic text-[11px] leading-tight">
+                                        Fully remitted.
+                                    </p>
+                                </div>
+                            </div>
+                            <!-- ============ RIGHT: Commission Computation ============ -->
+                            <div class="px-4 py-3 bg-surface-container-low/40">
+                                <div class="flex items-center gap-1.5 mb-2.5">
+                                    <span class="material-symbols-outlined text-tertiary text-[16px]">savings</span>
+                                    <span class="font-label-caps text-label-caps text-tertiary">Commission Computation</span>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <!-- Gross Commission -->
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="font-body-sm text-on-surface-variant">Gross Commission</span>
+                                        <span class="font-data-mono text-data-mono text-[#D97706] font-medium"
+                                              x-text="peso(riderGrossCommission(selectedRiderId))"></span>
+                                    </div>
+                                    <!-- − Balance (lacking) -->
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="font-body-sm text-on-surface-variant flex items-center gap-1">
+                                            <span class="font-data-mono text-data-mono text-on-surface-variant/50">−</span>
+                                            Balance <span class="text-[10px] text-on-surface-variant/50">(lacking)</span>
+                                        </span>
+                                        <span class="font-data-mono text-data-mono"
+                                              :class="riderBalanceDeduction(selectedRiderId) > 0 ? 'text-error' : 'text-on-surface-variant/40'"
+                                              x-text="peso(riderBalanceDeduction(selectedRiderId))"></span>
+                                    </div>
+                                    <!-- − Comm. Deductions -->
+                                    <div class="flex items-center justify-between gap-3">
+                                        <span class="font-body-sm text-on-surface-variant flex items-center gap-1">
+                                            <span class="font-data-mono text-data-mono text-on-surface-variant/50">−</span>
+                                            Comm. Deductions
+                                        </span>
+                                        <span class="font-data-mono text-data-mono text-error"
+                                              x-text="peso(riderDeductionsTotal(selectedRiderId))"></span>
+                                    </div>
+                                    <!-- Net Commission (result) -->
+                                    <div class="flex items-center justify-between gap-3 pt-1.5 border-t border-outline-variant/20">
+                                        <span class="font-body-sm font-bold text-on-surface flex items-center gap-1">
+                                            Net Commission
+                                        </span>
+                                        <span class="font-data-mono text-data-mono text-tertiary font-bold text-lg"
+                                              x-text="peso(riderNetCommission(selectedRiderId))"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     </div><!-- /RIDER TAB PANEL -->
@@ -762,8 +851,8 @@
             </div>
 
             <!-- ============ RIGHT COLUMN: sticky panels ============ -->
-            <aside class="lg:col-span-4 hydr8-reveal-item">
-                <div class="lg:sticky lg:top-32 space-y-4">
+            <aside class="md:col-span-4 hydr8-reveal-item">
+                <div class="md:sticky md:top-32 space-y-4">
 
                     <!-- ===== OTHER SALES CARD ===== -->
                     <!-- Miscellaneous sales not tied to any product line.
@@ -954,6 +1043,40 @@
             </div>
         </div>
 
+        <!-- ============ Draft Saved Confirmation Modal (staff) ============ -->
+        <!-- Staff cannot access Remittance History, so after a successful
+             draft save we show the saved date and an "Add Remittance"
+             button that reloads the page fresh for a new entry. -->
+        <div x-show="showDraftSavedModal" x-cloak
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
+             @keydown.escape.window="showDraftSavedModal = false">
+            <div class="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-primary-container text-on-primary-container flex items-center gap-3">
+                    <span class="material-symbols-outlined">task_alt</span>
+                    <h3 class="font-headline-sm text-headline-sm">Draft Saved</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-body-md text-on-surface">
+                        Your remittance draft for
+                        <strong x-text="formatDate(savedDraftDate)"></strong>
+                        has been saved. An administrator can review and
+                        finalize it from the Remittance History.
+                    </p>
+                </div>
+                <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/20 flex justify-end gap-3">
+                    <button type="button" @click="showDraftSavedModal = false"
+                            class="px-5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors">
+                        Stay on Page
+                    </button>
+                    <button type="button" @click="window.location.href = '{% url 'remittance:add' %}'"
+                            class="px-6 py-2.5 rounded-lg bg-primary text-on-primary font-semibold flex items-center gap-2 hover:bg-primary-container transition-all active:scale-95">
+                        <span class="material-symbols-outlined text-[20px]">add_circle</span>
+                        Add Remittance
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- ============ Finalize Review Modal ============ -->
         <div x-show="reviewOpen" x-cloak
              class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
@@ -994,7 +1117,7 @@
                     </div>
 
                     <!-- KPI summary — same 4-column categorized layout as main page -->
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <!-- Revenue -->
                         <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-primary border-b border-primary/20 pb-2">Revenue</p>
@@ -1019,7 +1142,7 @@
                                 <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
                                 <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission())"></h3>
                             </div>
                             <div class="flex flex-col">
@@ -1035,8 +1158,12 @@
                                 <h3 class="font-data-mono text-[18px] text-tertiary font-bold" x-text="peso(netRemittance())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Profit</p>
-                                <h3 class="font-data-mono text-[18px] text-primary font-bold" x-text="peso(netProfit())"></h3>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalGrossCommission())"></h3>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-primary font-bold" x-text="peso(totalCommission())"></h3>
                             </div>
                         </div>
                         <!-- Obligations -->
@@ -1089,6 +1216,16 @@
                                             <p class="font-data-mono text-data-mono text-sm text-tertiary font-medium" x-text="peso(riderNetRemittable(r.id))"></p>
                                         </div>
                                         <div class="bg-surface-container-lowest px-3 py-2">
+                                            <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Remitted</p>
+                                            <p class="font-data-mono text-data-mono text-sm text-on-surface font-medium" x-text="peso(riderRemitted(r.id))"></p>
+                                        </div>
+                                        <div class="bg-surface-container-lowest px-3 py-2">
+                                            <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Balance</p>
+                                            <p class="font-data-mono text-data-mono text-sm font-medium"
+                                               :class="riderBalance(r.id) > 0 ? 'text-error' : 'text-on-surface-variant'"
+                                               x-text="peso(riderBalance(r.id))"></p>
+                                        </div>
+                                        <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Commission</p>
                                             <p class="font-data-mono text-data-mono text-sm text-[#D97706]" x-text="peso(riderCommission(r.id))"></p>
                                         </div>
@@ -1099,9 +1236,6 @@
                                         <div class="bg-surface-container-lowest px-3 py-2 col-span-2 sm:col-span-1">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Net Commission</p>
                                             <p class="font-data-mono text-data-mono text-sm text-tertiary font-bold" x-text="peso(riderNetCommission(r.id))"></p>
-                                        </div>
-                                        <div class="bg-surface-container-lowest px-3 py-2 hidden sm:block">
-                                            <!-- spacer to keep grid even -->
                                         </div>
                                     </div>
                                 </div>
@@ -1293,6 +1427,7 @@
                 // ---- state ----
                 riders: (seed.riders || []).map(r => ({
                     ...r,
+                    remitted: r.remitted || '',
                     expenses: r.expenses || [],
                     deductions: r.deductions || [],
                 })),
@@ -1353,6 +1488,15 @@
                 showClearConfirm: false,
                 _lastSnapshot: null,
                 _autoSaveTimer: null,
+
+                // ---- draft saved confirmation (staff) ----
+                // Staff cannot access Remittance History, so after a
+                // successful draft save we keep them on this page and
+                // show a confirmation with the saved date and an
+                // "Add Remittance" button instead of redirecting to a
+                // Forbidden page.
+                showDraftSavedModal: false,
+                savedDraftDate: '',
 
                 // ---- helpers ----
                 peso(n) {
@@ -1566,9 +1710,34 @@
                     const sales = r.product_lines.reduce((s, line) => s + this.lineSubtotal(line), 0);
                     return Math.max(0, sales - this.riderExpensesTotal(riderId));
                 },
-                // Net Commission = commission − deductions
+                // Remitted amount entered by the operator (cash the rider
+                // actually turned in).  Empty/invalid → 0.
+                riderRemitted(riderId) {
+                    const r = this.riders.find(r => r.id === riderId);
+                    if (!r) return 0;
+                    const v = Number(r.remitted);
+                    return isNaN(v) || v < 0 ? 0 : v;
+                },
+                // Balance = Net Remittable − Remitted.
+                // Positive = unremitted / lacking (deducted from commission).
+                // Negative = over-remitted (not added back to commission).
+                riderBalance(riderId) {
+                    return this.riderNetRemittable(riderId) - this.riderRemitted(riderId);
+                },
+                // Balance treated as a commission deduction (lacking amount).
+                // Only positive balances reduce commission.
+                riderBalanceDeduction(riderId) {
+                    return Math.max(0, this.riderBalance(riderId));
+                },
+                // Gross Commission = commission before balance & deductions
+                riderGrossCommission(riderId) {
+                    return this.riderCommission(riderId);
+                },
+                // Net Commission = gross commission − balance (lacking) − deductions
                 riderNetCommission(riderId) {
-                    return Math.max(0, this.riderCommission(riderId) - this.riderDeductionsTotal(riderId));
+                    return Math.max(0, this.riderCommission(riderId)
+                        - this.riderBalanceDeduction(riderId)
+                        - this.riderDeductionsTotal(riderId));
                 },
                 // Per-rider totals for the review modal
                 riderTotalSales(riderId) {
@@ -1693,6 +1862,11 @@
                 totalCommission() {
                     return this.riders.reduce((sum, r) => sum + this.riderNetCommission(r.id), 0);
                 },
+                // Total Gross Commission = sum of per-rider gross commissions
+                // (sold - credited + repaid) * rate, before balance & deductions.
+                totalGrossCommission() {
+                    return this.riders.reduce((sum, r) => sum + this.riderGrossCommission(r.id), 0);
+                },
                 // ---- UI values from backend seed ----
                 // Total Credits comes from the backend (CreditLine records
                 // issued today).  Not editable on this form.
@@ -1793,20 +1967,18 @@
                     return Number(this.manualOffering) || 0;
                 },
                 tithes() {
-                    return this.netProfit() * this.titheRate;
+                    return Math.max(0, this.netRemittance()) * this.titheRate;
                 },
                 // Total expenses = sum of all per-rider expenses
                 totalExpenses() {
                     return this.riders.reduce((sum, r) =>
                         sum + this.riderExpensesTotal(r.id), 0);
                 },
-                // Net Remittance = Total Sales + Total Repayments - Expenses
+                // Net Remittance = sum(rider remitted) + misc sales - salary - net commission
                 netRemittance() {
-                    return this.totalSales() + this.totalRepayments() - this.totalExpenses();
-                },
-                // Net Profit = Net Remittance - Total Commissions - Total Salary
-                netProfit() {
-                    return this.netRemittance() - this.totalCommission() - this.totalSalary();
+                    const totalRemitted = this.riders.reduce((sum, r) => sum + this.riderRemitted(r.id), 0);
+                    return totalRemitted + (Number(this.otherSales) || 0)
+                        - this.totalSalary() - this.totalCommission();
                 },
 
                 // ---- toast helper ----
@@ -1833,6 +2005,7 @@
                     for (const r of this.riders) {
                         riderInputs[r.id] = {
                             commission_override: r.commission_override || '',
+                            remitted: r.remitted || '',
                             product_lines: (r.product_lines || []).map(l => ({
                                 product_key: l.product_key,
                                 sold: l.sold,
@@ -1887,6 +2060,9 @@
                             if (!cached) continue;
                             if (cached.commission_override !== undefined) {
                                 r.commission_override = cached.commission_override;
+                            }
+                            if (cached.remitted !== undefined) {
+                                r.remitted = cached.remitted;
                             }
                             if (Array.isArray(cached.product_lines)) {
                                 // Build a lookup of cached lines by product_key
@@ -2029,6 +2205,7 @@
                     this.otherSales = '';
                     for (const r of this.riders) {
                         r.commission_override = '';
+                        r.remitted = '';
                         r.expenses = [];
                         r.deductions = [];
                         for (const line of r.product_lines) {
@@ -2084,7 +2261,17 @@
                             // (now the source of truth) is loaded on the
                             // next visit instead of a stale snapshot.
                             this._clearCache();
-                            window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
+                            // Staff get a draft_saved confirmation (they
+                            // cannot access Remittance History).  Admins
+                            // are redirected to history as before.
+                            if (data.draft_saved) {
+                                this.savedDraftDate = data.remittance_date || this.remittanceDate;
+                                this.hasDraft = true;
+                                this.showDraftSavedModal = true;
+                                this.showToast('Draft saved successfully.', 'success');
+                            } else {
+                                window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
+                            }
                         } else {
                             this.showToast(data.error || 'Failed to save draft.', 'error');
                         }

@@ -496,6 +496,63 @@ Before creating or editing a migration:
 - **Responsive** — mobile-first; use `sm:`, `md:`, `lg:` breakpoints
 - **No inline styles** — use Tailwind classes or CSS custom properties
 
+## Dev Credentials — NEVER Touch the Admin User
+
+The local dev database (`hydr8`) has a superuser account that the user logs in with:
+
+- **Username:** `admin`
+- **Password:** `admin`
+- **PIN:** `1234`
+
+**NEVER change this user's password, PIN, or username — not in code, not in
+tests, not in `manage.py shell`, not in migrations, not for any reason.** The
+user logs in with these credentials repeatedly during development and has been
+locked out multiple times because an agent modified them.
+
+### Rules
+
+1. **Never call `set_password()`, `set_pin()`, or `.save()` on the `admin`
+   user.** Not even "just to test something." Not even in a one-off shell
+   command. The password hash upgrade mechanism in Django's
+   `AbstractBaseUser.check_password` can also trigger a `set_password` call
+   on login — do not interfere with this.
+
+2. **Tests must create their own users with non-default usernames.** Use
+   `User.objects.create_user(username="test_admin", ...)` or similar. Never
+   use `username="admin"` in test fixtures or `setUp` methods — even though
+   `TestCase` rolls back, it creates confusion and risks leaking to the dev
+   DB if a test is accidentally run with wrong settings.
+
+3. **Never run tests against the dev DB.** Always use the test settings:
+   ```bash
+   uv run python manage.py test apps --settings=config.settings.test
+   ```
+   The test DB is `hydr8_test` — completely separate from the dev DB
+   (`hydr8`). If you run tests without `--settings=config.settings.test`,
+   Django auto-creates `test_hydr8`, which is also fine. But NEVER run
+   `manage.py shell` or `manage.py migrate` with test settings, as that
+   could point at the wrong DB.
+
+4. **If you need an authenticated client for verification**, use the dev
+   credentials directly:
+   ```python
+   from django.test import Client
+   c = Client()
+   c.login(username='admin', password='admin')
+   ```
+
+5. **If the user reports the admin password stopped working**, reset it:
+   ```bash
+   uv run python manage.py shell -c "
+   from django.contrib.auth import get_user_model
+   U = get_user_model()
+   a = U.objects.get(username='admin')
+   a.set_password('admin')
+   a.save()
+   "
+   ```
+   But do NOT change it to anything else.
+
 ## Developer Superpowers (Execution & Verification)
 
 To build better systems reliably, you must employ these core superpowers:
