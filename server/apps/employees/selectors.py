@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from django.core.paginator import Paginator
@@ -80,8 +80,10 @@ _ROLE_STYLE = {
 def _format_peso(value) -> str:
     """Format a Decimal/float as a Philippine peso string."""
     try:
-        return f"₱{float(value):,.2f}"
-    except (TypeError, ValueError):
+        if isinstance(value, Decimal):
+            return f"₱{value:,.2f}"
+        return f"₱{Decimal(str(value)):,.2f}"
+    except (TypeError, ValueError, InvalidOperation):
         return "₱0.00"
 
 
@@ -406,7 +408,7 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
                 "iso_date": iso_date,
                 "units": entry["units"],
                 "rate": f"₱{avg_rate:.2f}",
-                "amount": _format_peso(commission),
+                "amount": _format_peso(entry["commission"]),
                 "amount_raw": commission,
             }
         )
