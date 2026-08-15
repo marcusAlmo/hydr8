@@ -131,7 +131,7 @@
                     <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-3">
                         <p class="font-label-caps text-label-caps text-primary border-b border-primary/20 pb-2">Revenue</p>
                         <div class="flex flex-col">
-                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Cash Sales</p>
                             <p class="font-data-mono text-data-mono text-[16px] text-primary">₱{{ rem.total_sales }}</p>
                         </div>
                         <div class="flex flex-col">
@@ -151,12 +151,8 @@
                             <p class="font-data-mono text-data-mono text-[16px] text-error">₱{{ rem.total_expenses }}</p>
                         </div>
                         <div class="flex flex-col">
-                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
-                            <p class="font-data-mono text-data-mono text-[16px] text-[#D97706]">₱{{ rem.total_commission }}</p>
-                        </div>
-                        <div class="flex flex-col">
-                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Salary</p>
-                            <p class="font-data-mono text-data-mono text-[16px] text-[#D97706]">₱{{ rem.total_salary }}</p>
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries & Commissions</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-[#D97706]">₱{{ rem.net_salaries_commissions }}</p>
                         </div>
                     </div>
                     <!-- Summary -->

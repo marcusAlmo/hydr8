@@ -288,9 +288,9 @@
 
             <!-- ============ FULL-WIDTH SUMMARY KPI CARD ============ -->
             <!-- Categorized into 4 columns:
-                 Revenue    → Sales · Repayments
-                 Deductions → Credits · Expenses · Net Commissions · Salary
-                 Summary    → Net Remittance · Total Commissions · Net Commissions
+                 Revenue    → Cash Sales · Repayments
+                 Deductions → Credits · Expenses · Net Salaries & Commissions
+                 Summary    → Net Remittance · Gross Commissions
                  Obligations→ Tithes · Offerings -->
             <div class="md:col-span-12 hydr8-reveal-item">
                 <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm p-5">
@@ -305,7 +305,7 @@
                         <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-primary border-b border-primary/20 pb-2">Revenue</p>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Cash Sales</p>
                                 <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalSales())"></h3>
                             </div>
                             <div class="flex flex-col">
@@ -326,12 +326,8 @@
                                 <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
-                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission())"></h3>
-                            </div>
-                            <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Salary</p>
-                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalSalary())"></h3>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries & Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission() + totalSalary())"></h3>
                             </div>
                         </div>
 
@@ -343,12 +339,8 @@
                                 <h3 class="font-data-mono text-[18px] text-tertiary font-bold" x-text="peso(netRemittance())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Gross Commissions</p>
                                 <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalGrossCommission())"></h3>
-                            </div>
-                            <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
-                                <h3 class="font-data-mono text-[18px] text-primary font-bold" x-text="peso(totalCommission())"></h3>
                             </div>
                         </div>
 
@@ -1411,7 +1403,7 @@
                         <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-primary border-b border-primary/20 pb-2">Revenue</p>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Cash Sales</p>
                                 <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalSales())"></h3>
                             </div>
                             <div class="flex flex-col">
@@ -1431,12 +1423,8 @@
                                 <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
-                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission())"></h3>
-                            </div>
-                            <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Salary</p>
-                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalSalary())"></h3>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries & Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission() + totalSalary())"></h3>
                             </div>
                         </div>
                         <!-- Summary -->
@@ -1447,12 +1435,8 @@
                                 <h3 class="font-data-mono text-[18px] text-tertiary font-bold" x-text="peso(netRemittance())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Commissions</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Gross Commissions</p>
                                 <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalGrossCommission())"></h3>
-                            </div>
-                            <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
-                                <h3 class="font-data-mono text-[18px] text-primary font-bold" x-text="peso(totalCommission())"></h3>
                             </div>
                         </div>
                         <!-- Obligations -->

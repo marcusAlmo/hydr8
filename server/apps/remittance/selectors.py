@@ -909,6 +909,7 @@ def _remittance_row(rem: Remittance) -> dict:
         "total_expenses": f"{rem.total_expenses:,.2f}",
         "total_commission": f"{rem.total_commission:,.2f}",
         "total_salary": f"{rem.total_salary:,.2f}",
+        "net_salaries_commissions": f"{rem.total_commission + rem.total_salary:,.2f}",
         "net_remittance": f"{rem.net_remittance:,.2f}",
         "net_profit": f"{rem.net_profit:,.2f}",
         "tithes": f"{rem.tithe_amount:,.2f}",
