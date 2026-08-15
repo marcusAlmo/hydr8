@@ -1933,16 +1933,28 @@
                 applyDraftState(state) {
                     if (!state) return;
                     const riderSold = state.rider_sold || {};
+                    const riderCredited = state.rider_credited || {};
+                    const riderRepaid = state.rider_repaid || {};
                     const riderExpenses = state.rider_expenses || {};
                     const riderDeductions = state.rider_deductions || {};
                     const riderOverrides = state.rider_commission_overrides || {};
                     const riderRemittances = state.rider_remittances || {};
                     for (const r of this.riders) {
                         const soldMap = riderSold[r.id];
-                        if (soldMap) {
+                        const creditedMap = riderCredited[r.id];
+                        const repaidMap = riderRepaid[r.id];
+                        if (soldMap || creditedMap || repaidMap) {
                             for (const line of r.product_lines) {
-                                const cached = soldMap[line.product_key];
-                                if (cached !== undefined) line.sold = cached;
+                                if (soldMap && soldMap[line.product_key] !== undefined)
+                                    line.sold = soldMap[line.product_key];
+                                if (creditedMap && creditedMap[line.product_key] !== undefined)
+                                    line.credited = creditedMap[line.product_key];
+                                else if (soldMap)
+                                    line.credited = 0;
+                                if (repaidMap && repaidMap[line.product_key] !== undefined)
+                                    line.repaid = repaidMap[line.product_key];
+                                else if (soldMap)
+                                    line.repaid = 0;
                             }
                         }
                         r.expenses = (riderExpenses[r.id] || []).map(e => ({

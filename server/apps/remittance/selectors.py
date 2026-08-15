@@ -394,6 +394,8 @@ def _load_draft_state(
 
     # Build rider_id -> {product_id -> qty_sold} from the draft's lines.
     rider_sold: dict[str, dict[str, int]] = {}
+    rider_credited: dict[str, dict[str, int]] = {}
+    rider_repaid: dict[str, dict[str, int]] = {}
     rider_expenses: dict[str, list[dict]] = {}
     rider_deductions: dict[str, list[dict]] = {}
     rider_commission_overrides: dict[str, str] = {}
@@ -422,6 +424,27 @@ def _load_draft_state(
         rider_id = str(line.remittance_rider.rider_id)
         product_id = str(line.product_id)
         rider_sold.setdefault(rider_id, {})[product_id] = line.qty_sold
+        rider_credited.setdefault(rider_id, {})[product_id] = line.qty_credited
+
+    # Load repaid units from CreditPayments linked to this remittance,
+    # grouped by (care_of, product).  For DRAFT remittances the
+    # _credit_and_repaid_counts selector also returns these (from
+    # unlinked / draft-linked payments), but for FINALIZED remittances
+    # the payments are locked to the finalized record and excluded from
+    # that selector — so we must read them directly here.
+    repaid_rows = (
+        CreditPayment.objects
+        .filter(remittance=draft)
+        .values("credit_line__care_of_id", "credit_line__product_id")
+        .annotate(total_repaid=Sum("containers_paid"))
+    )
+    for row in repaid_rows:
+        care_of_id = row["credit_line__care_of_id"]
+        if care_of_id is None:
+            continue
+        rider_id = str(care_of_id)
+        product_id = str(row["credit_line__product_id"])
+        rider_repaid.setdefault(rider_id, {})[product_id] = row["total_repaid"]
 
     # Load rider-attributed expenses and deductions.  These were
     # prefetched above so .all() on each rr hits the prefetched cache
@@ -470,6 +493,8 @@ def _load_draft_state(
 
     return {
         "rider_sold": rider_sold,
+        "rider_credited": rider_credited,
+        "rider_repaid": rider_repaid,
         "rider_expenses": rider_expenses,
         "rider_deductions": rider_deductions,
         "rider_commission_overrides": rider_commission_overrides,
@@ -526,6 +551,8 @@ def get_add_remittance_context(
 
     if draft_state is not None:
         rider_sold = draft_state["rider_sold"]
+        rider_credited = draft_state.get("rider_credited", {})
+        rider_repaid = draft_state.get("rider_repaid", {})
         rider_expenses = draft_state.get("rider_expenses", {})
         rider_deductions = draft_state.get("rider_deductions", {})
         rider_commission_overrides = draft_state.get("rider_commission_overrides", {})
@@ -533,11 +560,21 @@ def get_add_remittance_context(
         for rider in riders:
             rid = rider["id"]
             sold_map = rider_sold.get(rid)
-            if sold_map:
+            credited_map = rider_credited.get(rid)
+            repaid_map = rider_repaid.get(rid)
+            if sold_map or credited_map or repaid_map:
                 for line in rider["product_lines"]:
-                    cached_sold = sold_map.get(line["product_key"])
-                    if cached_sold is not None:
-                        line["sold"] = cached_sold
+                    pk = line["product_key"]
+                    if sold_map and sold_map.get(pk) is not None:
+                        line["sold"] = sold_map[pk]
+                    if credited_map and credited_map.get(pk) is not None:
+                        line["credited"] = credited_map[pk]
+                    elif sold_map:
+                        line["credited"] = 0
+                    if repaid_map and repaid_map.get(pk) is not None:
+                        line["repaid"] = repaid_map[pk]
+                    elif sold_map:
+                        line["repaid"] = 0
             rider["expenses"] = rider_expenses.get(rid, [])
             rider["deductions"] = rider_deductions.get(rid, [])
             rider["commission_override"] = rider_commission_overrides.get(rid, "")
