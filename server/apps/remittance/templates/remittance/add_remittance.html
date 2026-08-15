@@ -1708,6 +1708,7 @@
                 existingPanelOpen: false,   // accordion collapsed by default
                 showLoadDraftConfirm: false,
                 pendingDraftState: null,    // draft_state awaiting confirm
+                _previousRemittanceDate: null,  // tracked to clear old cache on date change
 
                 // ---- tab state (Rider | Staff) ----
                 activeTab: 'rider',
@@ -1783,6 +1784,14 @@
                         this.pendingDraftState = null;
                         return;
                     }
+                    // Clear the previous date's localStorage cache so stale
+                    // entries don't accumulate when the user switches dates.
+                    if (this._previousRemittanceDate && this._previousRemittanceDate !== iso) {
+                        try {
+                            localStorage.removeItem('hydr8:remittance:draft:' + this._previousRemittanceDate);
+                        } catch (err) { /* ignore */ }
+                        this._lastSnapshot = null;
+                    }
                     this.dateChecking = true;
                     try {
                         const response = await fetch('{% url 'remittance:check_date' %}?date=' + encodeURIComponent(iso));
@@ -1805,16 +1814,29 @@
                                 // confirm without a second round-trip.
                                 this.pendingDraftState = data.summary && data.summary.draft_state ? data.summary.draft_state : null;
                                 this.hasDraft = true;
+                                // The DB draft is the source of truth for
+                                // this date — clear any stale localStorage
+                                // so auto-save doesn't overwrite it with
+                                // leftover form data from a previous date.
+                                try {
+                                    localStorage.removeItem(this._cacheKey());
+                                } catch (e) { /* ignore */ }
+                                this._lastSnapshot = JSON.stringify(this._extractCacheState());
                             } else {
                                 this.dateExists = true;
                                 this.dateError = 'A finalized remittance for ' + this.formatDate(iso) + ' already exists. Please choose another date.';
                                 this.pendingDraftState = null;
                             }
                         } else {
+                            // No record exists for this date — reset the form
+                            // to a clean state so leftover values from a
+                            // previous date don't carry over.
                             this.dateExists = false;
                             this.dateError = '';
                             this.pendingDraftState = null;
                             this.hasDraft = false;
+                            this._resetFormFields();
+                            this._lastSnapshot = JSON.stringify(this._extractCacheState());
                         }
                         // Refresh date-dependent credit data (repayments,
                         // total credits, per-rider credited/repaid counts)
@@ -1845,6 +1867,7 @@
                         this.pendingDraftState = null;
                     } finally {
                         this.dateChecking = false;
+                        this._previousRemittanceDate = iso;
                     }
                 },
                 // Apply a draft_state (from check-date response) to the
@@ -2448,6 +2471,9 @@
                     }
                 },
                 initCache() {
+                    // Track the initial date so checkDate() can detect a
+                    // date change and clear the old date's localStorage.
+                    this._previousRemittanceDate = this.remittanceDate;
                     // If a DB draft was loaded by the server, mark hasCache
                     // so the "Clear Draft" button is visible even without
                     // a localStorage entry.
@@ -2483,6 +2509,13 @@
                             setTimeout(() => {
                                 this.showToast('Restored unsaved changes from ' + timeStr + '. Click "Clear Draft" to start over.', 'success');
                             }, 300);
+                        } else {
+                            // DB draft is the source of truth — discard any
+                            // stale localStorage for this date so it can't
+                            // resurface on a future visit.
+                            try {
+                                localStorage.removeItem(this._cacheKey());
+                            } catch (e) { /* ignore */ }
                         }
                         this._lastSnapshot = JSON.stringify(this._extractCacheState());
                     } catch (err) {
@@ -2520,6 +2553,26 @@
                     this.hasCache = false;
                     this.hasDraft = false;
                 },
+                _resetFormFields() {
+                    // Reset all editable form fields to their empty/zero
+                    // state.  Used by clearDraft() and checkDate() (when
+                    // no record exists for the selected date).
+                    this.manualOffering = '';
+                    this.otherSales = '';
+                    for (const r of this.riders) {
+                        r.commission_override = '';
+                        r.remitted = '';
+                        r.expenses = [];
+                        r.deductions = [];
+                        for (const line of r.product_lines) {
+                            line.sold = 0;
+                        }
+                    }
+                    for (const s of this.staffs) {
+                        s.salary_override = '';
+                        s.deductions = [];
+                    }
+                },
                 async clearDraft() {
                     this.showClearConfirm = false;
                     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
@@ -2546,21 +2599,7 @@
                     // Clear the localStorage cache
                     this._clearCache();
                     // Reset the form to its initial seed state
-                    this.manualOffering = '';
-                    this.otherSales = '';
-                    for (const r of this.riders) {
-                        r.commission_override = '';
-                        r.remitted = '';
-                        r.expenses = [];
-                        r.deductions = [];
-                        for (const line of r.product_lines) {
-                            line.sold = 0;
-                        }
-                    }
-                    for (const s of this.staffs) {
-                        s.salary_override = '';
-                        s.deductions = [];
-                    }
+                    this._resetFormFields();
                     this.showToast('Draft cleared. Form reset to empty.', 'success');
                 },
 
