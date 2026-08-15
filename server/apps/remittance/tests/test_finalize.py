@@ -33,33 +33,33 @@ class IsAdminUserTests(TestCase):
     def test_superuser_is_admin(self):
         """A superuser is considered an admin."""
         user = User.objects.create_superuser(username="root", password="pass123")
-        self.assertTrue(is_admin_user(user))
+        self.assertTrue(is_admin_user(user=user))
 
     def test_admin_role_is_admin(self):
         """A user with the Admin role is an admin."""
         user = User.objects.create_user(
             username="admin", password="pass123", role=self.admin_role
         )
-        self.assertTrue(is_admin_user(user))
+        self.assertTrue(is_admin_user(user=user))
 
     def test_staff_role_is_not_admin(self):
         """A user with the Staff role is not an admin."""
         user = User.objects.create_user(
             username="staff", password="pass123", role=self.staff_role
         )
-        self.assertFalse(is_admin_user(user))
+        self.assertFalse(is_admin_user(user=user))
 
     def test_driver_role_is_not_admin(self):
         """A user with the Driver role is not an admin."""
         user = User.objects.create_user(
             username="driver", password="pass123", role=self.driver_role
         )
-        self.assertFalse(is_admin_user(user))
+        self.assertFalse(is_admin_user(user=user))
 
     def test_no_role_is_not_admin(self):
         """A user with no role is not an admin."""
         user = User.objects.create_user(username="norole", password="pass123")
-        self.assertFalse(is_admin_user(user))
+        self.assertFalse(is_admin_user(user=user))
 
 
 class FinalizeRemittanceTests(TestCase):

@@ -21,7 +21,7 @@ TEMP_PASSWORD_LENGTH = 12
 _TEMP_PASSWORD_ALPHABET = string.ascii_letters + string.digits + "!@#$%^&*"
 
 
-def generate_temporary_password(length: int = TEMP_PASSWORD_LENGTH) -> str:
+def generate_temporary_password(*, length: int = TEMP_PASSWORD_LENGTH) -> str:
     """
     Generates a cryptographically secure temporary password.
     Uses ``secrets`` (not ``random``) to ensure CSPRNG-grade entropy.
@@ -37,7 +37,7 @@ def generate_temporary_password(length: int = TEMP_PASSWORD_LENGTH) -> str:
             return pw
 
 
-def set_temporary_password(user: User) -> str:
+def set_temporary_password(*, user: User) -> str:
     """
     Generates a temporary password, sets it as the user's password, and
     flags the account for a forced password change on next login.
@@ -112,7 +112,7 @@ def create_user_account(
     return user
 
 
-def change_user_password(user: User, new_password: str) -> None:
+def change_user_password(*, user: User, new_password: str) -> None:
     """
     Sets a new password for the user and clears the force_password_change flag.
     Used by the forced password-change flow after a temporary-password login.
@@ -162,7 +162,7 @@ def reset_failed_login(*, ip: str, username: str) -> None:
     cache.delete(_lockout_cache_key(ip, username))
 
 
-def get_client_ip(request) -> str:
+def get_client_ip(*, request) -> str:
     """
     Resolves the client IP from the request, honoring the X-Forwarded-For header
     when set by a trusted reverse proxy. Falls back to REMOTE_ADDR.

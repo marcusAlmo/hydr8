@@ -372,6 +372,7 @@ def _build_remittance(
     )
 
     total_sales = Decimal("0.00")
+    gross_sales = Decimal("0.00")
     total_credit_sales = Decimal("0.00")
     total_commission = Decimal("0.00")
     total_expenses = Decimal("0.00")
@@ -442,6 +443,7 @@ def _build_remittance(
             payable = Decimal(paid) * unit_price
             credit_total = Decimal(credited) * unit_price
             line_commission = Decimal(paid) * commission_rate
+            line_gross = Decimal(sold) * unit_price
 
             # Skip purely empty lines, but persist any line with activity.
             if paid == 0 and credited == 0 and borrowed == 0:
@@ -465,6 +467,7 @@ def _build_remittance(
             rider_commission += line_commission
             total_credit_sales += credit_total
             total_borrowed_items += borrowed
+            gross_sales += line_gross
 
         # Repayment commission is already included in line_commission above
         # because the form populates line.repaid from _credit_and_repaid_counts,
@@ -537,8 +540,6 @@ def _build_remittance(
                 recorded_by=performed_by,
             )
             rider_deductions_total += ded_amount
-
-        total_sales += rider_payable
 
         # Compute balance deduction (lacking amount) to match the
         # frontend's riderBalanceDeduction().  When a rider remits
@@ -623,8 +624,10 @@ def _build_remittance(
         )
         total_expenses += amount
 
-    # Add other_sales (miscellaneous sales not tied to product lines)
-    total_sales += other_sales_dec
+    # Total sales = gross cash sales (sold × price, before credits) +
+    # other_sales.  Credits and repayments are tracked separately as
+    # deductions / additional revenue in the reconciliation panel.
+    total_sales = gross_sales + other_sales_dec
 
     # --- Persist staff payments and deductions ---------------------------
     active_staff_qs = _active_staff_qs(performed_by)
@@ -789,7 +792,7 @@ def update_remittance_paid_status(
     return remittance
 
 
-def is_admin_user(user: "UserType") -> bool:
+def is_admin_user(*, user: "UserType") -> bool:
     """Returns True if the user has the Admin role (or is a superuser)."""
     return bool(
         user.is_superuser
@@ -818,7 +821,7 @@ def finalize_remittance(
 
     Returns the refreshed :class:`Remittance` instance.
     """
-    if not is_admin_user(performed_by):
+    if not is_admin_user(user=performed_by):
         raise ValidationError("Only administrators can finalize remittances.")
 
     if not performed_by.check_pin(pin or ""):

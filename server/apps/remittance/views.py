@@ -82,7 +82,7 @@ def add_remittance_view(request):
         "hasDraft": context.get("has_draft", False),
     }).replace("'", "&#39;")
 
-    context["is_admin"] = is_admin_user(request.user)
+    context["is_admin"] = is_admin_user(user=request.user)
     context["verify_pin_url"] = reverse("remittance:verify_pin")
 
     return render(request, "remittance/add_remittance.html", context)
@@ -112,7 +112,7 @@ def create_remittance_view(request):
 
     # --- Guard: only admins can finalize --------------------------------
     if mode == "finalize":
-        if not is_admin_user(request.user):
+        if not is_admin_user(user=request.user):
             return JsonResponse(
                 {"ok": False, "error": "Only administrators can finalize remittances."},
                 status=403,
@@ -178,7 +178,7 @@ def create_remittance_view(request):
     # we keep them on the Add Remittance page and let the client show a
     # "Draft saved" confirmation with the date and an Add Remittance
     # button instead of redirecting them to a Forbidden page.
-    if is_admin_user(request.user):
+    if is_admin_user(user=request.user):
         return JsonResponse({"ok": True, "redirect_url": reverse("remittance:history")})
 
     logger.info(
@@ -318,7 +318,7 @@ def remittance_history_view(request):
     completed records, charts, or financial reports — they work in the
     Add Remittance page (draft + create) only.
     """
-    if not is_admin_user(request.user):
+    if not is_admin_user(user=request.user):
         return HttpResponse("Forbidden", status=403)
     context = get_remittance_history_context(request.user)
     recent = get_recent_remittances(request.user)
@@ -329,7 +329,7 @@ def remittance_history_view(request):
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     context["remittances"] = recent["remittances"]
-    context["is_admin"] = is_admin_user(request.user)
+    context["is_admin"] = is_admin_user(user=request.user)
     context["pagination"] = {
         "showing": f"Showing {shown} of {total} records",
         "current_page": 1,
@@ -375,7 +375,7 @@ def update_paid_status_view(request, remittance_id: int):
 
     row_html = render_to_string(
         "remittance/partials/remittance_row.html",
-        {"rem": row, "is_admin": is_admin_user(request.user)},
+        {"rem": row, "is_admin": is_admin_user(user=request.user)},
         request=request,
     )
     response = HttpResponse(row_html)
@@ -400,7 +400,7 @@ def finalize_remittance_view(request, remittance_id: int):
     the row is not lost from the table.
     """
     pin = request.POST.get("pin", "")
-    admin = is_admin_user(request.user)
+    admin = is_admin_user(user=request.user)
 
     try:
         finalize_remittance(

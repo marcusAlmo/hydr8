@@ -141,7 +141,7 @@ def login_view(request):
     if request.method == "POST":
         form = AuthenticationForm(request, data=request.POST)
         username = request.POST.get('username', '')
-        ip = get_client_ip(request)
+        ip = get_client_ip(request=request)
         next_url = request.POST.get('next', '')
 
         # Short-circuit if this (ip, username) bucket is locked out.
@@ -282,7 +282,7 @@ def password_change_submit_view(request):
     """
     form = PasswordChangeForm(request.POST)
     if form.is_valid():
-        change_user_password(request.user, form.cleaned_data['new_password'])
+        change_user_password(user=request.user, new_password=form.cleaned_data['new_password'])
         response = HttpResponse()
         response['HX-Redirect'] = _post_auth_redirect_url(request.user)
         return response
@@ -327,7 +327,7 @@ def generate_temp_password_view(request, user_id):
         context['pin_error'] = "Incorrect PIN. Please try again." if pin else "PIN is required."
         return render(request, 'employees/partials/user_detail.html', context, status=403)
 
-    raw_password = set_temporary_password(target_user)
+    raw_password = set_temporary_password(user=target_user)
 
     return render(request, 'users/partials/temp_password_result.html', {
         'target_user': target_user,
@@ -720,7 +720,7 @@ def add_user_submit_view(request):
                     performed_by=request.user,
                     daily_rate=form.cleaned_data.get('daily_rate'),
                 )
-                raw_password = set_temporary_password(new_user)
+                raw_password = set_temporary_password(user=new_user)
         except ValidationError as exc:
             return toast_for_exception(request, exc)
 

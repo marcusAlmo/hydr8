@@ -185,8 +185,9 @@ class RepaymentSyncTests(TestCase):
         )
         rem.refresh_from_db()
 
-        # total_sales = (2 sold - 0 credited + 3 repaid) * 40 = 5 * 40 = 200
-        self.assertEqual(rem.total_sales, Decimal("200.00"))
+        # total_sales = gross cash sales = 2 sold * 40 = 80
+        # (credits and repayments are tracked separately)
+        self.assertEqual(rem.total_sales, Decimal("80.00"))
         # total_repayments_received = 120
         self.assertEqual(rem.total_repayments_received, Decimal("120.00"))
         # commission = (2 sold - 0 credited + 3 repaid) * 5 = 5 * 5 = 25

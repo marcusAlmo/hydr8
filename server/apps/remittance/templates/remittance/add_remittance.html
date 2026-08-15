@@ -2155,7 +2155,7 @@
                 riderTotalSales(riderId) {
                     const r = this.riders.find(r => r.id === riderId);
                     if (!r) return 0;
-                    return r.product_lines.reduce((s, line) => s + this.lineSubtotal(line), 0);
+                    return r.product_lines.reduce((s, line) => s + this.lineGrossSales(line), 0);
                 },
                 riderTotalCredit(riderId) {
                     const r = this.riders.find(r => r.id === riderId);
@@ -2173,9 +2173,17 @@
                 },
 
                 // ---- KPI computations (live) ----
-                // Only cash-paid units (sold) count toward sales and
-                // commission.  Credit sales are registered on the customer's
-                // page; repayments are auto-populated below.
+                // Gross cash sales = sold × unit price (before credits).
+                // Used for the "Total Cash Sales" KPI and per-rider "Sales"
+                // in the review modal.  Credits and repayments are shown
+                // as separate deduction / revenue lines in the reconciliation.
+                lineGrossSales(line) {
+                    const sold = Math.max(0, Number(line.sold) || 0);
+                    return sold * this.productPrice(line.product_key);
+                },
+                // Net remittable per line = (sold - credited + repaid) × price.
+                // Used for "Net Remittable" in the reconciliation panel —
+                // this is what the rider actually owes/remits.
                 lineSubtotal(line) {
                     const sold = Math.max(0, Number(line.sold) || 0);
                     const credited = Number(line.credited) || 0;
@@ -2261,7 +2269,7 @@
                 totalSales() {
                     const productSales = this.riders.reduce((sum, r) =>
                         sum + r.product_lines.reduce((s, line) =>
-                            s + this.lineSubtotal(line), 0), 0);
+                            s + this.lineGrossSales(line), 0), 0);
                     return productSales + (Number(this.otherSales) || 0);
                 },
                 totalRepayments() {
