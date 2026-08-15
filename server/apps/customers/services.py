@@ -21,6 +21,7 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import User
+from apps.users.permissions import is_admin
 
 from .models import BorrowedContainer, CreditPayment, Customer, CreditLine
 from .selectors import _parse_display_id
@@ -396,6 +397,17 @@ def _parse_int(value, field_label: str) -> int:
     return qty
 
 
+def _parse_date(value, field_label: str) -> date:
+    """Parses an ISO date string, raising ValidationError on bad input."""
+    raw = (value or "").strip()
+    if not raw:
+        raise ValidationError(f"{field_label} is required.")
+    try:
+        return date.fromisoformat(raw)
+    except (ValueError, TypeError):
+        raise ValidationError(f"{field_label} must be a valid date.")
+
+
 def _parse_transaction_date(value: str) -> date:
     """Parses an optional YYYY-MM-DD transaction date for backlog entries.
 
@@ -738,6 +750,9 @@ def _verify_ledger_edit(*, record, pin: str, performed_by: "UserType") -> None:
 
     cache.delete(cache_key)
 
+    if is_admin(performed_by):
+        return
+
     if (timezone.now() - record.created_at) > timedelta(hours=24):
         raise ValidationError("This record is too old to edit.")
 
@@ -841,6 +856,7 @@ def edit_credit_line(
     customer: Customer,
     qty_credited,
     unit_price,
+    transaction_date,
     pin: str,
     performed_by: "UserType",
 ) -> CreditLine:
@@ -851,6 +867,7 @@ def edit_credit_line(
     """
     new_qty = _parse_int(qty_credited, "Quantity credited")
     new_price = _to_decimal(unit_price)
+    new_transaction_date = _parse_date(transaction_date, "Transaction date")
     if new_price <= 0:
         raise ValidationError("Unit price must be greater than zero.")
     if new_qty <= 0:
@@ -881,12 +898,14 @@ def edit_credit_line(
             "unit_price_snapshot": str(line.unit_price_snapshot),
             "total_credit_amount": str(line.total_credit_amount),
             "qty_remaining": line.qty_remaining,
+            "transaction_date": str(line.transaction_date),
         }
         new = {
             "qty_credited": new_qty,
             "unit_price_snapshot": str(new_price),
             "total_credit_amount": str(new_total),
             "qty_remaining": new_remaining,
+            "transaction_date": str(new_transaction_date),
         }
 
         locked_customer = (
@@ -910,6 +929,7 @@ def edit_credit_line(
             qty_remaining=new_remaining,
             unit_price_snapshot=new_price,
             total_credit_amount=new_total,
+            transaction_date=new_transaction_date,
         )
         Customer.objects.filter(pk=line.customer_id).update(
             debt_balance=F("debt_balance") + delta,
@@ -936,6 +956,7 @@ def edit_credit_payment(
     customer: Customer,
     qty_paid,
     amount,
+    transaction_date,
     pin: str,
     performed_by: "UserType",
 ) -> CreditPayment:
@@ -946,6 +967,7 @@ def edit_credit_payment(
     """
     new_qty = _parse_int(qty_paid, "Quantity paid")
     new_amount = _to_decimal(amount)
+    new_paid_at = _parse_date(transaction_date, "Payment date")
     if new_amount <= 0:
         raise ValidationError("Payment amount must be greater than zero.")
     if new_qty < 0:
@@ -964,10 +986,12 @@ def edit_credit_payment(
         old = {
             "containers_paid": payment.containers_paid,
             "amount": str(payment.amount),
+            "paid_at": str(payment.paid_at) if payment.paid_at else "",
         }
         new = {
             "containers_paid": new_qty,
             "amount": str(new_amount),
+            "paid_at": str(new_paid_at),
         }
 
         credit_line = (
@@ -1001,6 +1025,7 @@ def edit_credit_payment(
         CreditPayment.objects.filter(pk=payment.pk).update(
             containers_paid=new_qty,
             amount=new_amount,
+            paid_at=new_paid_at,
         )
         CreditLine.objects.filter(pk=credit_line.pk).update(
             qty_remaining=F("qty_remaining") - qty_delta,
@@ -1030,6 +1055,7 @@ def edit_borrowed_container(
     customer: Customer,
     qty_borrowed,
     qty_returned,
+    transaction_date,
     pin: str,
     performed_by: "UserType",
 ) -> BorrowedContainer:
@@ -1040,6 +1066,7 @@ def edit_borrowed_container(
     """
     new_borrowed = _parse_int(qty_borrowed, "Quantity borrowed")
     new_returned = _parse_int(qty_returned, "Quantity returned")
+    new_transaction_date = _parse_date(transaction_date, "Transaction date")
     if new_borrowed <= 0:
         raise ValidationError("Quantity borrowed must be greater than zero.")
     if new_returned < 0:
@@ -1062,10 +1089,12 @@ def edit_borrowed_container(
         old = {
             "qty_borrowed": borrowed.qty_borrowed,
             "qty_returned": borrowed.qty_returned,
+            "transaction_date": str(borrowed.transaction_date),
         }
         new = {
             "qty_borrowed": new_borrowed,
             "qty_returned": new_returned,
+            "transaction_date": str(new_transaction_date),
         }
 
         locked_customer = (
@@ -1087,6 +1116,7 @@ def edit_borrowed_container(
         BorrowedContainer.objects.filter(pk=borrowed.pk).update(
             qty_borrowed=new_borrowed,
             qty_returned=new_returned,
+            transaction_date=new_transaction_date,
         )
         Customer.objects.filter(pk=borrowed.customer_id).update(
             **{field: F(field) + outstanding_delta}

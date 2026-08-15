@@ -38,6 +38,7 @@ from .services import (
     record_customer_debt,
     update_customer,
 )
+from .models import BorrowedContainer, CreditLine, CreditPayment
 
 
 # ---------------------------------------------------------------------------
@@ -488,7 +489,6 @@ def _parse_history_item_id(item_id: str) -> tuple[str, int]:
 
 def _get_history_item(user, customer, kind: str, pk: int):
     """Resolves the model instance for a history display id scoped to a customer."""
-    from .models import BorrowedContainer, CreditLine, CreditPayment
 
     if kind == "CL":
         return (
@@ -519,7 +519,6 @@ def _get_history_item(user, customer, kind: str, pk: int):
 
 def _history_item_context(item) -> dict:
     """Builds the minimal context for an edit form from the resolved model."""
-    from .models import BorrowedContainer, CreditLine, CreditPayment
 
     if isinstance(item, CreditLine):
         return {
@@ -527,6 +526,7 @@ def _history_item_context(item) -> dict:
             "display_id": f"CL-{item.pk}",
             "qty_credited": item.qty_credited,
             "unit_price": str(item.unit_price_snapshot),
+            "transaction_date": item.transaction_date.isoformat(),
         }
     if isinstance(item, CreditPayment):
         return {
@@ -534,6 +534,11 @@ def _history_item_context(item) -> dict:
             "display_id": f"CP-{item.pk}",
             "qty_paid": item.containers_paid,
             "amount": str(item.amount),
+            "transaction_date": (
+                item.paid_at.isoformat()
+                if item.paid_at
+                else item.created_at.strftime("%Y-%m-%d")
+            ),
         }
     if isinstance(item, BorrowedContainer):
         return {
@@ -541,6 +546,7 @@ def _history_item_context(item) -> dict:
             "display_id": f"BC-{item.pk}",
             "qty_borrowed": item.qty_borrowed,
             "qty_returned": item.qty_returned,
+            "transaction_date": item.transaction_date.isoformat(),
         }
     return {}
 
@@ -599,6 +605,7 @@ def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
         return HttpResponse("Record not found.", status=404)
     display_id = f"{kind}-{pk}"
     pin = request.POST.get("pin", "")
+    transaction_date = request.POST.get("transaction_date", "")
     try:
         if kind == "CL":
             edit_credit_line(
@@ -606,6 +613,7 @@ def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
                 customer=customer,
                 qty_credited=request.POST.get("qty_credited", ""),
                 unit_price=request.POST.get("unit_price", ""),
+                transaction_date=transaction_date,
                 pin=pin,
                 performed_by=request.user,
             )
@@ -615,6 +623,7 @@ def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
                 customer=customer,
                 qty_paid=request.POST.get("qty_paid", ""),
                 amount=request.POST.get("amount", ""),
+                transaction_date=transaction_date,
                 pin=pin,
                 performed_by=request.user,
             )
@@ -624,6 +633,7 @@ def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
                 customer=customer,
                 qty_borrowed=request.POST.get("qty_borrowed", ""),
                 qty_returned=request.POST.get("qty_returned", ""),
+                transaction_date=transaction_date,
                 pin=pin,
                 performed_by=request.user,
             )

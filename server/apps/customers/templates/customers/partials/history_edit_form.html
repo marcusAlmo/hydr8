@@ -28,6 +28,17 @@ Expects:
         </div>
         {% endif %}
 
+        <div class="mb-3">
+            <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Business Date</label>
+            <input
+                type="date"
+                name="transaction_date"
+                value="{{ item.transaction_date }}"
+                class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                required
+            >
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             {% if item.kind == 'credit_line' %}
             <div>

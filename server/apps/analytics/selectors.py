@@ -143,6 +143,7 @@ def _build_stats(user: "User") -> list[dict]:
             "raw_value": float(containers["total"]),
             "value_prefix": "",
             "value_decimals": 0,
+            "subtitle": "Total Unreturned Containers",
             "value_size": "2xl",
             "icon": "water_damage",
             "accent": "tertiary",

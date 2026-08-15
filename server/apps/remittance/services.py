@@ -377,6 +377,7 @@ def _build_remittance(
     total_expenses = Decimal("0.00")
     total_borrowed_items = 0
     total_repayments = Decimal("0.00")
+    total_remitted = Decimal("0.00")
     other_sales_dec = _to_decimal(other_sales)
     total_salary_dec = Decimal("0.00")
 
@@ -421,11 +422,13 @@ def _build_remittance(
             sold = int(line.get("sold") or 0)
             credited = int(line.get("credited") or 0)
             borrowed = int(line.get("borrowed") or 0)
+            repaid = int(line.get("repaid") or 0)
 
-            if sold < 0 or credited < 0 or borrowed < 0:
+            if sold < 0 or credited < 0 or borrowed < 0 or repaid < 0:
                 raise ValidationError("Quantities cannot be negative.")
 
-            paid = max(0, sold - credited)
+            # Total remittable units = cash sales - credit given + credit repaid
+            paid = max(0, sold - credited + repaid)
 
             commission_rate = Decimal("0.00")
             commission = DriverCommission.objects.filter(
@@ -482,6 +485,7 @@ def _build_remittance(
         remitted_raw = rider_payload.get("remitted")
         if remitted_raw not in (None, ""):
             remittance_rider.remitted = _to_decimal(remitted_raw)
+            total_remitted += remittance_rider.remitted
         else:
             remittance_rider.remitted = None
 
@@ -659,15 +663,18 @@ def _build_remittance(
 
         total_salary_dec += effective_salary
 
-    # Net Remittance = total_sales + total_repayments - total_expenses
-    # Net Profit = net_remittance - total_commission - total_salary
+    # Net Remittance = total cash remitted by riders + misc sales
+    #                  - net commissions - total salary
+    # Net Remittance IS Net Profit — commissions and salary are already
+    # deducted because the staff has given the salary away and then remits
+    # the remaining cash.
     # Tithes = net_profit * tithe_rate  (computed FROM net profit)
     #
     # Tithes are floored at zero — when the business operates at a loss
     # (negative net profit) no tithe is owed, so we must not record a
     # negative tithe_amount.
-    net_remittance = total_sales + total_repayments - total_expenses
-    net_profit = net_remittance - total_commission - total_salary_dec
+    net_remittance = total_remitted + other_sales_dec - total_commission - total_salary_dec
+    net_profit = net_remittance
     tithe_amount = max(Decimal("0.00"), net_profit) * remittance.tithe_rate_snapshot
 
     remittance.total_sales = total_sales

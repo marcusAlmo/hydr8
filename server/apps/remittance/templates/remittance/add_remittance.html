@@ -1770,8 +1770,9 @@
                 lineSubtotal(line) {
                     const sold = Math.max(0, Number(line.sold) || 0);
                     const credited = Number(line.credited) || 0;
-                    // Cash sales = sold - credited (credited units are credit sales)
-                    return Math.max(0, sold - credited) * this.productPrice(line.product_key);
+                    const repaid = Number(line.repaid) || 0;
+                    // Total remittable = (sold - credited + repaid) * unit price
+                    return Math.max(0, sold - credited + repaid) * this.productPrice(line.product_key);
                 },
                 lineCommissionRate(line, riderId) {
                     const rider = this.riders.find(r => r.id === (riderId || this.selectedRiderId)) || this.selectedRider();

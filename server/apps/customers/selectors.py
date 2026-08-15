@@ -15,8 +15,10 @@ from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.remittance.models import Remittance
 from apps.settings.selectors import get_overdue_threshold_days
 from apps.users.models import User
+from apps.users.permissions import is_admin
 from apps.users.presentation import driver_code as user_driver_code
 from apps.users.presentation import initials as user_initials
 
@@ -841,10 +843,12 @@ def _format_history_timestamp(dt) -> str:
 def _history_entry_editable(record, user) -> tuple[bool, str]:
     """Returns (is_editable, reason) for a ledger record.
 
-    Edits are allowed for 24 hours after creation unless the business date
-    has already been locked by a finalized remittance.
+    Admins may edit all fields at any time. Staff may edit for 24 hours
+    after creation unless the business date has already been locked by a
+    finalized remittance.
     """
-    from apps.remittance.models import Remittance
+    if is_admin(user):
+        return True, ""
 
     now = timezone.now()
     if (now - record.created_at) > timedelta(hours=24):

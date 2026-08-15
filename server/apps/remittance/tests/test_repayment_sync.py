@@ -102,10 +102,11 @@ class RepaymentSyncTests(TestCase):
             }],
         )
 
-    def _riders_data(self):
+    def _riders_data(self, remitted="80"):
         return [{
             "id": str(self.rider.pk),
             "commission_override": "",
+            "remitted": remitted,
             "product_lines": [
                 {"product_key": str(self.product.pk), "sold": 2, "credited": 0, "borrowed": 0},
             ],
@@ -175,7 +176,7 @@ class RepaymentSyncTests(TestCase):
 
         rem = create_remittance(
             performed_by=self.admin,
-            riders_data=self._riders_data(),
+            riders_data=self._riders_data(remitted="200"),
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
@@ -190,7 +191,8 @@ class RepaymentSyncTests(TestCase):
         self.assertEqual(rem.total_repayments_received, Decimal("120.00"))
         # commission = 2 sold * 5 (line) + 3 repaid * 5 (repayment) = 10 + 15 = 25
         self.assertEqual(rem.total_commission, Decimal("25.00"))
-        # net = 80 + 120 - 0 - 25 = 175
+        # net = total_remitted + other_sales - total_commission - total_salary
+        #     = 200 + 0 - 25 - 0 = 175
         self.assertEqual(rem.net_profit, Decimal("175.00"))
         # tithes = 175 * 0.10 = 17.50
         self.assertEqual(rem.tithe_amount, Decimal("17.50"))
@@ -209,6 +211,7 @@ class RepaymentSyncTests(TestCase):
         riders_data = [{
             "id": str(self.rider.pk),
             "commission_override": "",
+            "remitted": "80",
             "product_lines": [],
         }]
         rem = create_remittance(
@@ -226,7 +229,8 @@ class RepaymentSyncTests(TestCase):
         self.assertEqual(rem.total_repayments_received, Decimal("80.00"))
         # commission = 2 repaid * 5 = 10
         self.assertEqual(rem.total_commission, Decimal("10.00"))
-        # net = 0 + 80 - 0 - 10 = 70
+        # net = total_remitted + other_sales - total_commission - total_salary
+        #     = 80 + 0 - 10 - 0 = 70
         self.assertEqual(rem.net_profit, Decimal("70.00"))
 
         # A RemittanceRider row exists for the rider.
@@ -336,7 +340,7 @@ class RepaymentSyncTests(TestCase):
 
         rem = create_remittance(
             performed_by=self.admin,
-            riders_data=self._riders_data(),
+            riders_data=self._riders_data(remitted="80"),
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
@@ -350,8 +354,9 @@ class RepaymentSyncTests(TestCase):
         # Commission is only from the rider's sales line (2 sold * 5 = 10).
         # No repayment commission because care_of is staff.
         self.assertEqual(rem.total_commission, Decimal("10.00"))
-        # net = 80 + 120 - 0 - 10 = 190
-        self.assertEqual(rem.net_profit, Decimal("190.00"))
+        # net = total_remitted + other_sales - total_commission - total_salary
+        #     = 80 + 0 - 10 - 0 = 70
+        self.assertEqual(rem.net_profit, Decimal("70.00"))
 
         # The CreditPayment is linked to the remittance.
         payment = CreditPayment.objects.get(credit_line=self.credit_line)
@@ -375,7 +380,7 @@ class RepaymentSyncTests(TestCase):
 
         rem = create_remittance(
             performed_by=self.admin,
-            riders_data=self._riders_data(),
+            riders_data=self._riders_data(remitted="160"),
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
@@ -389,8 +394,9 @@ class RepaymentSyncTests(TestCase):
         # Commission = 2 sold * 5 (line) + 2 repaid * 5 (rider repayment) = 10 + 10 = 20
         # Staff repayment earns 0 commission.
         self.assertEqual(rem.total_commission, Decimal("20.00"))
-        # net = 80 + 160 - 0 - 20 = 220
-        self.assertEqual(rem.net_profit, Decimal("220.00"))
+        # net = total_remitted + other_sales - total_commission - total_salary
+        #     = 160 + 0 - 20 - 0 = 140
+        self.assertEqual(rem.net_profit, Decimal("140.00"))
 
         # Both payments are linked.
         self.assertEqual(
