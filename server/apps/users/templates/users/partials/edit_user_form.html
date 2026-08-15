@@ -10,7 +10,7 @@ On failure, the form re-renders with errors.
     hx-target="this"
     hx-swap="outerHTML"
     class="px-6 py-6 space-y-5"
-    x-data="{ showDelete: false, deleteInput: '', deletePin: '', saving: false, deleting: false, selectedRole: '{{ target_user.role.id|default:'' }}', selectedRoleName: '{{ target_user.role.name|default:'' }}', showPinModal: false, pinInput: '', pinError: '{% if pin_error %}{{ pin_error }}{% endif %}' }"
+    x-data="{ showDelete: false, deleteInput: '', deletePin: '', saving: false, deleting: false, selectedRole: '{{ target_user.role.id|default:'' }}', selectedRoleName: '{{ target_user.role.name|default:''|escapejs }}', showPinModal: false, pinInput: '', pinError: '{% if pin_error %}{{ pin_error|escapejs }}{% endif %}' }"
     x-ref="userForm"
     x-on:submit="saving = true"
 >

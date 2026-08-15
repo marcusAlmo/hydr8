@@ -55,11 +55,11 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
     list_display = ('username', 'email', 'first_name', 'last_name', 'company', 'role', 'is_active')
     list_filter = ('company', 'role', 'is_active', 'is_superuser', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name')
-    readonly_fields = ('pin', 'last_login', 'date_joined', 'created_at', 'updated_at', 'deleted_at')
+    readonly_fields = ('last_login', 'date_joined', 'created_at', 'updated_at', 'deleted_at')
 
     fieldsets = (
         ("Authentication & Security", {
-            "fields": (("username", "password"), "pin"),
+            "fields": (("username", "password"),),
             "classes": ["tab"],
         }),
         ("Personal Information", {

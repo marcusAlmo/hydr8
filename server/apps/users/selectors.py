@@ -14,7 +14,9 @@ if TYPE_CHECKING:
 
 def get_user_by_id(request_user: "UserType", user_id: str) -> User | None:
     """Returns an active user by UUID, scoped to the requester's tenant."""
-    qs = User.objects.filter(deleted_at__isnull=True, pk=user_id)
+    qs = User.objects.select_related('role', 'company').filter(
+        deleted_at__isnull=True, pk=user_id
+    )
     if not request_user.is_superuser and request_user.company_id is not None:
         qs = qs.filter(company_id=request_user.company_id)
     return qs.first()

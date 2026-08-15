@@ -28,7 +28,7 @@ class RoleQuerySet(TenantQuerySet):
         return self.filter(models.Q(company_id=user.company_id) | models.Q(company_id__isnull=True))
 
 class Role(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=100)
     description = models.CharField(max_length=255, default='', blank=True)
     is_default = models.BooleanField(default=False)
     company = models.ForeignKey(
@@ -48,8 +48,21 @@ class Role(models.Model):
 
     class Meta:
         db_table = 'users_role'
+        verbose_name_plural = 'roles'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name'],
+                condition=models.Q(company__isnull=True, deleted_at__isnull=True),
+                name='unique_default_role_name',
+            ),
+            models.UniqueConstraint(
+                fields=['company', 'name'],
+                condition=models.Q(company__isnull=False, deleted_at__isnull=True),
+                name='unique_tenant_role_name',
+            ),
+        ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -65,6 +78,7 @@ class Permission(models.Model):
 
     class Meta:
         db_table = 'users_permission'
+        verbose_name_plural = 'permissions'
         constraints = [
             models.UniqueConstraint(
                 fields=['role', 'action'],
@@ -72,7 +86,7 @@ class Permission(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.role.name} - {self.action}"
 
 
@@ -121,6 +135,7 @@ class User(AbstractUser):
 
     class Meta:
         db_table = 'users_user'
+        verbose_name_plural = 'users'
         indexes = [
             models.Index(fields=['company', 'deleted_at', 'deactivated_at', 'is_active']),
         ]
@@ -162,7 +177,7 @@ class User(AbstractUser):
             return False
 
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
     @property
@@ -204,6 +219,7 @@ class DriverCommission(models.Model):
 
     class Meta:
         db_table = 'users_driver_commission'
+        verbose_name_plural = 'driver commissions'
         indexes = [
             models.Index(fields=['company', 'driver', 'product']),
             models.Index(fields=['company', 'product']),
@@ -215,6 +231,6 @@ class DriverCommission(models.Model):
             ),
         ]
 
-    def __str__(self):
-        return f"{self.driver.username} - {self.product.name}"
+    def __str__(self) -> str:
+        return f"Driver commission — {self.product.name}"
 

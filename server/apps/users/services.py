@@ -150,9 +150,10 @@ def record_failed_login(*, ip: str, username: str) -> None:
     key = _lockout_cache_key(ip, username)
     attempts = int(cache.get(key, 0)) + 1
     cache.set(key, attempts, timeout=LOGIN_LOCKOUT_SECONDS)
+    redacted_username = f"{username[:1]}***" if username else ""
     logger.warning(
-        "Failed login attempt. ip=%s username=%s attempts=%s",
-        ip, username, attempts,
+        "Failed login attempt. ip=%s username_hint=%s attempts=%s",
+        ip, redacted_username, attempts,
     )
 
 

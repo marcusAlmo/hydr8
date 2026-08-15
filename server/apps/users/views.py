@@ -9,7 +9,7 @@ from django.shortcuts import redirect, render
 from django.contrib.auth import login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 
@@ -18,6 +18,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
+from django_ratelimit.exceptions import Ratelimited
 
 from apps.core.views import (
     error_message,
@@ -196,10 +197,18 @@ def login_view(request):
 
 def ratelimited_view(request, exception=None):
     """
-    Custom handler for Ratelimited (HTTP 403) — logs the user out and
-    redirects them to the login landing page with a rate-limit error
-    shown on the login form.
+    Custom handler for 403 responses.
+
+    * Ratelimited: logs the user out and redirects them to the login page with
+      a rate-limit error, which is the expected flow for rate-limited requests.
+    * Plain PermissionDenied: returns a real 403 so role-gated endpoints keep
+      their HTTP semantics; it does not log the user out.
     """
+    if not isinstance(exception, Ratelimited):
+        if request.headers.get('HX-Request') == 'true':
+            return HttpResponse("Forbidden", status=403)
+        return HttpResponse("Forbidden", status=403)
+
     auth_logout(request)
     next_url = (
         request.POST.get('next', '')
@@ -302,7 +311,7 @@ def generate_temp_password_view(request, user_id):
     ``_can_change_user`` → ``apps.users.permissions.is_admin``.
     """
     if not _can_change_user(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied("Forbidden")
 
     target_user = get_user_by_id(request.user, user_id)
     if target_user is None:
@@ -384,15 +393,15 @@ def edit_user_view(request, user_id):
     Protected by Django's built-in users.change_user permission.
     """
     if not _can_change_user(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied("Forbidden")
 
     target_user = get_user_by_id(request.user, user_id)
     if target_user is None:
         return HttpResponse("User not found.", status=404)
 
-    form = EditUserForm(instance=target_user)
-    form.fields['role'].queryset = get_roles_for_user(request.user)
     roles = get_roles_for_user(request.user)
+    form = EditUserForm(instance=target_user)
+    form.fields['role'].queryset = roles
 
     # Generate a one-time delete-confirmation challenge and stash it in the
     # session so the delete endpoint can verify it on POST. Regenerated on
@@ -425,14 +434,15 @@ def edit_user_submit_view(request, user_id):
     Requires the admin's PIN for verification before saving changes.
     """
     if not _can_change_user(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied("Forbidden")
 
     target_user = get_user_by_id(request.user, user_id)
     if target_user is None:
         return HttpResponse("User not found.", status=404)
 
+    roles = get_roles_for_user(request.user)
     form = EditUserForm(request.POST, instance=target_user)
-    form.fields['role'].queryset = get_roles_for_user(request.user)
+    form.fields['role'].queryset = roles
 
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
@@ -466,7 +476,7 @@ def edit_user_submit_view(request, user_id):
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
-        'roles': get_roles_for_user(request.user),
+        'roles': roles,
         'delete_challenge': delete_challenge,
         'can_delete': _can_change_user(request.user) and request.user.pk != target_user.pk,
         'pin_error': pin_error,
@@ -492,12 +502,13 @@ def delete_user_view(request, user_id):
     the edit form with an error message.
     """
     if not _can_change_user(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied("Forbidden")
 
     target_user = get_user_by_id(request.user, user_id)
     if target_user is None:
         return HttpResponse("User not found.", status=404)
 
+    roles = get_roles_for_user(request.user)
     session_key = f'delete_challenge:{target_user.pk}'
     expected_challenge = request.session.get(session_key, '')
     typed_challenge = (request.POST.get('delete_challenge', '') or '').strip()
@@ -508,11 +519,11 @@ def delete_user_view(request, user_id):
         delete_challenge = generate_delete_challenge()
         request.session[session_key] = delete_challenge
         form = EditUserForm(instance=target_user)
-        form.fields['role'].queryset = get_roles_for_user(request.user)
+        form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
             'form': form,
             'target_user': target_user,
-            'roles': get_roles_for_user(request.user),
+            'roles': roles,
             'delete_challenge': delete_challenge,
             'can_delete': request.user.pk != target_user.pk,
             'delete_error': "The delete session expired. Please retry the delete confirmation.",
@@ -522,11 +533,11 @@ def delete_user_view(request, user_id):
         # Wrong code — re-render the edit form with the same challenge and
         # an error so the user can retry without reloading the whole form.
         form = EditUserForm(instance=target_user)
-        form.fields['role'].queryset = get_roles_for_user(request.user)
+        form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
             'form': form,
             'target_user': target_user,
-            'roles': get_roles_for_user(request.user),
+            'roles': roles,
             'delete_challenge': expected_challenge,
             'can_delete': request.user.pk != target_user.pk,
             'delete_error': "The code you entered does not match. Please type it exactly as shown.",
@@ -537,11 +548,11 @@ def delete_user_view(request, user_id):
     if not pin or not request.user.check_pin(pin):
         logger.info("[%s] delete_user PIN verification failed.", request.user.id)
         form = EditUserForm(instance=target_user)
-        form.fields['role'].queryset = get_roles_for_user(request.user)
+        form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
             'form': form,
             'target_user': target_user,
-            'roles': get_roles_for_user(request.user),
+            'roles': roles,
             'delete_challenge': expected_challenge,
             'can_delete': request.user.pk != target_user.pk,
             'delete_error': "Incorrect PIN. Please enter your PIN to confirm deletion." if pin else "PIN is required to delete a user.",
@@ -553,11 +564,11 @@ def delete_user_view(request, user_id):
         logger.warning("[%s] Failed to delete User id=%s: %s",
                        request.user.id, target_user.id, error_message(exc))
         form = EditUserForm(instance=target_user)
-        form.fields['role'].queryset = get_roles_for_user(request.user)
+        form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
             'form': form,
             'target_user': target_user,
-            'roles': get_roles_for_user(request.user),
+            'roles': roles,
             'delete_challenge': expected_challenge,
             'can_delete': request.user.pk != target_user.pk,
             'delete_error': str(exc),
@@ -661,13 +672,14 @@ class AddUserForm(forms.Form):
 def add_user_view(request):
     """HTMX endpoint — returns the add user form partial for the drawer."""
     if not _can_add_user(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied("Forbidden")
 
+    roles = get_roles_for_user(request.user)
     form = AddUserForm()
-    form.fields['role'].queryset = get_roles_for_user(request.user)
+    form.fields['role'].queryset = roles
     return render(request, 'users/partials/add_user_form.html', {
         'form': form,
-        'roles': get_roles_for_user(request.user),
+        'roles': roles,
     })
 
 
@@ -681,10 +693,11 @@ def add_user_submit_view(request):
     Requires the admin's PIN for verification before creating the account.
     """
     if not _can_add_user(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied("Forbidden")
 
+    roles = get_roles_for_user(request.user)
     form = AddUserForm(request.POST)
-    form.fields['role'].queryset = get_roles_for_user(request.user)
+    form.fields['role'].queryset = roles
 
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
@@ -719,7 +732,7 @@ def add_user_submit_view(request):
 
     return render(request, 'users/partials/add_user_form.html', {
         'form': form,
-        'roles': get_roles_for_user(request.user),
+        'roles': roles,
     })
 
 

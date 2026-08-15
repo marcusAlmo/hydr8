@@ -73,7 +73,7 @@ class UserModelTests(SimpleTestCase):
         user = User(username="driver1")
         product = Product(name="Gallon Water", variation="Round")
         commission = DriverCommission(driver=user, product=product, rate_per_unit=5.00)
-        self.assertEqual(str(commission), "driver1 - Gallon Water")
+        self.assertEqual(str(commission), "Driver commission — Gallon Water")
 
     def test_role_str(self):
         """Test Role __str__ representation."""
