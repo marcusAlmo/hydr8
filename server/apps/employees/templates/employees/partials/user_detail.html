@@ -449,6 +449,7 @@ Expects context (from _mock_user_detail_data):
             <button
                 @click="showTempPw = true"
                 x-show="!showTempPw && !showEdit"
+                x-cloak
                 class="px-3 py-1.5 text-body-sm font-body-sm text-[#D97706] hover:bg-[#D97706]/10 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
             >
                 <span class="material-symbols-outlined text-[16px]">password</span>
@@ -457,6 +458,7 @@ Expects context (from _mock_user_detail_data):
             <form
                 x-show="showTempPw"
                 x-cloak
+                style="display: none;"
                 id="temp-password-form"
                 hx-post="{% url 'users:generate_temp_password' profile.user_uuid %}"
                 hx-target="#user-detail-content"
