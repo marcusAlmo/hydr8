@@ -29,7 +29,6 @@ class Remittance(models.Model):
     offering_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     tithes_paid = models.BooleanField(default=False)
     offering_paid = models.BooleanField(default=False)
-    notes = models.TextField(null=True, blank=True)
     company = models.ForeignKey(
         'settings.Company',
         on_delete=models.CASCADE,
@@ -184,7 +183,6 @@ class RiderCredit(models.Model):
     commission_rate_snapshot = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total_repaid = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     is_repaid = models.BooleanField(default=False)
-    notes = models.TextField(null=True, blank=True)
     company = models.ForeignKey(
         'settings.Company',
         on_delete=models.CASCADE,

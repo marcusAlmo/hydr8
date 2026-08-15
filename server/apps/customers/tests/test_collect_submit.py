@@ -24,14 +24,20 @@ from apps.customers.services import (
     record_customer_collection,
     record_customer_debt,
 )
-from apps.users.models import User
+from apps.users.models import Role, User
+
+
+def _make_staff_user(**kwargs) -> User:
+    """Creates a test user with the canonical Staff back-office role."""
+    staff_role, _ = Role.objects.get_or_create(name="Staff", company=None)
+    return User.objects.create_user(role=staff_role, **kwargs)
 
 
 class RecordCollectionServiceTests(TestCase):
     """Service-layer behaviour for ``record_customer_collection``."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="collect_staff",
             password="securepassword123",
             first_name="Collect",
@@ -259,7 +265,7 @@ class CollectSubmitViewTests(TestCase):
     """View-layer behaviour for POST /customers/<id>/collect/submit/."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="collect_view_staff",
             password="securepassword123",
             first_name="View",

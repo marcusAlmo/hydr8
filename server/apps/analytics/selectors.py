@@ -5,7 +5,6 @@ Views call these — they never hit the ORM directly.
 """
 from __future__ import annotations
 
-import logging
 from datetime import timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -19,8 +18,6 @@ from apps.remittance.models import Remittance
 
 if TYPE_CHECKING:
     from apps.users.models import User
-
-logger = logging.getLogger(__name__)
 
 _DASHBOARD_RECENT_LIMIT = 8
 _DEBT_AGE_WARNING_DAYS = 30
@@ -274,18 +271,6 @@ def _outstanding_debts(user: "User") -> list[dict]:
             "severity": severity,
         })
     return rows
-
-
-def get_dashboard_context(user: "User") -> dict:
-    """Build the full context for the main analytics dashboard."""
-    logger.info("[%s] Built dashboard context", user.id)
-    return {
-        "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
-        "today_remittance": _today_remittance(user),
-        "stats": _build_stats(user),
-        "recent_remittances": _recent_remittances(user),
-        "outstanding_debts": _outstanding_debts(user),
-    }
 
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ from apps.users.permissions import is_admin
 logger = logging.getLogger(__name__)
 
 
-def _build_list_context(*, user, page: int, query: str = "") -> dict:
+def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = False) -> dict:
     """Builds the template context for the audit log list page from real data."""
     data = list_log_entries(user=user, page=page, query=query)
     page_obj = data["page_obj"]
@@ -85,18 +85,22 @@ def _build_list_context(*, user, page: int, query: str = "") -> dict:
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
     }
 
-    # JSON-serializable projection for Alpine.js client-side filtering.
-    # Only the current page's entries are included -- filters apply within the page.
-    logs_json = build_logs_json(page_obj.object_list)
+    if for_htmx:
+        logs_json = "[]"
+        action_counts_json = "{}"
+    else:
+        # JSON-serializable projection for Alpine.js client-side filtering.
+        # Only the current page's entries are included -- filters apply within the page.
+        logs_json = build_logs_json(page_obj.object_list)
 
-    # JSON of action counts for the Alpine filter chips (full dataset counts)
-    action_counts_json = json.dumps({
-        "total": data["total"],
-        "0": action_counts.get(0, 0),
-        "1": action_counts.get(1, 0),
-        "2": action_counts.get(2, 0),
-        "3": action_counts.get(3, 0),
-    })
+        # JSON of action counts for the Alpine filter chips (full dataset counts)
+        action_counts_json = json.dumps({
+            "total": data["total"],
+            "0": action_counts.get(0, 0),
+            "1": action_counts.get(1, 0),
+            "2": action_counts.get(2, 0),
+            "3": action_counts.get(3, 0),
+        })
 
     return {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
@@ -112,6 +116,15 @@ def _build_list_context(*, user, page: int, query: str = "") -> dict:
     }
 
 
+def _forbidden_response(request) -> HttpResponse:
+    """Returns a 403 response; HTMX requests receive a toast trigger."""
+    if request.headers.get("HX-Request") == "true":
+        response = HttpResponse(status=403)
+        response["HX-Trigger"] = json.dumps({"showToast": "You do not have permission to view the audit log."})
+        return response
+    return HttpResponse("Forbidden", status=403)
+
+
 @login_required
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
@@ -125,13 +138,14 @@ def audit_log_view(request):
     For full page loads, renders the complete audit_log.html.
     """
     if not is_admin(request.user):
-        return HttpResponse("Forbidden", status=403)
+        return _forbidden_response(request)
     try:
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
     query = request.GET.get("q", "")
-    context = _build_list_context(user=request.user, page=page, query=query)
+    for_htmx = request.headers.get("HX-Request") == "true"
+    context = _build_list_context(user=request.user, page=page, query=query, for_htmx=for_htmx)
 
     # HTMX requests get just the table partial; full loads get the page
     if request.headers.get("HX-Request") == "true":
@@ -148,7 +162,7 @@ def audit_log_detail_view(request, entry_id: int):
     Restricted to Admin (and platform superusers).
     """
     if not is_admin(request.user):
-        return HttpResponse("Forbidden", status=403)
+        return _forbidden_response(request)
     entry = get_log_entry(entry_id=entry_id, user=request.user)
     if entry is None:
         return HttpResponse("Audit log entry not found.", status=404)

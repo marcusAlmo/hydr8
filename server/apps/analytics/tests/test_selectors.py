@@ -25,7 +25,6 @@ from apps.analytics.selectors import (
     _sales_trend,
     _today_remittance,
     _unreturned_containers,
-    get_dashboard_context,
 )
 
 
@@ -383,37 +382,4 @@ class OutstandingDebtsTests(TestCase):
         self.assertEqual(result[0]["severity"], "critical")
 
 
-class GetDashboardContextTests(TestCase):
-    """Tests for the public get_dashboard_context entry point."""
 
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username="context_user", password="securepassword123"
-        )
-        cache.clear()
-
-    def tearDown(self):
-        cache.clear()
-
-    def test_returns_all_required_keys(self):
-        """The context dict contains all required keys."""
-        ctx = get_dashboard_context(self.user)
-        expected_keys = {
-            "today_date",
-            "today_remittance",
-            "stats",
-            "recent_remittances",
-            "outstanding_debts",
-        }
-        self.assertEqual(set(ctx.keys()), expected_keys)
-
-    def test_stats_has_three_cards(self):
-        """The stats list contains exactly 3 stat cards."""
-        ctx = get_dashboard_context(self.user)
-        self.assertEqual(len(ctx["stats"]), 3)
-
-    def test_today_date_is_formatted(self):
-        """today_date is a formatted string."""
-        ctx = get_dashboard_context(self.user)
-        expected = timezone.localtime().strftime("%A, %b %d, %Y")
-        self.assertEqual(ctx["today_date"], expected)

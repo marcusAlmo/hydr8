@@ -19,9 +19,11 @@ class Company(models.Model):
 
     class Meta:
         db_table = 'settings_company'
+        verbose_name = 'company'
+        verbose_name_plural = 'companies'
         indexes = [
             models.Index(fields=['deleted_at']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name

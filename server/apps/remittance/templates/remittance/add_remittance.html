@@ -2129,17 +2129,24 @@
                             this._startAutoSave();
                             return;
                         }
-                        this._applyCacheState(cache);
-                        this.hasCache = true;
+                        // Only restore a browser-cached draft when the server
+                        // did NOT already load a persisted DB draft.  When a
+                        // DB draft exists, its seed is the source of truth;
+                        // otherwise stale localStorage values (e.g. an old
+                        // unsaved admin session) overwrite the real numbers.
+                        if (!this.hasDraft) {
+                            this._applyCacheState(cache);
+                            this.hasCache = true;
+                            // Notify the user that their previous session was restored
+                            const savedAt = new Date(cache.savedAt);
+                            const timeStr = savedAt.toLocaleTimeString('en-US', {
+                                hour: 'numeric', minute: '2-digit',
+                            });
+                            setTimeout(() => {
+                                this.showToast('Restored unsaved changes from ' + timeStr + '. Click "Clear Draft" to start over.', 'success');
+                            }, 300);
+                        }
                         this._lastSnapshot = JSON.stringify(this._extractCacheState());
-                        // Notify the user that their previous session was restored
-                        const savedAt = new Date(cache.savedAt);
-                        const timeStr = savedAt.toLocaleTimeString('en-US', {
-                            hour: 'numeric', minute: '2-digit',
-                        });
-                        setTimeout(() => {
-                            this.showToast('Restored unsaved changes from ' + timeStr + '. Click "Clear Draft" to start over.', 'success');
-                        }, 300);
                     } catch (err) {
                         // Corrupt cache — silently ignore
                         console.warn('Failed to restore remittance cache:', err);

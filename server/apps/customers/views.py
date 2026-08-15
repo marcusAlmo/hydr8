@@ -1,4 +1,5 @@
 import json
+from functools import wraps
 
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -9,6 +10,7 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
 from apps.settings.selectors import get_default_credit_limit
+from apps.users.permissions import is_back_office
 
 from .selectors import (
     DEFAULT_DIR,
@@ -79,7 +81,18 @@ def _success_response(
     return response
 
 
+def _back_office_required(view):
+    """Decorator that restricts a view to Admin or Staff (back-office) users."""
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not is_back_office(request.user):
+            return HttpResponse("Forbidden", status=403)
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def customer_list_view(request):
@@ -91,6 +104,7 @@ def customer_list_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def customer_table_view(request):
@@ -109,6 +123,7 @@ def customer_table_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_detail_view(request, customer_id: str):
@@ -121,6 +136,7 @@ def customer_detail_view(request, customer_id: str):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_edit_view(request, customer_id: str):
@@ -133,6 +149,7 @@ def customer_edit_view(request, customer_id: str):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["POST"])
 @ratelimit(key="user", rate="30/m", method="POST", block=True)
 def customer_edit_submit_view(request, customer_id: str):
@@ -171,6 +188,7 @@ def customer_edit_submit_view(request, customer_id: str):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_collect_view(request, customer_id: str):
@@ -183,6 +201,7 @@ def customer_collect_view(request, customer_id: str):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["POST"])
 @ratelimit(key="user", rate="30/m", method="POST", block=True)
 def customer_collect_submit_view(request, customer_id: str):
@@ -249,6 +268,7 @@ def customer_collect_submit_view(request, customer_id: str):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def customer_add_view(request):
@@ -266,6 +286,7 @@ def customer_add_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["POST"])
 @ratelimit(key="user", rate="30/m", method="POST", block=True)
 def customer_add_submit_view(request):
@@ -300,6 +321,7 @@ def customer_add_submit_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def record_debt_view(request):
@@ -309,6 +331,7 @@ def record_debt_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["POST"])
 @ratelimit(key="user", rate="30/m", method="POST", block=True)
 def record_debt_submit_view(request):
@@ -351,6 +374,7 @@ def record_debt_submit_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="60/m", method="GET", block=True)
 def record_borrowed_view(request):
@@ -362,6 +386,7 @@ def record_borrowed_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["POST"])
 @ratelimit(key="user", rate="30/m", method="POST", block=True)
 def record_borrowed_submit_view(request):
@@ -403,6 +428,7 @@ def record_borrowed_submit_view(request):
 
 
 @login_required
+@_back_office_required
 @require_http_methods(["POST"])
 @ratelimit(key="user", rate="30/m", method="POST", block=True)
 def customer_delete_view(request, customer_id: str):

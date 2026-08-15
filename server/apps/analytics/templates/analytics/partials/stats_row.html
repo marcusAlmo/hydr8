@@ -22,7 +22,7 @@ Alpine initializes or if JS is disabled).
             <h3 class="font-data-mono text-2xl text-on-surface font-bold"
                x-data="countUp({
                    target: {{ stat.raw_value|default:'0' }},
-                   prefix: '{{ stat.value_prefix|default:'' }}',
+                   prefix: '{{ stat.value_prefix|default:''|escapejs }}',
                    decimals: {{ stat.value_decimals|default:'0' }}
                })">{{ stat.value }}</h3>
             {% if stat.breakdown %}

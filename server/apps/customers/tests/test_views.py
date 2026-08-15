@@ -28,13 +28,19 @@ from apps.customers.services import (
     record_customer_debt,
 )
 from apps.settings.models import Company
-from apps.users.models import User
+from apps.users.models import Role, User
 from apps.users.presentation import driver_code as user_driver_code
 
 
 def _display_id(customer: Customer) -> str:
     """Returns the HY-XXXX display id for a customer."""
     return f"HY-{customer.pk:04d}"
+
+
+def _make_staff_user(**kwargs) -> User:
+    """Creates a test user with the canonical Staff back-office role."""
+    staff_role, _ = Role.objects.get_or_create(name="Staff", company=None)
+    return User.objects.create_user(role=staff_role, **kwargs)
 
 
 class CustomerDetailViewTests(TestCase):
@@ -45,7 +51,7 @@ class CustomerDetailViewTests(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )
@@ -159,7 +165,7 @@ class CustomerCollectViewTests(TestCase):
     """
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )
@@ -311,7 +317,7 @@ class CustomerTableViewTests(TestCase):
     """Tests for the HTMX sortable customer table partial endpoint."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )
@@ -397,7 +403,7 @@ class CustomerAddViewTests(TestCase):
     """Tests for the HTMX add-customer modal + submission endpoints."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )
@@ -493,7 +499,7 @@ class RecordDebtViewTests(TestCase):
     """Tests for the HTMX record-debt modal + submission endpoints."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )
@@ -660,7 +666,7 @@ class RecordBorrowedViewTests(TestCase):
     """Tests for the HTMX record-borrowed modal + submission endpoints."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )
@@ -797,7 +803,7 @@ class CustomerDeleteViewTests(TestCase):
     """
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = _make_staff_user(
             username="hydr8staff",
             password="securepassword123",
         )

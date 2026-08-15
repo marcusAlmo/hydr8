@@ -160,8 +160,6 @@ def _customer_row(customer: Customer) -> dict:
         "pk": customer.pk,
         "name": customer.name,
         "initials": _customer_initials(customer.name),
-        "address": customer.address or "",
-        "contact_number": customer.contact_number or "",
         "debt_balance": _format_peso(debt),
         "debt_balance_raw": float(debt),
         "debt_class": "text-error" if has_debt else "text-tertiary",
@@ -406,7 +404,7 @@ def _ranking_context(user: "UserType") -> dict:
         .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
         .annotate(
             total_paid=Sum("credit_lines__payments__amount"),
-            payment_count=Count("credit_lines__payments"),
+            payment_count=Count("credit_lines__payments", distinct=True),
         )
         .order_by("-total_paid")[:5]
     )
@@ -593,6 +591,8 @@ def get_customer_detail_context(customer: Customer, user: "UserType | None" = No
     is_overdue = row["has_debt"] and days_since_credit > threshold
     row.update(
         {
+            "address": customer.address or "",
+            "contact_number": customer.contact_number or "",
             "member_since": customer.created_at.strftime("%b %Y"),
             "total_credits": customer.credit_lines.count(),
             "last_payment_at": _days_ago(_last_payment_dt(customer)),
@@ -756,7 +756,9 @@ def _care_of_users(user: "UserType") -> list[dict]:
     Includes admins, staff, and drivers — anyone who could be responsible
     for lending containers or extending credit to a customer.
     """
-    qs = User.objects.filter(deleted_at__isnull=True, is_active=True)
+    qs = User.objects.filter(deleted_at__isnull=True, is_active=True).select_related(
+        "role"
+    )
     if not user.is_superuser and user.company_id is not None:
         qs = qs.filter(company_id=user.company_id)
     qs = qs.order_by("first_name", "last_name", "username")
@@ -823,4 +825,11 @@ def get_record_borrowed_context(user: "UserType") -> dict:
 
 def get_customer_edit_context(customer: Customer) -> dict:
     """Returns the edit modal context for a single customer."""
-    return {"customer": _customer_row(customer)}
+    row = _customer_row(customer)
+    row.update(
+        {
+            "address": customer.address or "",
+            "contact_number": customer.contact_number or "",
+        }
+    )
+    return {"customer": row}

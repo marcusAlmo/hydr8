@@ -6,7 +6,11 @@ can read configuration without each view having to pass it through.
 """
 from __future__ import annotations
 
+import logging
+
 from .selectors import get_lockscreen_timeout_minutes
+
+logger = logging.getLogger(__name__)
 
 
 def lockscreen_timeout(request) -> dict[str, int]:
@@ -22,7 +26,12 @@ def lockscreen_timeout(request) -> dict[str, int]:
         return {'lockscreen_timeout_minutes': 0}
     try:
         minutes = get_lockscreen_timeout_minutes(user)
-    except Exception:
+    except Exception as exc:
         # Never break rendering — fall back to "disabled".
+        logger.warning(
+            "Failed to determine lockscreen timeout for user_id=%s: %s",
+            getattr(user, 'id', None), exc,
+            exc_info=True,
+        )
         minutes = 0
     return {'lockscreen_timeout_minutes': minutes}

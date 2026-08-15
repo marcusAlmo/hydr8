@@ -119,4 +119,4 @@ def _log_login_failed(sender, request, username, ip, **kwargs):
             },
         )
     except Exception:
-        logger.exception("Failed to log failed-login event for username=%s", username)
+        logger.exception("Failed to create failed-login audit record")

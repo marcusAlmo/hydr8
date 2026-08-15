@@ -37,6 +37,8 @@ class Product(models.Model):
 
     class Meta:
         db_table = 'core_product'
+        verbose_name = 'product'
+        verbose_name_plural = 'products'
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'name', 'variation'],
@@ -47,29 +49,42 @@ class Product(models.Model):
         indexes = [
             models.Index(fields=['company', 'deleted_at']),
             models.Index(fields=['company', 'deactivated_at']),
+            models.Index(fields=['company', 'is_default', 'name', 'variation']),
         ]
 
     @property
     def is_active(self) -> bool:
         return self.deactivated_at is None and self.deleted_at is None
 
-    @classmethod
-    def create(cls, **kwargs):
-        if 'name' in kwargs:
-            kwargs['name'] = str(kwargs['name']).title()
-        if 'variation' in kwargs and kwargs.get('variation') is not None:
-            kwargs['variation'] = str(kwargs['variation']).title()
-        return cls.objects.create(**kwargs)
+    def save(self, *args, **kwargs):
+        """Normalize name and variation casing before persistence."""
+        if self.name:
+            self.name = str(self.name).title()
+        if self.variation:
+            self.variation = str(self.variation).title()
+        super().save(*args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.name} - {self.variation}"
 
 
 class SystemConfigManager(TenantManager):
-    def get_value(self, key, default=None):
+    def get_value(self, key, default=None, *, company=None):
+        """Returns a SystemConfig value for the tenant, falling back to global.
+
+        Searches the tenant-scoped row first (``company``), then the global
+        row (``company=None``), and finally returns ``default`` if neither
+        exists. This prevents ``MultipleObjectsReturned`` in multi-tenant
+        deployments and makes the lookup explicit for callers.
+        """
         try:
-            return self.get(key=key).value
+            return self.get(key=key, company=company).value
         except self.model.DoesNotExist:
+            if company is not None:
+                try:
+                    return self.get(key=key, company=None).value
+                except self.model.DoesNotExist:
+                    pass
             return default
 
 
@@ -92,6 +107,11 @@ class SystemConfig(models.Model):
 
     class Meta:
         db_table = 'core_system_config'
+        verbose_name = 'system config'
+        verbose_name_plural = 'system configs'
+        indexes = [
+            models.Index(fields=['key', 'company']),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'key'],
@@ -99,5 +119,5 @@ class SystemConfig(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.key}: {self.value}"

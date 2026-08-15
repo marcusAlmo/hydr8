@@ -375,9 +375,8 @@ def delete_customer(*, customer: Customer, performed_by: "UserType") -> None:
             "Cannot delete a customer with pending debt or unreturned containers."
         )
 
-    Customer.objects.for_user(performed_by).filter(pk=customer.pk).update(
-        deleted_at=timezone.now()
-    )
+    customer.deleted_at = timezone.now()
+    customer.save(update_fields=["deleted_at", "updated_at"])
     logger.info(
         "[%s] Soft-deleted Customer id=%s", performed_by.id, customer.id
     )

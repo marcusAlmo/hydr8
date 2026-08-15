@@ -17,20 +17,26 @@ from apps.customers.selectors import (
     get_record_borrowed_context,
     get_record_debt_context,
 )
-from apps.users.models import User
+from apps.users.models import Role, User
+
+
+def _make_staff_user(**kwargs) -> User:
+    """Creates a test user with the canonical Staff back-office role."""
+    staff_role, _ = Role.objects.get_or_create(name="Staff", company=None)
+    return User.objects.create_user(role=staff_role, **kwargs)
 
 
 class CareOfServicesTests(TestCase):
     """Service-layer behaviour for the ``care_of`` responsibility link."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="staff_recorder",
             password="securepassword123",
             first_name="Staff",
             last_name="Recorder",
         )
-        self.admin = User.objects.create_user(
+        self.admin = _make_staff_user(
             username="admin_lender",
             password="securepassword123",
             first_name="Admin",
@@ -134,13 +140,13 @@ class CareOfSelectorTests(TestCase):
     collect-modal list of borrowed/credited items."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="staff_recorder",
             password="securepassword123",
             first_name="Staff",
             last_name="Recorder",
         )
-        self.admin = User.objects.create_user(
+        self.admin = _make_staff_user(
             username="admin_lender",
             password="securepassword123",
             first_name="Admin",
@@ -248,13 +254,13 @@ class CareOfViewTests(TestCase):
     """HTMX view-layer behaviour for the ``care_of`` field."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="staff_recorder",
             password="securepassword123",
             first_name="Staff",
             last_name="Recorder",
         )
-        self.admin = User.objects.create_user(
+        self.admin = _make_staff_user(
             username="admin_lender",
             password="securepassword123",
             first_name="Admin",

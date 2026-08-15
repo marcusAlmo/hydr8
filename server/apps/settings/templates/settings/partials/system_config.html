@@ -6,7 +6,7 @@
         dirty: false,
         saving: false,
         originals: {
-            {% for setting in system_config %}'{{ setting.key }}': '{{ setting.value }}'{% if not forloop.last %}, {% endif %}{% endfor %}
+            {% for setting in system_config %}'{{ setting.key }}': '{{ setting.value|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}
         },
         checkDirty() {
             let changed = false;

@@ -59,6 +59,7 @@ def settings_view(request):
     tab (``/settings/?tab=profile``).
     """
     context = get_settings_context(request.user)
+    context["is_staff_role_user"] = user_is_staff_role(request.user)
 
     # Validate the requested tab against the known tab IDs so an invalid
     # value can't inject arbitrary content into the Alpine x-data attribute.

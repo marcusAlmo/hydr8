@@ -74,6 +74,7 @@ class Customer(models.Model):
 
     class Meta:
         db_table = 'customers_customer'
+        verbose_name_plural = 'customers'
         indexes = [
             models.Index(fields=['company', 'deleted_at']),
             models.Index(fields=['company', 'debt_balance']),
@@ -177,6 +178,7 @@ class CreditLine(models.Model):
 
     class Meta:
         db_table = 'customers_credit_line'
+        verbose_name_plural = 'credit lines'
         indexes = [
             models.Index(fields=['customer', 'qty_remaining']),
             models.Index(fields=['company', 'transaction_date']),
@@ -194,7 +196,7 @@ class CreditLine(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         # RA 10173: Never expose customer names in __str__ for financial models.
         return f"CL-{self.pk} ({self.qty_remaining} left)"
 
@@ -267,6 +269,7 @@ class BorrowedContainer(models.Model):
 
     class Meta:
         db_table = 'customers_borrowed_container'
+        verbose_name_plural = 'borrowed containers'
         indexes = [
             models.Index(fields=['company', 'customer']),
             models.Index(fields=['company', 'care_of']),
@@ -285,7 +288,7 @@ class BorrowedContainer(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         # RA 10173: Never expose customer names in __str__ for financial models.
         return f"BC-{self.pk} ({self.get_container_key_display()}, {self.qty_remaining} out)"
 
@@ -333,6 +336,7 @@ class CreditPayment(models.Model):
 
     class Meta:
         db_table = 'customers_credit_payment'
+        verbose_name_plural = 'credit payments'
         indexes = [
             models.Index(fields=['company', 'credit_line']),
             models.Index(fields=['company', 'remittance']),
@@ -348,6 +352,6 @@ class CreditPayment(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         # RA 10173: Never expose customer names in __str__ for financial models.
         return f"CP-{self.pk} ({self.amount})"

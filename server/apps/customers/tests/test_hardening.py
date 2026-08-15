@@ -32,18 +32,24 @@ from apps.customers.services import (
     reset_customer_status,
 )
 from apps.settings.models import Company
-from apps.users.models import User
+from apps.users.models import Role, User
 
 
 def _display_id(customer: Customer) -> str:
     return f"HY-{customer.pk:04d}"
 
 
+def _make_staff_user(**kwargs) -> User:
+    """Creates a test user with the canonical Staff back-office role."""
+    staff_role, _ = Role.objects.get_or_create(name="Staff", company=None)
+    return User.objects.create_user(role=staff_role, **kwargs)
+
+
 class CreditLimitEnforcementTests(TestCase):
     """``record_customer_debt`` must refuse to exceed ``credit_limit``."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="limit_staff", password="securepassword123"
         )
         self.customer = Customer.objects.create(
@@ -111,7 +117,7 @@ class CustomerStatusTransitionTests(TestCase):
     """Status transitions go through the service layer with validation."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="status_staff", password="securepassword123"
         )
         self.customer = Customer.objects.create(name="Status Test Store")
@@ -192,7 +198,7 @@ class SoftDeleteSignalTests(TestCase):
     """The pre_save signal blocks unsafe soft-deletion."""
 
     def setUp(self):
-        self.staff = User.objects.create_user(
+        self.staff = _make_staff_user(
             username="delete_staff", password="securepassword123"
         )
         self.product = Product.objects.create(

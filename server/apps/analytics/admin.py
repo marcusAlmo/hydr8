@@ -1,3 +1,1 @@
-from django.contrib import admin
-
-# Register your models here.
+"""Read-only analytics domain; no admin registration required."""

@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
@@ -54,7 +55,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     remittance-first view and do not see the dashboard, charts, or reports.
     """
     if not user_is_admin(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied
 
     from django.utils import timezone
 
@@ -77,7 +78,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 def dashboard_stats_partial(request: HttpRequest) -> HttpResponse:
     """Returns the stats row (3 KPI cards) as an HTMX partial."""
     if not user_is_admin(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied
     stats = get_stats(request.user)
     _apply_accent_classes(stats)
     return render(request, "analytics/partials/stats_row.html", {"stats": stats})
@@ -89,7 +90,7 @@ def dashboard_stats_partial(request: HttpRequest) -> HttpResponse:
 def dashboard_recent_remittances_partial(request: HttpRequest) -> HttpResponse:
     """Returns the recent remittances table as an HTMX partial."""
     if not user_is_admin(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied
     recent = get_recent_remittances(request.user)
     return render(
         request,
@@ -104,7 +105,7 @@ def dashboard_recent_remittances_partial(request: HttpRequest) -> HttpResponse:
 def dashboard_outstanding_debts_partial(request: HttpRequest) -> HttpResponse:
     """Returns the outstanding debts table as an HTMX partial."""
     if not user_is_admin(request.user):
-        return HttpResponse("Forbidden", status=403)
+        raise PermissionDenied
     debts = get_outstanding_debts(request.user)
     return render(
         request,
