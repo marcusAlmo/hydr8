@@ -823,6 +823,198 @@ def get_record_borrowed_context(user: "UserType") -> dict:
     }
 
 
+def _care_of_summary(user) -> dict:
+    if user is None:
+        return {"name": "Unassigned", "initials": "NA"}
+    return {
+        "name": user.full_name,
+        "initials": user_initials(user),
+    }
+
+
+def _format_history_timestamp(dt) -> str:
+    if not dt:
+        return "—"
+    return timezone.localtime(dt).strftime("%b %d, %Y %I:%M %p")
+
+
+def _history_entry_editable(record, user) -> tuple[bool, str]:
+    """Returns (is_editable, reason) for a ledger record.
+
+    Edits are allowed for 24 hours after creation unless the business date
+    has already been locked by a finalized remittance.
+    """
+    from apps.remittance.models import Remittance
+
+    now = timezone.now()
+    if (now - record.created_at) > timedelta(hours=24):
+        return False, "Older than 24 hours"
+
+    company = record.company
+    if record._meta.model_name == "creditpayment":
+        remittance = record.remittance
+        if remittance is not None:
+            check_date = remittance.date
+        else:
+            check_date = record.paid_at or timezone.localtime(record.created_at).date()
+    else:
+        check_date = record.transaction_date
+
+    if (
+        company is not None
+        and Remittance.objects.filter(
+            company=company,
+            date=check_date,
+            status=Remittance.StatusChoices.FINALIZED,
+        ).exists()
+    ):
+        return False, "Remittance finalized for this date"
+
+    return True, ""
+
+
+def _history_sort_key(dt: datetime | None) -> datetime:
+    """Returns a stable sort key for a history entry."""
+    return dt or timezone.now()
+
+
+def _history_credit_line(line: CreditLine, user: "UserType") -> dict:
+    product_name = line.product.name
+    if line.product.variation:
+        product_name = f"{product_name} — {line.product.variation}"
+    is_editable, reason = _history_entry_editable(line, user)
+    return {
+        "kind": "credit_line",
+        "pk": line.pk,
+        "display_id": f"CL-{line.pk}",
+        "sort_key": _history_sort_key(line.created_at),
+        "timestamp": _format_history_timestamp(line.created_at),
+        "transaction_date": line.transaction_date.strftime("%b %d, %Y"),
+        "title": f"Debt recorded: {product_name}",
+        "product": product_name,
+        "qty_credited": line.qty_credited,
+        "unit_price": _format_peso(line.unit_price_snapshot),
+        "unit_price_num": str(line.unit_price_snapshot),
+        "total_credit": _format_peso(line.total_credit_amount),
+        "qty_remaining": line.qty_remaining,
+        "care_of": _care_of_summary(line.care_of),
+        "recorded_by": _care_of_summary(line.care_of),
+        "is_editable": is_editable,
+        "edit_disabled_reason": reason,
+    }
+
+
+def _history_credit_payment(payment: CreditPayment, user: "UserType") -> dict:
+    is_editable, reason = _history_entry_editable(payment, user)
+    product = payment.credit_line.product.name
+    if payment.credit_line.product.variation:
+        product = f"{product} — {payment.credit_line.product.variation}"
+    paid_at = payment.paid_at or timezone.localtime(payment.created_at).date()
+    paid_at_dt = (
+        datetime.combine(payment.paid_at, datetime.min.time(), tzinfo=timezone.get_current_timezone())
+        if payment.paid_at
+        else payment.created_at
+    )
+    return {
+        "kind": "credit_payment",
+        "pk": payment.pk,
+        "display_id": f"CP-{payment.pk}",
+        "sort_key": _history_sort_key(paid_at_dt),
+        "timestamp": _format_history_timestamp(payment.created_at),
+        "transaction_date": paid_at.strftime("%b %d, %Y"),
+        "title": f"Payment received: {product}",
+        "product": product,
+        "qty_paid": payment.containers_paid,
+        "amount": _format_peso(payment.amount),
+        "amount_num": str(payment.amount),
+        "credit_line_id": f"CL-{payment.credit_line_id}",
+        "recorded_by": _care_of_summary(payment.recorded_by),
+        "is_editable": is_editable,
+        "edit_disabled_reason": reason,
+    }
+
+
+def _history_borrowed(borrowed: BorrowedContainer, user: "UserType") -> dict:
+    is_editable, reason = _history_entry_editable(borrowed, user)
+    return {
+        "kind": "borrowed",
+        "pk": borrowed.pk,
+        "display_id": f"BC-{borrowed.pk}",
+        "sort_key": _history_sort_key(borrowed.created_at),
+        "timestamp": _format_history_timestamp(borrowed.created_at),
+        "transaction_date": borrowed.transaction_date.strftime("%b %d, %Y"),
+        "title": f"Borrowed: {borrowed.container_label}",
+        "container_label": borrowed.container_label,
+        "container_key": borrowed.container_key,
+        "qty_borrowed": borrowed.qty_borrowed,
+        "qty_returned": borrowed.qty_returned,
+        "outstanding": borrowed.qty_remaining,
+        "care_of": _care_of_summary(borrowed.care_of),
+        "recorded_by": _care_of_summary(borrowed.recorded_by),
+        "is_editable": is_editable,
+        "edit_disabled_reason": reason,
+    }
+
+
+def _history_container_return(borrowed: BorrowedContainer, user: "UserType") -> dict | None:
+    """Returns a synthetic return entry for a borrowed container with returns."""
+    if borrowed.qty_returned <= 0 or not borrowed.returned_at:
+        return None
+    tz = timezone.get_current_timezone()
+    sort_key = datetime.combine(borrowed.returned_at, datetime.min.time(), tzinfo=tz)
+    return {
+        "kind": "container_return",
+        "pk": borrowed.pk,
+        "display_id": f"BC-{borrowed.pk}",
+        "sort_key": _history_sort_key(sort_key),
+        "timestamp": _format_history_timestamp(sort_key),
+        "transaction_date": borrowed.returned_at.strftime("%b %d, %Y"),
+        "title": f"Returned: {borrowed.container_label}",
+        "container_label": borrowed.container_label,
+        "container_key": borrowed.container_key,
+        "qty_returned": borrowed.qty_returned,
+        "outstanding": borrowed.qty_remaining,
+        "recorded_by": _care_of_summary(borrowed.recorded_by),
+        "is_editable": False,
+        "edit_disabled_reason": "Return is part of the borrowing record",
+    }
+
+
+def get_customer_history_context(customer: Customer, user: "UserType") -> dict:
+    """Returns a unified, chronological ledger history for the customer."""
+    credit_lines = (
+        CreditLine.objects.filter(customer=customer)
+        .select_related("product", "care_of", "company")
+        .order_by("-created_at")
+    )
+    payments = (
+        CreditPayment.objects.filter(credit_line__customer=customer)
+        .select_related("credit_line__product", "recorded_by", "company", "remittance")
+        .order_by("-created_at")
+    )
+    borrowed = (
+        BorrowedContainer.objects.filter(customer=customer)
+        .select_related("care_of", "recorded_by", "company")
+        .order_by("-created_at")
+    )
+
+    entries: list[dict] = []
+    entries.extend(_history_credit_line(line, user) for line in credit_lines)
+    entries.extend(_history_credit_payment(payment, user) for payment in payments)
+    entries.extend(_history_borrowed(b, user) for b in borrowed)
+    for b in borrowed:
+        return_entry = _history_container_return(b, user)
+        if return_entry is not None:
+            entries.append(return_entry)
+
+    entries.sort(key=lambda e: e["sort_key"], reverse=True)
+
+    return {
+        "customer": _customer_row(customer),
+        "history": entries,
+    }
+
+
 def get_customer_edit_context(customer: Customer) -> dict:
     """Returns the edit modal context for a single customer."""
     row = _customer_row(customer)

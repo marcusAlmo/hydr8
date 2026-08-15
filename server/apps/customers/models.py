@@ -262,6 +262,12 @@ class BorrowedContainer(models.Model):
         db_index=True,
         help_text='Date the containers were actually lent (may be backdated for backlog).',
     )
+    returned_at = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Date the most recent return was recorded (may be backdated).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -330,6 +336,12 @@ class CreditPayment(models.Model):
         db_index=True,
     )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    paid_at = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Date the payment was made (may be backdated for past collections).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = TenantManager()

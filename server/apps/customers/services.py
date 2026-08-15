@@ -5,10 +5,13 @@ All customer mutations (add, debt, borrowed, delete) live here.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
+from auditlog.models import LogEntry
+from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
@@ -426,15 +429,17 @@ def record_customer_collection(
 ) -> dict:
     """Records a customer collection — container returns and/or credit payments.
 
-    ``returns`` is a list of ``{"borrowed_id": <pk>, "qty": <int>}`` dicts.
+    ``returns`` is a list of ``{"borrowed_id": <pk>, "qty": <int>,
+    "returned_at": <str|date>}`` dicts.
     ``payments`` is a list of ``{"credit_line_id": <pk>, "qty_paid": <int>,
-    "amount": <str|Decimal>}`` dicts.
+    "amount": <str|Decimal>, "paid_at": <str|date>}`` dicts.
 
     For each return, the matching ``BorrowedContainer.qty_returned`` is
-    incremented and the aggregate counter on ``Customer`` is decremented.
-    For each payment, a ``CreditPayment`` row is created, the
-    ``CreditLine.qty_remaining`` is decremented, and the ``Customer.debt_balance``
-    is reduced.
+    incremented, ``returned_at`` is set, and the aggregate counter on
+    ``Customer`` is decremented.
+    For each payment, a ``CreditPayment`` row is created with ``paid_at``,
+    the ``CreditLine.qty_remaining`` is decremented, and the
+    ``Customer.debt_balance`` is reduced.
 
     Returns a summary dict:
         {"returns_recorded": int, "payments_recorded": int, "total_collected": Decimal}
@@ -446,7 +451,7 @@ def record_customer_collection(
     company = getattr(performed_by, "company", None)
 
     # --- Parse & validate returns ------------------------------------------
-    parsed_returns: list[tuple[BorrowedContainer, int]] = []
+    parsed_returns: list[tuple[BorrowedContainer, int, date]] = []
     for entry in returns:
         raw_id = (entry.get("borrowed_id") or "").strip()
         if not raw_id:
@@ -459,6 +464,8 @@ def record_customer_collection(
         qty = _parse_int(entry.get("qty", 0), "Return quantity")
         if qty == 0:
             continue
+
+        returned_at = _parse_transaction_date(entry.get("returned_at", ""))
 
         borrowed = (
             BorrowedContainer.objects
@@ -474,10 +481,10 @@ def record_customer_collection(
                 f"Cannot return {qty} containers — only "
                 f"{borrowed.qty_remaining} outstanding for {borrowed.container_label}."
             )
-        parsed_returns.append((borrowed, qty))
+        parsed_returns.append((borrowed, qty, returned_at))
 
     # --- Parse & validate payments -----------------------------------------
-    parsed_payments: list[tuple[CreditLine, int, Decimal]] = []
+    parsed_payments: list[tuple[CreditLine, int, Decimal, date]] = []
     for entry in payments:
         raw_id = (entry.get("credit_line_id") or "").strip()
         if not raw_id:
@@ -494,6 +501,8 @@ def record_customer_collection(
         if qty_paid == 0 and amount == 0:
             continue
 
+        paid_at = _parse_transaction_date(entry.get("paid_at", ""))
+
         credit_line = (
             CreditLine.objects
             .filter(pk=cl_pk, customer=customer, company=company)
@@ -508,7 +517,7 @@ def record_customer_collection(
                 f"Cannot pay {qty_paid} units — only "
                 f"{credit_line.qty_remaining} remaining."
             )
-        parsed_payments.append((credit_line, qty_paid, amount))
+        parsed_payments.append((credit_line, qty_paid, amount, paid_at))
 
     if not parsed_returns and not parsed_payments:
         raise ValidationError(
@@ -525,9 +534,9 @@ def record_customer_collection(
             b.pk: b for b in
             BorrowedContainer.objects
             .select_for_update()
-            .filter(pk__in=[b.pk for b, _ in parsed_returns])
+            .filter(pk__in=[b.pk for b, _, _ in parsed_returns])
         }
-        for borrowed, qty in parsed_returns:
+        for borrowed, qty, _ in parsed_returns:
             current = locked_borrowed.get(borrowed.pk)
             if current is None or qty > current.qty_remaining:
                 raise ValidationError(
@@ -541,9 +550,9 @@ def record_customer_collection(
             cl.pk: cl for cl in
             CreditLine.objects
             .select_for_update()
-            .filter(pk__in=[cl.pk for cl, _, _ in parsed_payments])
+            .filter(pk__in=[cl.pk for cl, _, _, _ in parsed_payments])
         }
-        for credit_line, qty_paid, _ in parsed_payments:
+        for credit_line, qty_paid, _, _ in parsed_payments:
             current = locked_lines.get(credit_line.pk)
             if current is None or qty_paid > current.qty_remaining:
                 raise ValidationError(
@@ -553,10 +562,11 @@ def record_customer_collection(
 
     # --- Apply returns -----------------------------------------------------
     returns_recorded = 0
-    for borrowed, qty in parsed_returns:
+    for borrowed, qty, returned_at in parsed_returns:
         field = _CONTAINER_FIELDS[borrowed.container_key]
         BorrowedContainer.objects.filter(pk=borrowed.pk).update(
-            qty_returned=F("qty_returned") + qty
+            qty_returned=F("qty_returned") + qty,
+            returned_at=returned_at,
         )
         Customer.objects.filter(pk=customer.pk).update(
             **{field: F(field) - qty}
@@ -566,7 +576,7 @@ def record_customer_collection(
     # --- Apply payments ----------------------------------------------------
     payments_recorded = 0
     total_collected = Decimal("0.00")
-    for credit_line, qty_paid, amount in parsed_payments:
+    for credit_line, qty_paid, amount, paid_at in parsed_payments:
         CreditPayment.objects.create(
             company=company,
             credit_line=credit_line,
@@ -574,6 +584,7 @@ def record_customer_collection(
             containers_paid=qty_paid,
             amount=amount,
             recorded_by=performed_by,
+            paid_at=paid_at,
         )
         CreditLine.objects.filter(pk=credit_line.pk).update(
             qty_remaining=F("qty_remaining") - qty_paid
@@ -690,3 +701,407 @@ def reset_customer_status(
         reason=reason,
         performed_by=performed_by,
     )
+
+
+# ---------------------------------------------------------------------------
+# Ledger history edit services
+# ---------------------------------------------------------------------------
+
+from apps.remittance.models import Remittance
+
+
+def _record_lock_date(record) -> date:
+    """Business date used to check finalized-remittance immutability."""
+    if isinstance(record, CreditPayment):
+        if record.remittance_id:
+            return record.remittance.date
+        return record.paid_at or timezone.localtime(record.created_at).date()
+    return record.transaction_date
+
+
+def _verify_ledger_edit(*, record, pin: str, performed_by: "UserType") -> None:
+    """Validates PIN and immutability rules before a ledger edit."""
+    raw = (pin or "").strip()
+    if not raw:
+        raise ValidationError("PIN is required to edit this record.")
+
+    cache_key = f"ledger_pin_attempts:{performed_by.id}"
+    attempts = cache.get(cache_key, 0)
+    if attempts >= 5:
+        raise ValidationError(
+            "Too many failed PIN attempts. Try again in 15 minutes."
+        )
+
+    if not performed_by.check_pin(raw):
+        cache.set(cache_key, attempts + 1, timeout=900)
+        raise ValidationError("Incorrect PIN.")
+
+    cache.delete(cache_key)
+
+    if (timezone.now() - record.created_at) > timedelta(hours=24):
+        raise ValidationError("This record is too old to edit.")
+
+    if (
+        record.company_id
+        and Remittance.objects.filter(
+            company_id=record.company_id,
+            date=_record_lock_date(record),
+            status=Remittance.StatusChoices.FINALIZED,
+        ).exists()
+    ):
+        raise ValidationError("This record is locked by a finalized remittance.")
+
+
+def _log_ledger_edit(*, record, changes: dict, performed_by: "UserType") -> None:
+    """Creates a manual LogEntry for a ledger edit."""
+    content_type = ContentType.objects.get_for_model(record)
+    LogEntry.objects.create(
+        content_type=content_type,
+        object_pk=str(record.pk),
+        object_repr=str(record),
+        action=LogEntry.Action.UPDATE,
+        actor=performed_by,
+        actor_email=performed_by.email,
+        changes=changes,
+        additional_data={
+            "event": "ledger_edit",
+            "company_id": record.company_id,
+        },
+    )
+
+
+def _field_change(old, new):
+    """Normalizes values for the audit log changes dict."""
+    return [str(old), str(new)]
+
+
+def _resolve_credit_line_for_edit(
+    *, credit_line_id: str, customer: Customer, user: "UserType"
+) -> CreditLine:
+    """Resolves a CreditLine for editing, scoped to the customer and tenant."""
+    try:
+        pk = int(credit_line_id)
+    except (ValueError, TypeError):
+        raise ValidationError("Invalid credit line reference.")
+    line = (
+        CreditLine.objects
+        .for_user(user)
+        .filter(pk=pk, customer=customer)
+        .select_for_update(of=("self",))
+        .first()
+    )
+    if line is None:
+        raise ValidationError("Credit line not found.")
+    return line
+
+
+def _resolve_credit_payment_for_edit(
+    *, payment_id: str, customer: Customer, user: "UserType"
+) -> CreditPayment:
+    """Resolves a CreditPayment for editing, scoped to the customer and tenant."""
+    try:
+        pk = int(payment_id)
+    except (ValueError, TypeError):
+        raise ValidationError("Invalid credit payment reference.")
+    payment = (
+        CreditPayment.objects
+        .for_user(user)
+        .filter(pk=pk, credit_line__customer=customer)
+        .select_for_update(of=("self",))
+        .first()
+    )
+    if payment is None:
+        raise ValidationError("Credit payment not found.")
+    return payment
+
+
+def _resolve_borrowed_for_edit(
+    *, borrowed_id: str, customer: Customer, user: "UserType"
+) -> BorrowedContainer:
+    """Resolves a BorrowedContainer for editing, scoped to the customer and tenant."""
+    try:
+        pk = int(borrowed_id)
+    except (ValueError, TypeError):
+        raise ValidationError("Invalid borrowed container reference.")
+    borrowed = (
+        BorrowedContainer.objects
+        .for_user(user)
+        .filter(pk=pk, customer=customer)
+        .select_for_update(of=("self",))
+        .first()
+    )
+    if borrowed is None:
+        raise ValidationError("Borrowed container not found.")
+    return borrowed
+
+
+def edit_credit_line(
+    *,
+    credit_line_id: str,
+    customer: Customer,
+    qty_credited,
+    unit_price,
+    pin: str,
+    performed_by: "UserType",
+) -> CreditLine:
+    """Edits a CreditLine within the 24-hour editable window.
+
+    Updates the customer's debt balance and the line's remaining quantity
+    so that any payments already recorded stay consistent.
+    """
+    new_qty = _parse_int(qty_credited, "Quantity credited")
+    new_price = _to_decimal(unit_price)
+    if new_price <= 0:
+        raise ValidationError("Unit price must be greater than zero.")
+    if new_qty <= 0:
+        raise ValidationError("Quantity credited must be greater than zero.")
+
+    with transaction.atomic():
+        line = _resolve_credit_line_for_edit(
+            credit_line_id=credit_line_id, customer=customer, user=performed_by
+        )
+        _verify_ledger_edit(record=line, pin=pin, performed_by=performed_by)
+
+        old_qty = line.qty_credited
+        old_price = line.unit_price_snapshot
+        old_total = line.total_credit_amount
+        new_total = Decimal(new_qty) * new_price
+
+        paid = old_qty - line.qty_remaining
+        new_remaining = new_qty - paid
+        if new_remaining < 0:
+            raise ValidationError(
+                f"Quantity cannot be less than the {paid} unit(s) already paid."
+            )
+
+        delta = new_total - old_total
+
+        old = {
+            "qty_credited": line.qty_credited,
+            "unit_price_snapshot": str(line.unit_price_snapshot),
+            "total_credit_amount": str(line.total_credit_amount),
+            "qty_remaining": line.qty_remaining,
+        }
+        new = {
+            "qty_credited": new_qty,
+            "unit_price_snapshot": str(new_price),
+            "total_credit_amount": str(new_total),
+            "qty_remaining": new_remaining,
+        }
+
+        locked_customer = (
+            Customer.objects.select_for_update().filter(pk=line.customer_id).first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Customer not found.")
+
+        projected = locked_customer.debt_balance + delta
+        if projected < 0:
+            raise ValidationError("Edit would result in a negative debt balance.")
+
+        if locked_customer.credit_limit > 0 and projected > locked_customer.credit_limit:
+            raise ValidationError(
+                f"Credit limit exceeded. Limit is ₱{locked_customer.credit_limit:,.2f}, "
+                f"projected balance would be ₱{projected:,.2f}."
+            )
+
+        CreditLine.objects.filter(pk=line.pk).update(
+            qty_credited=new_qty,
+            qty_remaining=new_remaining,
+            unit_price_snapshot=new_price,
+            total_credit_amount=new_total,
+        )
+        Customer.objects.filter(pk=line.customer_id).update(
+            debt_balance=F("debt_balance") + delta,
+        )
+
+        line.refresh_from_db()
+        _log_ledger_edit(
+            record=line,
+            changes={k: _field_change(old[k], new[k]) for k in old},
+            performed_by=performed_by,
+        )
+        logger.info(
+            "[%s] Edited CreditLine id=%s customer_id=%s",
+            performed_by.id,
+            line.id,
+            line.customer_id,
+        )
+        return line
+
+
+def edit_credit_payment(
+    *,
+    payment_id: str,
+    customer: Customer,
+    qty_paid,
+    amount,
+    pin: str,
+    performed_by: "UserType",
+) -> CreditPayment:
+    """Edits a CreditPayment within the 24-hour editable window.
+
+    Updates the parent CreditLine's remaining quantity and the customer's
+    debt balance. Payments linked to a finalized remittance are blocked.
+    """
+    new_qty = _parse_int(qty_paid, "Quantity paid")
+    new_amount = _to_decimal(amount)
+    if new_amount <= 0:
+        raise ValidationError("Payment amount must be greater than zero.")
+    if new_qty < 0:
+        raise ValidationError("Quantity paid cannot be negative.")
+
+    with transaction.atomic():
+        payment = _resolve_credit_payment_for_edit(
+            payment_id=payment_id, customer=customer, user=performed_by
+        )
+        _verify_ledger_edit(record=payment, pin=pin, performed_by=performed_by)
+
+        old_qty = payment.containers_paid
+        old_amount = payment.amount
+        qty_delta = new_qty - old_qty
+
+        old = {
+            "containers_paid": payment.containers_paid,
+            "amount": str(payment.amount),
+        }
+        new = {
+            "containers_paid": new_qty,
+            "amount": str(new_amount),
+        }
+
+        credit_line = (
+            CreditLine.objects.select_for_update().filter(pk=payment.credit_line_id).first()
+        )
+        if credit_line is None:
+            raise ValidationError("Credit line not found.")
+
+        new_remaining = credit_line.qty_remaining - qty_delta
+        if new_remaining < 0:
+            raise ValidationError(
+                f"Cannot pay {new_qty} unit(s) — only "
+                f"{credit_line.qty_remaining + old_qty} were credited."
+            )
+        if new_remaining > credit_line.qty_credited:
+            raise ValidationError(
+                "Quantity paid cannot exceed the originally credited quantity."
+            )
+
+        locked_customer = (
+            Customer.objects.select_for_update().filter(pk=credit_line.customer_id).first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Customer not found.")
+
+        # Add back the old payment, then subtract the new payment.
+        projected = locked_customer.debt_balance + old_amount - new_amount
+        if projected < 0:
+            raise ValidationError("Edit would result in a negative debt balance.")
+
+        CreditPayment.objects.filter(pk=payment.pk).update(
+            containers_paid=new_qty,
+            amount=new_amount,
+        )
+        CreditLine.objects.filter(pk=credit_line.pk).update(
+            qty_remaining=F("qty_remaining") - qty_delta,
+        )
+        Customer.objects.filter(pk=credit_line.customer_id).update(
+            debt_balance=F("debt_balance") + old_amount - new_amount,
+        )
+
+        payment.refresh_from_db()
+        _log_ledger_edit(
+            record=payment,
+            changes={k: _field_change(old[k], new[k]) for k in old},
+            performed_by=performed_by,
+        )
+        logger.info(
+            "[%s] Edited CreditPayment id=%s credit_line_id=%s",
+            performed_by.id,
+            payment.id,
+            payment.credit_line_id,
+        )
+        return payment
+
+
+def edit_borrowed_container(
+    *,
+    borrowed_id: str,
+    customer: Customer,
+    qty_borrowed,
+    qty_returned,
+    pin: str,
+    performed_by: "UserType",
+) -> BorrowedContainer:
+    """Edits a BorrowedContainer within the 24-hour editable window.
+
+    Updates the customer's aggregate borrowed counter for the container
+    type so the outstanding total stays consistent.
+    """
+    new_borrowed = _parse_int(qty_borrowed, "Quantity borrowed")
+    new_returned = _parse_int(qty_returned, "Quantity returned")
+    if new_borrowed <= 0:
+        raise ValidationError("Quantity borrowed must be greater than zero.")
+    if new_returned < 0:
+        raise ValidationError("Quantity returned cannot be negative.")
+    if new_returned > new_borrowed:
+        raise ValidationError("Quantity returned cannot exceed quantity borrowed.")
+
+    with transaction.atomic():
+        borrowed = _resolve_borrowed_for_edit(
+            borrowed_id=borrowed_id, customer=customer, user=performed_by
+        )
+        _verify_ledger_edit(record=borrowed, pin=pin, performed_by=performed_by)
+
+        old_borrowed = borrowed.qty_borrowed
+        old_returned = borrowed.qty_returned
+        old_outstanding = old_borrowed - old_returned
+        new_outstanding = new_borrowed - new_returned
+        outstanding_delta = new_outstanding - old_outstanding
+
+        old = {
+            "qty_borrowed": borrowed.qty_borrowed,
+            "qty_returned": borrowed.qty_returned,
+        }
+        new = {
+            "qty_borrowed": new_borrowed,
+            "qty_returned": new_returned,
+        }
+
+        locked_customer = (
+            Customer.objects.select_for_update().filter(pk=borrowed.customer_id).first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Customer not found.")
+
+        field = _CONTAINER_FIELDS.get(borrowed.container_key)
+        if field is None:
+            raise ValidationError("Unknown container type.")
+
+        current = getattr(locked_customer, field)
+        if current + outstanding_delta < 0:
+            raise ValidationError(
+                "Edit would result in a negative unreturned container count."
+            )
+
+        BorrowedContainer.objects.filter(pk=borrowed.pk).update(
+            qty_borrowed=new_borrowed,
+            qty_returned=new_returned,
+        )
+        Customer.objects.filter(pk=borrowed.customer_id).update(
+            **{field: F(field) + outstanding_delta}
+        )
+
+        borrowed.refresh_from_db()
+        _log_ledger_edit(
+            record=borrowed,
+            changes={k: _field_change(old[k], new[k]) for k in old},
+            performed_by=performed_by,
+        )
+        logger.info(
+            "[%s] Edited BorrowedContainer id=%s customer_id=%s",
+            performed_by.id,
+            borrowed.id,
+            borrowed.customer_id,
+        )
+        return borrowed

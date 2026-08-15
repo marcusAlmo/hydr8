@@ -101,7 +101,7 @@ def _credit_sales_for_date(
         CreditLine.objects
         .filter(
             company_id=company_id,
-            created_at__date=remittance_date,
+            transaction_date=remittance_date,
         )
     )
     total = qs.aggregate(total=Sum("total_credit_amount"))["total"]
@@ -128,10 +128,12 @@ def _credit_and_repaid_counts(
             ...
         }
 
-    Credited counts come from ``CreditLine`` records created today where
-    ``care_of`` is an active rider.  Repaid counts come from
-    ``CreditPayment`` records created today (linked to credit lines whose
-    ``care_of`` is an active rider).
+    Credited counts come from ``CreditLine`` records whose
+    ``transaction_date`` is ``remittance_date`` and where ``care_of`` is an
+    active rider.  Repaid counts come from ``CreditPayment`` records whose
+    ``paid_at`` is ``remittance_date`` (falling back to ``created_at__date``
+    for legacy records) and that are linked to credit lines whose
+    ``care_of`` is an active rider.
     """
     rider_ids = {r.pk for r in riders_qs}
     company_id = getattr(user, "company_id", None)
@@ -143,7 +145,7 @@ def _credit_and_repaid_counts(
         CreditLine.objects
         .filter(
             company_id=company_id,
-            created_at__date=remittance_date,
+            transaction_date=remittance_date,
             care_of_id__in=rider_ids,
         )
         .values("care_of_id", "product_id", "qty_credited")
@@ -159,8 +161,11 @@ def _credit_and_repaid_counts(
         CreditPayment.objects
         .filter(
             company_id=company_id,
-            created_at__date=remittance_date,
             credit_line__care_of_id__in=rider_ids,
+        )
+        .filter(
+            Q(paid_at=remittance_date)
+            | Q(paid_at__isnull=True, created_at__date=remittance_date)
         )
         .filter(
             Q(remittance__isnull=True)
@@ -193,6 +198,9 @@ def _repayments_for_date(
     Payments linked to a FINALIZED remittance are excluded (they are
     locked and should not reappear on the Add Remittance form).
 
+    The ``paid_at`` date is used when set; otherwise the legacy
+    ``created_at__date`` fallback is used.
+
     Each entry is shaped for the Alpine.js form::
 
         {
@@ -215,7 +223,10 @@ def _repayments_for_date(
         CreditPayment.objects
         .filter(
             company_id=company_id,
-            created_at__date=remittance_date,
+        )
+        .filter(
+            Q(paid_at=remittance_date)
+            | Q(paid_at__isnull=True, created_at__date=remittance_date)
         )
         .filter(
             Q(remittance__isnull=True)
@@ -225,7 +236,7 @@ def _repayments_for_date(
             )
         )
         .select_related("credit_line__customer", "credit_line__product", "credit_line__care_of")
-        .order_by("created_at")
+        .order_by("paid_at", "created_at")
     )
 
     repayments: list[dict] = []

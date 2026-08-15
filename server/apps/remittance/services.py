@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.models import Product
@@ -89,6 +90,9 @@ def _collect_repayments(
 
     The key is ``care_of_id`` (an int) or ``None`` if the credit line
     has no ``care_of`` set.
+
+    The ``paid_at`` date is used when set; otherwise the legacy
+    ``created_at__date`` fallback is used.
     """
     rider_ids = {r.pk for r in active_riders}
 
@@ -98,10 +102,13 @@ def _collect_repayments(
         .filter(
             company_id=company_id,
             remittance__isnull=True,
-            created_at__date=remittance_date,
+        )
+        .filter(
+            Q(paid_at=remittance_date)
+            | Q(paid_at__isnull=True, created_at__date=remittance_date)
         )
         .select_related("credit_line__product", "credit_line__care_of")
-        .order_by("created_at")
+        .order_by("paid_at", "created_at")
     )
     if not payments:
         return {}

@@ -60,7 +60,30 @@ Expects context:
         </div>
 
         <!-- Scrollable Body -->
-        <div class="overflow-y-auto custom-scrollbar p-5 space-y-5">
+        <div class="overflow-y-auto custom-scrollbar p-5" x-data="{ tab: 'overview' }">
+
+            <!-- Tabs -->
+            <div class="flex items-center gap-2 mb-5 border-b border-outline-variant/20 pb-2">
+                <button
+                    type="button"
+                    @click="tab = 'overview'"
+                    class="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-t-lg transition-colors"
+                    :class="tab === 'overview' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-on-surface'">
+                    Overview
+                </button>
+                <button
+                    type="button"
+                    @click="tab = 'history'"
+                    hx-get="{% url 'customers:history' customer.id %}"
+                    hx-target="#customer-history-panel"
+                    hx-swap="innerHTML"
+                    class="px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-t-lg transition-colors"
+                    :class="tab === 'history' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:text-on-surface'">
+                    History
+                </button>
+            </div>
+
+            <div x-show="tab === 'overview'" class="space-y-5">
 
             <!-- Metadata Grid -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -196,6 +219,16 @@ Expects context:
                 </div>
             </div>
             {% endif %}
+
+            </div>
+
+            <!-- History Panel -->
+            <div id="customer-history-panel" x-show="tab === 'history'" class="h-full w-full">
+                <div class="bg-surface-container-low rounded-lg border border-outline-variant/20 p-8 text-center">
+                    <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2 animate-spin">progress_activity</span>
+                    <p class="text-sm text-on-surface-variant">Loading history…</p>
+                </div>
+            </div>
 
         </div>
 

@@ -1,0 +1,144 @@
+{% comment %}
+Inline edit form for a single ledger history entry.
+Expects:
+  - customer_id
+  - item_id
+  - item: dict with kind, display_id, and relevant fields
+  - error (optional): error message string
+{% endcomment %}
+
+<div
+    id="history-item-{{ item.display_id }}"
+    class="bg-surface-container-low rounded-lg p-4 border border-primary/30"
+    x-data="{ saving: false }"
+    @save-failed="saving = false"
+>
+    <form
+        hx-post="{% url 'customers:history_edit_submit' customer_id item_id %}"
+        hx-target="#customer-history-panel"
+        hx-swap="innerHTML"
+        x-on:submit="saving = true"
+        hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))"
+    >
+        {% csrf_token %}
+
+        {% if error %}
+        <div class="mb-3 px-3 py-2 bg-error/10 border border-error/20 rounded-lg text-error text-xs font-body-sm">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            {% if item.kind == 'credit_line' %}
+            <div>
+                <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Qty Credited</label>
+                <input
+                    type="number"
+                    name="qty_credited"
+                    min="1"
+                    value="{{ item.qty_credited }}"
+                    class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                    required
+                >
+            </div>
+            <div>
+                <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Unit Price (₱)</label>
+                <input
+                    type="number"
+                    step="0.01"
+                    name="unit_price"
+                    min="0.01"
+                    value="{{ item.unit_price }}"
+                    class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                    required
+                >
+            </div>
+            {% elif item.kind == 'credit_payment' %}
+            <div>
+                <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Qty Paid</label>
+                <input
+                    type="number"
+                    name="qty_paid"
+                    min="0"
+                    value="{{ item.qty_paid }}"
+                    class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                    required
+                >
+            </div>
+            <div>
+                <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Amount (₱)</label>
+                <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    min="0"
+                    value="{{ item.amount }}"
+                    class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                    required
+                >
+            </div>
+            {% else %}
+            <div>
+                <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Qty Borrowed</label>
+                <input
+                    type="number"
+                    name="qty_borrowed"
+                    min="1"
+                    value="{{ item.qty_borrowed }}"
+                    class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                    required
+                >
+            </div>
+            <div>
+                <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Qty Returned</label>
+                <input
+                    type="number"
+                    name="qty_returned"
+                    min="0"
+                    value="{{ item.qty_returned }}"
+                    class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                    required
+                >
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="mb-4">
+            <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">PIN</label>
+            <input
+                type="password"
+                inputmode="numeric"
+                name="pin"
+                maxlength="10"
+                autocomplete="off"
+                placeholder="Enter your PIN"
+                class="w-full bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+                required
+            >
+            <p class="text-[10px] text-on-surface-variant/70 mt-1">Enter your PIN to confirm this edit.</p>
+        </div>
+
+        <div class="flex items-center justify-end gap-2">
+            <button
+                type="button"
+                hx-get="{% url 'customers:history' customer_id %}"
+                hx-target="#customer-history-panel"
+                hx-swap="innerHTML"
+                class="px-3 py-1.5 bg-surface-container text-on-surface-variant text-xs font-bold rounded-lg hover:bg-surface-container-highest transition-colors"
+            >
+                Cancel
+            </button>
+            <button
+                type="submit"
+                :disabled="saving"
+                class="px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+                <span x-show="!saving">Save</span>
+                <span x-show="saving" x-cloak class="flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                    Saving…
+                </span>
+            </button>
+        </div>
+    </form>
+</div>

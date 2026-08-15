@@ -127,16 +127,26 @@ Expects context:
                                     </span>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2 flex-shrink-0">
-                                <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Returned</label>
-                                <input
-                                    type="number"
-                                    name="returned_{{ item.id }}"
-                                    min="0"
-                                    max="{{ item.outstanding }}"
-                                    value="0"
-                                    @input="totalReturned = Array.from($el.closest('form').querySelectorAll('[name^=returned_]')).reduce((s, el) => s + (parseInt(el.value) || 0), 0)"
-                                    class="w-20 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-1.5 transition-all duration-200">
+                            <div class="flex items-center gap-3 flex-shrink-0">
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Returned</label>
+                                    <input
+                                        type="number"
+                                        name="returned_{{ item.id }}"
+                                        min="0"
+                                        max="{{ item.outstanding }}"
+                                        value="0"
+                                        @input="totalReturned = Array.from($el.closest('form').querySelectorAll('[name^=returned_BC-]')).reduce((s, el) => s + (parseInt(el.value) || 0), 0)"
+                                        class="w-20 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-1.5 transition-all duration-200">
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Returned At</label>
+                                    <input
+                                        type="date"
+                                        name="returned_at_{{ item.id }}"
+                                        value="{% now 'Y-m-d' %}"
+                                        class="w-36 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -168,7 +178,7 @@ Expects context:
                                     </span>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-3 flex-shrink-0">
+                            <div class="flex items-center gap-3 flex-shrink-0 flex-wrap">
                                 <div class="flex flex-col items-end">
                                     <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Qty Paid</label>
                                     <input
@@ -191,6 +201,14 @@ Expects context:
                                         value="0.00"
                                         @input="totalPaid = Array.from($el.closest('form').querySelectorAll('[name^=amount_paid_]')).reduce((s, el) => s + (parseFloat(el.value) || 0), 0)"
                                         class="w-28 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Paid At</label>
+                                    <input
+                                        type="date"
+                                        name="paid_at_{{ item.id }}"
+                                        value="{% now 'Y-m-d' %}"
+                                        class="w-36 bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
                                 </div>
                             </div>
                         </div>

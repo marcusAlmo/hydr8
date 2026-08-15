@@ -1,4 +1,5 @@
 import json
+import re
 from functools import wraps
 
 from django.http import HttpResponse
@@ -20,6 +21,7 @@ from .selectors import (
     get_customer_collect_context,
     get_customer_detail_context,
     get_customer_edit_context,
+    get_customer_history_context,
     get_customer_list_context,
     get_customer_table_context,
     get_record_borrowed_context,
@@ -28,6 +30,9 @@ from .selectors import (
 from .services import (
     create_customer,
     delete_customer,
+    edit_borrowed_container,
+    edit_credit_line,
+    edit_credit_payment,
     record_customer_borrowed,
     record_customer_collection,
     record_customer_debt,
@@ -211,16 +216,20 @@ def customer_collect_submit_view(request, customer_id: str):
         return HttpResponse("Customer not found.", status=404)
 
     # Parse prefixed POST fields into structured lists.
-    #   returned_BC-{pk}  → container return quantity
-    #   qty_paid_CL-{pk}   → units paid on a credit line
-    #   amount_paid_CL-{pk}→ peso amount paid on a credit line
+    #   returned_BC-{pk}      → container return quantity
+    #   returned_at_BC-{pk}   → date the return was recorded
+    #   qty_paid_CL-{pk}      → units paid on a credit line
+    #   amount_paid_CL-{pk}   → peso amount paid on a credit line
+    #   paid_at_CL-{pk}       → date the payment was made
     returns: list[dict] = []
     payments: list[dict] = []
     for key, value in request.POST.items():
         if key.startswith("returned_BC-"):
+            borrowed_id = key[len("returned_BC-"):]
             returns.append({
-                "borrowed_id": key[len("returned_BC-"):],
+                "borrowed_id": borrowed_id,
                 "qty": value,
+                "returned_at": request.POST.get(f"returned_at_BC-{borrowed_id}", ""),
             })
         elif key.startswith("qty_paid_CL-"):
             cl_id = key[len("qty_paid_CL-"):]
@@ -228,6 +237,7 @@ def customer_collect_submit_view(request, customer_id: str):
                 "credit_line_id": cl_id,
                 "qty_paid": value,
                 "amount": request.POST.get(f"amount_paid_CL-{cl_id}", "0"),
+                "paid_at": request.POST.get(f"paid_at_CL-{cl_id}", ""),
             })
 
     try:
@@ -461,4 +471,199 @@ def customer_delete_view(request, customer_id: str):
         "showToast": {"msg": message, "type": "success"},
         "refreshCustomerTable": "",
     })
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Customer ledger history and edit views
+# ---------------------------------------------------------------------------
+
+def _parse_history_item_id(item_id: str) -> tuple[str, int]:
+    """Parses a ledger display id (``CL-1``, ``CP-1``, ``BC-1``) into (kind, pk)."""
+    m = re.fullmatch(r"(CL|CP|BC)-(\d+)", (item_id or "").strip().upper())
+    if not m:
+        return "", 0
+    return m.group(1), int(m.group(2))
+
+
+def _get_history_item(user, customer, kind: str, pk: int):
+    """Resolves the model instance for a history display id scoped to a customer."""
+    from .models import BorrowedContainer, CreditLine, CreditPayment
+
+    if kind == "CL":
+        return (
+            CreditLine.objects
+            .for_user(user)
+            .select_related("product", "care_of", "company")
+            .filter(pk=pk, customer=customer)
+            .first()
+        )
+    if kind == "CP":
+        return (
+            CreditPayment.objects
+            .for_user(user)
+            .select_related("credit_line__product", "remittance", "recorded_by", "company")
+            .filter(pk=pk, credit_line__customer=customer)
+            .first()
+        )
+    if kind == "BC":
+        return (
+            BorrowedContainer.objects
+            .for_user(user)
+            .select_related("care_of", "recorded_by", "company")
+            .filter(pk=pk, customer=customer)
+            .first()
+        )
+    return None
+
+
+def _history_item_context(item) -> dict:
+    """Builds the minimal context for an edit form from the resolved model."""
+    from .models import BorrowedContainer, CreditLine, CreditPayment
+
+    if isinstance(item, CreditLine):
+        return {
+            "kind": "credit_line",
+            "display_id": f"CL-{item.pk}",
+            "qty_credited": item.qty_credited,
+            "unit_price": str(item.unit_price_snapshot),
+        }
+    if isinstance(item, CreditPayment):
+        return {
+            "kind": "credit_payment",
+            "display_id": f"CP-{item.pk}",
+            "qty_paid": item.containers_paid,
+            "amount": str(item.amount),
+        }
+    if isinstance(item, BorrowedContainer):
+        return {
+            "kind": "borrowed",
+            "display_id": f"BC-{item.pk}",
+            "qty_borrowed": item.qty_borrowed,
+            "qty_returned": item.qty_returned,
+        }
+    return {}
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def customer_history_view(request, customer_id: str):
+    """HTMX endpoint — returns the customer ledger history tab."""
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+    context = get_customer_history_context(customer, request.user)
+    return render(request, "customers/partials/customer_history.html", context)
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def customer_history_edit_view(request, customer_id: str, item_id: str):
+    """HTMX endpoint — returns the edit form for a single ledger entry."""
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+
+    kind, pk = _parse_history_item_id(item_id)
+    if not kind:
+        return HttpResponse("Record not found.", status=404)
+    display_id = f"{kind}-{pk}"
+    item = _get_history_item(request.user, customer, kind, pk)
+    if item is None:
+        return HttpResponse("Record not found.", status=404)
+
+    context = {
+        "customer_id": customer_id,
+        "item_id": display_id,
+        "item": _history_item_context(item),
+    }
+    return render(request, "customers/partials/history_edit_form.html", context)
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
+    """HTMX endpoint — applies a ledger edit after PIN verification."""
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+
+    kind, pk = _parse_history_item_id(item_id)
+    if not kind:
+        return HttpResponse("Record not found.", status=404)
+    display_id = f"{kind}-{pk}"
+    pin = request.POST.get("pin", "")
+    try:
+        if kind == "CL":
+            edit_credit_line(
+                credit_line_id=str(pk),
+                customer=customer,
+                qty_credited=request.POST.get("qty_credited", ""),
+                unit_price=request.POST.get("unit_price", ""),
+                pin=pin,
+                performed_by=request.user,
+            )
+        elif kind == "CP":
+            edit_credit_payment(
+                payment_id=str(pk),
+                customer=customer,
+                qty_paid=request.POST.get("qty_paid", ""),
+                amount=request.POST.get("amount", ""),
+                pin=pin,
+                performed_by=request.user,
+            )
+        elif kind == "BC":
+            edit_borrowed_container(
+                borrowed_id=str(pk),
+                customer=customer,
+                qty_borrowed=request.POST.get("qty_borrowed", ""),
+                qty_returned=request.POST.get("qty_returned", ""),
+                pin=pin,
+                performed_by=request.user,
+            )
+        else:
+            raise ValidationError("Invalid record reference.")
+    except ValidationError as e:
+        msg = error_message(e)
+        item = _get_history_item(request.user, customer, kind, pk)
+        if item is not None:
+            response = render(
+                request,
+                "customers/partials/history_edit_form.html",
+                {
+                    "customer_id": customer_id,
+                    "item_id": display_id,
+                    "item": _history_item_context(item),
+                    "error": msg,
+                },
+                status=400,
+            )
+            response["HX-Retarget"] = f"#history-item-{display_id}"
+            response["HX-Reswap"] = "innerHTML"
+            response["HX-Trigger"] = json.dumps(
+                {"showToast": {"msg": msg, "type": "error"}}
+            )
+            return response
+        response = render(
+            request,
+            "customers/partials/form_error.html",
+            {"message": msg},
+            status=400,
+        )
+        response["HX-Trigger"] = json.dumps(
+            {"showToast": {"msg": msg, "type": "error"}}
+        )
+        return response
+
+    context = get_customer_history_context(customer, request.user)
+    response = render(request, "customers/partials/customer_history.html", context)
+    response["HX-Trigger"] = json.dumps(
+        {"showToast": {"msg": "Record updated.", "type": "success"}}
+    )
     return response
