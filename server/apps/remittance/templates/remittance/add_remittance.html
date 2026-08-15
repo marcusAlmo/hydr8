@@ -63,23 +63,27 @@
                              ? 'border-error/30'
                              : 'border-tertiary/30'">
 
-                    <!-- Panel header -->
-                    <div class="px-5 py-4 flex items-center justify-between gap-3"
-                         :class="existingRemittance && existingRemittance.status === 'FINALIZED'
-                                 ? 'bg-error-container/40'
-                                 : 'bg-tertiary-container/40'">
-                        <div class="flex items-center gap-3">
-                            <span class="material-symbols-outlined"
+                    <!-- Panel header (clickable accordion toggle) -->
+                    <button type="button"
+                            @click="existingPanelOpen = !existingPanelOpen"
+                            class="w-full px-5 py-4 flex items-center justify-between gap-3 text-left cursor-pointer select-none hover:bg-surface-container-low/40 transition-colors"
+                            :class="existingRemittance && existingRemittance.status === 'FINALIZED'
+                                    ? 'bg-error-container/40'
+                                    : 'bg-tertiary-container/40'"
+                            :aria-expanded="existingPanelOpen"
+                            aria-controls="existing-remittance-body">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="material-symbols-outlined shrink-0"
                                   :class="existingRemittance && existingRemittance.status === 'FINALIZED'
                                           ? 'text-error'
                                           : 'text-tertiary'"
                                   x-text="existingRemittance && existingRemittance.status === 'FINALIZED' ? 'lock' : 'draft'"></span>
-                            <div>
+                            <div class="min-w-0">
                                 <h3 class="font-headline-sm text-body-md font-bold text-on-surface">
                                     <span x-text="existingRemittance && existingRemittance.status === 'FINALIZED'
                                                   ? 'Finalized Remittance on this date' : 'Draft Remittance on this date'"></span>
                                 </h3>
-                                <p class="text-body-sm text-on-surface-variant">
+                                <p class="text-body-sm text-on-surface-variant truncate">
                                     Created by <span x-text="existingRemittance ? existingRemittance.created_by : ''" class="font-medium"></span>
                                     <template x-if="existingRemittance && existingRemittance.finalized_by">
                                         <span> · Finalized by <strong x-text="existingRemittance.finalized_by"></strong></span>
@@ -90,25 +94,33 @@
                                 </p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 shrink-0">
                             <span class="px-2.5 py-1 rounded-full font-label-caps text-label-caps uppercase tracking-wide"
                                   :class="existingRemittance && existingRemittance.status === 'FINALIZED'
                                           ? 'bg-error/15 text-error'
                                           : 'bg-tertiary/15 text-tertiary'"
                                   x-text="existingRemittance ? existingRemittance.status : ''"></span>
-                            <!-- Load draft button (drafts only) -->
+                            <!-- Load draft button (drafts only) — stop
+                                 propagation so clicking it doesn't toggle. -->
                             <button x-show="existingRemittance && existingRemittance.status === 'DRAFT' && pendingDraftState"
                                     type="button"
-                                    @click="showLoadDraftConfirm = true"
+                                    @click.stop="showLoadDraftConfirm = true"
                                     class="px-4 py-2 rounded-lg bg-primary text-on-primary font-medium flex items-center gap-2 hover:bg-primary-container transition-all active:scale-95">
                                 <span class="material-symbols-outlined text-[20px]">download</span>
                                 Load Draft
                             </button>
+                            <!-- Chevron rotates when open -->
+                            <span class="material-symbols-outlined text-on-surface-variant transition-transform duration-200"
+                                  :class="existingPanelOpen ? 'rotate-90' : ''">chevron_right</span>
                         </div>
-                    </div>
+                    </button>
 
-                    <!-- Panel body -->
-                    <div class="p-5 space-y-5">
+                    <!-- Panel body (collapsible) -->
+                    <div id="existing-remittance-body"
+                         x-show="existingPanelOpen"
+                         x-collapse.duration.200ms
+                         x-cloak
+                         class="p-5 space-y-5">
                         <!-- Totals strip -->
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3" x-data="{ t: existingRemittance ? existingRemittance.totals : {} }">
                             <div class="rounded-lg bg-surface-container-low p-3">
@@ -1685,6 +1697,7 @@
                 // selected date — populated by checkDate() so the
                 // user can see what's already saved before editing ----
                 existingRemittance: null,   // summary dict or null
+                existingPanelOpen: false,   // accordion collapsed by default
                 showLoadDraftConfirm: false,
                 pendingDraftState: null,    // draft_state awaiting confirm
 
