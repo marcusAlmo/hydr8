@@ -288,6 +288,7 @@ def list_riders_for_remittance(
             "selected": idx == 0,
             "commission_rates": commission_rates,
             "commission_override": "",
+            "remitted": "",
             "product_lines": [
                 {
                     "product_key": pk,
@@ -352,6 +353,7 @@ def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
             "rider_expenses": {str(rider_id): [{"description": str, "amount": str}, ...]},
             "rider_deductions": {str(rider_id): [{"description": str, "amount": str}, ...]},
             "rider_commission_overrides": {str(rider_id): str},
+            "rider_remittances": {str(rider_id): str},
             "expenses": [{"description": str, "amount": str, "confirmed": bool}, ...],
             "staff_data": {str(staff_id): {"salary_override": str, "deductions": [...]}},
             "other_sales": float,
@@ -377,6 +379,7 @@ def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
     rider_expenses: dict[str, list[dict]] = {}
     rider_deductions: dict[str, list[dict]] = {}
     rider_commission_overrides: dict[str, str] = {}
+    rider_remittances: dict[str, str] = {}
 
     rider_rows = (
         RemittanceRider.objects
@@ -416,6 +419,8 @@ def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
         ]
         if rr.commission_override is not None:
             rider_commission_overrides[rider_id] = str(rr.commission_override)
+        if rr.remitted is not None:
+            rider_remittances[rider_id] = str(rr.remitted)
 
     # Load unattributed (general) expenses — those without a remittance_rider.
     expenses = [
@@ -450,6 +455,7 @@ def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
         "rider_expenses": rider_expenses,
         "rider_deductions": rider_deductions,
         "rider_commission_overrides": rider_commission_overrides,
+        "rider_remittances": rider_remittances,
         "expenses": expenses,
         "staff_data": staff_data,
         "other_sales": float(draft.total_other_sales) if draft.total_other_sales else 0.0,
@@ -505,6 +511,7 @@ def get_add_remittance_context(
         rider_expenses = draft_state.get("rider_expenses", {})
         rider_deductions = draft_state.get("rider_deductions", {})
         rider_commission_overrides = draft_state.get("rider_commission_overrides", {})
+        rider_remittances = draft_state.get("rider_remittances", {})
         for rider in riders:
             rid = rider["id"]
             sold_map = rider_sold.get(rid)
@@ -516,6 +523,7 @@ def get_add_remittance_context(
             rider["expenses"] = rider_expenses.get(rid, [])
             rider["deductions"] = rider_deductions.get(rid, [])
             rider["commission_override"] = rider_commission_overrides.get(rid, "")
+            rider["remitted"] = rider_remittances.get(rid, "")
         expenses = draft_state["expenses"]
         offering_amount = draft_state["offering_amount"]
         other_sales = draft_state.get("other_sales", 0.0)

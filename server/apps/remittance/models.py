@@ -68,6 +68,7 @@ class RemittanceRider(models.Model):
     subtotal_payable = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     subtotal_commission = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     commission_override = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    remitted = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     company = models.ForeignKey(
         'settings.Company',
         on_delete=models.CASCADE,

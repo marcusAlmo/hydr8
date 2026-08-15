@@ -471,6 +471,13 @@ def _build_remittance(
         else:
             remittance_rider.commission_override = None
 
+        # Persist the cash amount the rider actually remitted (empty = not entered).
+        remitted_raw = rider_payload.get("remitted")
+        if remitted_raw not in (None, ""):
+            remittance_rider.remitted = _to_decimal(remitted_raw)
+        else:
+            remittance_rider.remitted = None
+
         remittance_rider.subtotal_payable = rider_payable
         remittance_rider.subtotal_commission = rider_commission
         remittance_rider.save(
@@ -478,6 +485,7 @@ def _build_remittance(
                 "subtotal_payable",
                 "subtotal_commission",
                 "commission_override",
+                "remitted",
                 "updated_at",
             ]
         )
@@ -591,11 +599,10 @@ def _build_remittance(
 
     # --- Persist staff payments and deductions ---------------------------
     active_staff_qs = _active_staff_qs(performed_by)
-    active_staff = {s.pk: s for s in active_staff_qs}
 
     for staff_entry in staff_data or []:
         staff_id = staff_entry.get("id")
-        staff_user = active_staff.get(staff_id)
+        staff_user = active_staff_qs.filter(id=staff_id).first()
         if staff_user is None:
             continue
 
