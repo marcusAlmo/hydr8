@@ -378,8 +378,16 @@ class CheckDateSummaryTests(TestCase):
         self.assertEqual(summary["status"], "FINALIZED")
         self.assertEqual(summary["finalized_by"], self.admin.full_name)
         self.assertIsNotNone(summary["finalized_at"])
-        # Finalized records are locked — no draft_state.
+        # Finalized records are locked — no draft_state (that key is for
+        # the editable "Load draft" flow which only applies to drafts).
         self.assertIsNone(summary["draft_state"])
+        # Finalized records carry a form_state so the Add Remittance page
+        # can populate the read-only finalized view in the form fields.
+        self.assertIsNotNone(summary["form_state"])
+        self.assertIn("rider_sold", summary["form_state"])
+        rider_key = str(self.rider.pk)
+        product_key = str(self.product.pk)
+        self.assertEqual(summary["form_state"]["rider_sold"][rider_key][product_key], 2)
         # Totals are populated from the finalized record.
         self.assertGreater(summary["totals"]["total_sales"], 0)
 
@@ -431,6 +439,9 @@ class CheckDateSummaryTests(TestCase):
         self.assertIsNotNone(data["summary"])
         self.assertEqual(data["summary"]["status"], "FINALIZED")
         self.assertIsNone(data["summary"]["draft_state"])
+        # Finalized records expose a form_state for the read-only view.
+        self.assertIsNotNone(data["summary"]["form_state"])
+        self.assertIn("rider_sold", data["summary"]["form_state"])
 
     def test_check_date_endpoint_summary_none_when_no_remittance(self):
         self.client.force_login(self.admin)

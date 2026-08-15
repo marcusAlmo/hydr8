@@ -102,13 +102,13 @@ class RepaymentSyncTests(TestCase):
             }],
         )
 
-    def _riders_data(self, remitted="80"):
+    def _riders_data(self, remitted="80", repaid=0):
         return [{
             "id": str(self.rider.pk),
             "commission_override": "",
             "remitted": remitted,
             "product_lines": [
-                {"product_key": str(self.product.pk), "sold": 2, "credited": 0, "borrowed": 0},
+                {"product_key": str(self.product.pk), "sold": 2, "credited": 0, "borrowed": 0, "repaid": repaid},
             ],
         }]
 
@@ -176,7 +176,7 @@ class RepaymentSyncTests(TestCase):
 
         rem = create_remittance(
             performed_by=self.admin,
-            riders_data=self._riders_data(remitted="200"),
+            riders_data=self._riders_data(remitted="200", repaid=3),
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
@@ -185,11 +185,11 @@ class RepaymentSyncTests(TestCase):
         )
         rem.refresh_from_db()
 
-        # total_sales = 2 sold * 40 = 80
-        self.assertEqual(rem.total_sales, Decimal("80.00"))
+        # total_sales = (2 sold - 0 credited + 3 repaid) * 40 = 5 * 40 = 200
+        self.assertEqual(rem.total_sales, Decimal("200.00"))
         # total_repayments_received = 120
         self.assertEqual(rem.total_repayments_received, Decimal("120.00"))
-        # commission = 2 sold * 5 (line) + 3 repaid * 5 (repayment) = 10 + 15 = 25
+        # commission = (2 sold - 0 credited + 3 repaid) * 5 = 5 * 5 = 25
         self.assertEqual(rem.total_commission, Decimal("25.00"))
         # net = total_remitted + other_sales - total_commission - total_salary
         #     = 200 + 0 - 25 - 0 = 175
@@ -203,17 +203,15 @@ class RepaymentSyncTests(TestCase):
 
     def test_create_remittance_with_rider_not_in_payload(self):
         """A rider with repayments but no sales in the payload still gets
-        a RemittanceRider row and their repayment commission is counted."""
+        a RemittanceRider row and their repayment commission is counted.
+        
+        This tests the separate repayment commission code path (lines 552-587)
+        for riders who collected repayments but are not in the payload."""
         self.credit_line = self._extend_credit(qty=5, care_of=self.rider)
         self._collect_payment(qty_paid=2, amount="80.00")
 
-        # Payload with empty product lines for the rider.
-        riders_data = [{
-            "id": str(self.rider.pk),
-            "commission_override": "",
-            "remitted": "80",
-            "product_lines": [],
-        }]
+        # Payload with NO rider entry at all (rider not in payload).
+        riders_data = []
         rem = create_remittance(
             performed_by=self.admin,
             riders_data=riders_data,
@@ -227,13 +225,13 @@ class RepaymentSyncTests(TestCase):
 
         self.assertEqual(rem.total_sales, Decimal("0.00"))
         self.assertEqual(rem.total_repayments_received, Decimal("80.00"))
-        # commission = 2 repaid * 5 = 10
+        # commission = 2 repaid * 5 = 10 (from the non-payload rider path)
         self.assertEqual(rem.total_commission, Decimal("10.00"))
         # net = total_remitted + other_sales - total_commission - total_salary
-        #     = 80 + 0 - 10 - 0 = 70
-        self.assertEqual(rem.net_profit, Decimal("70.00"))
+        #     = 0 + 0 - 10 - 0 = -10
+        self.assertEqual(rem.net_profit, Decimal("-10.00"))
 
-        # A RemittanceRider row exists for the rider.
+        # A RemittanceRider row exists for the rider (created by the repayment path).
         self.assertTrue(
             RemittanceRider.objects.filter(remittance=rem, rider=self.rider).exists()
         )
@@ -293,14 +291,21 @@ class RepaymentSyncTests(TestCase):
         self.assertEqual(payment.remittance_id, rem2.id)
 
     def test_repayment_commission_uses_driver_commission_rate(self):
-        """Repayment commission = qty_paid * DriverCommission.rate_per_unit."""
+        """Repayment commission = qty_paid * DriverCommission.rate_per_unit.
+        
+        When repaid units are included in product_lines, they earn commission
+        via the line commission calculation. When the rider is not in the
+        payload, they earn commission via the separate repayment path."""
         self.credit_line = self._extend_credit(qty=5, care_of=self.rider)
         self._collect_payment(qty_paid=4, amount="160.00")
 
         riders_data = [{
             "id": str(self.rider.pk),
             "commission_override": "",
-            "product_lines": [],
+            "remitted": "160",  # covers payable so balance deduction = 0
+            "product_lines": [
+                {"product_key": str(self.product.pk), "sold": 0, "credited": 0, "borrowed": 0, "repaid": 4},
+            ],
         }]
         rem = create_remittance(
             performed_by=self.admin,
@@ -312,7 +317,7 @@ class RepaymentSyncTests(TestCase):
             finalize=True,
         )
         rem.refresh_from_db()
-        # 4 repaid * 5.00 rate = 20.00
+        # 4 repaid * 5.00 rate = 20.00 (via line commission, no balance deduction)
         self.assertEqual(rem.total_commission, Decimal("20.00"))
 
     def test_no_repayments_yields_zero_total(self):
@@ -340,7 +345,7 @@ class RepaymentSyncTests(TestCase):
 
         rem = create_remittance(
             performed_by=self.admin,
-            riders_data=self._riders_data(remitted="80"),
+            riders_data=self._riders_data(remitted="80", repaid=0),
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
@@ -380,7 +385,7 @@ class RepaymentSyncTests(TestCase):
 
         rem = create_remittance(
             performed_by=self.admin,
-            riders_data=self._riders_data(remitted="160"),
+            riders_data=self._riders_data(remitted="160", repaid=2),
             expenses_data=[],
             manual_offering="0",
             tithe_rate="0.10",
@@ -391,7 +396,7 @@ class RepaymentSyncTests(TestCase):
 
         # total_repayments = 80 + 80 = 160
         self.assertEqual(rem.total_repayments_received, Decimal("160.00"))
-        # Commission = 2 sold * 5 (line) + 2 repaid * 5 (rider repayment) = 10 + 10 = 20
+        # Commission = (2 sold - 0 credited + 2 repaid) * 5 = 4 * 5 = 20
         # Staff repayment earns 0 commission.
         self.assertEqual(rem.total_commission, Decimal("20.00"))
         # net = total_remitted + other_sales - total_commission - total_salary
@@ -402,3 +407,108 @@ class RepaymentSyncTests(TestCase):
         self.assertEqual(
             CreditPayment.objects.filter(remittance=rem).count(), 2
         )
+
+    def test_balance_deduction_reduces_commission(self):
+        """When a rider remits less than their net remittable (payable −
+        expenses), the shortfall (balance deduction) reduces their commission,
+        matching the frontend's riderNetCommission() logic."""
+        # No credit line / repayments — isolate the balance deduction.
+        # sold=2, price=40 → payable=80, commission=2*5=10
+        # remitted=70 → net_remittable=80, balance=10, balance_deduction=10
+        # net_commission = max(0, 10 - 10 - 0) = 0
+        rem = create_remittance(
+            performed_by=self.admin,
+            riders_data=self._riders_data(remitted="70"),
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=timezone.localdate(),
+            finalize=True,
+        )
+        rem.refresh_from_db()
+
+        # Gross commission = 2 sold * 5 = 10, but balance deduction = 10
+        # (rider owed 80, remitted 70, shortfall 10) → net commission = 0
+        self.assertEqual(rem.total_commission, Decimal("0.00"))
+        # net = 70 + 0 - 0 - 0 = 70
+        self.assertEqual(rem.net_profit, Decimal("70.00"))
+
+    def test_balance_deduction_partially_reduces_commission(self):
+        """A partial shortfall reduces commission proportionally."""
+        # sold=10, price=40 → payable=400, commission=10*5=50
+        # remitted=380 → net_remittable=400, balance=20, balance_deduction=20
+        # net_commission = max(0, 50 - 20 - 0) = 30
+        riders_data = [{
+            "id": str(self.rider.pk),
+            "commission_override": "",
+            "remitted": "380",
+            "product_lines": [
+                {"product_key": str(self.product.pk), "sold": 10, "credited": 0, "borrowed": 0, "repaid": 0},
+            ],
+        }]
+        rem = create_remittance(
+            performed_by=self.admin,
+            riders_data=riders_data,
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=timezone.localdate(),
+            finalize=True,
+        )
+        rem.refresh_from_db()
+
+        # Gross = 50, balance deduction = 20 → net = 30
+        self.assertEqual(rem.total_commission, Decimal("30.00"))
+        # net = 380 + 0 - 30 - 0 = 350
+        self.assertEqual(rem.net_profit, Decimal("350.00"))
+
+    def test_expenses_increase_balance_deduction(self):
+        """Expenses reduce net_remittable, increasing the balance deduction."""
+        # sold=10, price=40 → payable=400, commission=10*5=50
+        # expenses=100 → net_remittable=300, remitted=280, balance=20
+        # net_commission = max(0, 50 - 20 - 0) = 30
+        riders_data = [{
+            "id": str(self.rider.pk),
+            "commission_override": "",
+            "remitted": "280",
+            "product_lines": [
+                {"product_key": str(self.product.pk), "sold": 10, "credited": 0, "borrowed": 0, "repaid": 0},
+            ],
+            "expenses": [{"description": "gas", "amount": "100"}],
+        }]
+        rem = create_remittance(
+            performed_by=self.admin,
+            riders_data=riders_data,
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=timezone.localdate(),
+            finalize=True,
+        )
+        rem.refresh_from_db()
+
+        # Gross = 50, balance deduction = 20 (300-280) → net = 30
+        self.assertEqual(rem.total_commission, Decimal("30.00"))
+        # net = 280 + 0 - 30 - 0 = 250
+        self.assertEqual(rem.net_profit, Decimal("250.00"))
+
+    def test_over_remittance_does_not_increase_commission(self):
+        """When a rider remits MORE than their net remittable, the balance
+        deduction is 0 (clamped) — the surplus does not add to commission."""
+        # sold=2, price=40 → payable=80, commission=2*5=10
+        # remitted=100 → net_remittable=80, balance=-20, balance_deduction=0
+        # net_commission = max(0, 10 - 0 - 0) = 10
+        rem = create_remittance(
+            performed_by=self.admin,
+            riders_data=self._riders_data(remitted="100"),
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=timezone.localdate(),
+            finalize=True,
+        )
+        rem.refresh_from_db()
+
+        self.assertEqual(rem.total_commission, Decimal("10.00"))
+        # net = 100 + 0 - 10 - 0 = 90
+        self.assertEqual(rem.net_profit, Decimal("90.00"))

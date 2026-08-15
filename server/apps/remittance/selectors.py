@@ -351,10 +351,19 @@ def list_staff_for_remittance(user: "UserType") -> list[dict]:
     return staff
 
 
-def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
-    """Loads an existing DRAFT remittance for ``remittance_date`` and
-    returns its form-facing state, or ``None`` if no draft (or a
-    finalized remittance) exists for the date.
+def _load_draft_state(
+    user: "UserType",
+    remittance_date: date,
+    status: "Remittance.StatusChoices | None" = Remittance.StatusChoices.DRAFT,
+) -> dict | None:
+    """Loads an existing remittance for ``remittance_date`` and returns its
+    form-facing state, or ``None`` if no matching record exists.
+
+    By default only ``DRAFT`` remittances are loaded (the Add Remittance
+    page hydrates the editable form from a draft).  Pass
+    ``status=Remittance.StatusChoices.FINALIZED`` (or ``status=None`` to
+    match any status) to load a finalized record's state — used to
+    populate the read-only finalized view.
 
     The returned dict is shaped for direct merging into the Add
     Remittance page context::
@@ -376,12 +385,10 @@ def _load_draft_state(user: "UserType", remittance_date: date) -> dict | None:
     ``sold`` field per product line.  ``qty_credited`` and
     ``borrowed_items`` are not used by the form and are omitted.
     """
-    draft = (
-        Remittance.objects
-        .for_user(user)
-        .filter(date=remittance_date, status=Remittance.StatusChoices.DRAFT)
-        .first()
-    )
+    qs = Remittance.objects.for_user(user).filter(date=remittance_date)
+    if status is not None:
+        qs = qs.filter(status=status)
+    draft = qs.first()
     if draft is None:
         return None
 
@@ -645,7 +652,9 @@ def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict
     For DRAFT remittances the response also carries a ``draft_state``
     key (the same shape produced by :func:`_load_draft_state`) so the
     frontend "Load draft" button can populate the editable form without
-    a second round-trip.
+    a second round-trip.  For FINALIZED remittances a ``form_state`` key
+    (same shape) is attached instead, so the Add Remittance page can
+    populate the read-only finalized view in the form fields.
 
     Returns::
 
@@ -699,6 +708,7 @@ def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict
                 "offering": float,
             },
             "draft_state": dict | None,   # only for DRAFT
+            "form_state": dict | None,    # only for FINALIZED
         }
     """
     rem = (
@@ -825,10 +835,17 @@ def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict
 
     # For drafts, attach the form-facing state so the "Load draft"
     # button can populate the editable form without a second request.
+    # For finalized records, attach the same shape under ``form_state``
+    # so the Add Remittance page can populate the read-only finalized
+    # view (the finalized data is shown in the form fields, disabled).
     if rem.status == Remittance.StatusChoices.DRAFT:
         summary["draft_state"] = _load_draft_state(user, target_date)
+        summary["form_state"] = None
     else:
         summary["draft_state"] = None
+        summary["form_state"] = _load_draft_state(
+            user, target_date, status=Remittance.StatusChoices.FINALIZED
+        )
 
     return summary
 

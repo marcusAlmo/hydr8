@@ -412,6 +412,7 @@ def _build_remittance(
 
         rider_payable = Decimal("0.00")
         rider_commission = Decimal("0.00")
+        rider_expenses_total = Decimal("0.00")
 
         for line in rider_payload.get("product_lines", []):
             product_key = line.get("product_key")
@@ -465,13 +466,12 @@ def _build_remittance(
             total_credit_sales += credit_total
             total_borrowed_items += borrowed
 
-        # Add repayment commission for this rider (collected today for
-        # credits they previously extended).  The repayment amounts
-        # themselves are tracked separately in total_repayments.
-        rider_repayment_commission = Decimal("0.00")
-        for cp, _product, rate in repayments_by_care_of.get(rider.id, []):
-            rider_repayment_commission += Decimal(cp.containers_paid) * rate
-        rider_commission += rider_repayment_commission
+        # Repayment commission is already included in line_commission above
+        # because the form populates line.repaid from _credit_and_repaid_counts,
+        # and paid = sold - credited + repaid (line 431), so repaid units
+        # earn commission via line_commission = paid × rate (line 443).
+        # The separate repayment commission loop (lines 552-587 below) handles
+        # riders NOT in the payload who have repayments but no product lines.
 
         # Apply a rider-level commission override if provided.
         override = rider_payload.get("commission_override")
@@ -517,6 +517,7 @@ def _build_remittance(
                 company=company,
                 recorded_by=performed_by,
             )
+            rider_expenses_total += exp_amount
             total_expenses += exp_amount
 
         # Persist rider commission deductions.
@@ -538,10 +539,27 @@ def _build_remittance(
             rider_deductions_total += ded_amount
 
         total_sales += rider_payable
+
+        # Compute balance deduction (lacking amount) to match the
+        # frontend's riderBalanceDeduction().  When a rider remits
+        # less than their net remittable (payable − expenses), the
+        # shortfall reduces their commission.
+        rider_remitted = remittance_rider.remitted or Decimal("0.00")
+        net_remittable = rider_payable - rider_expenses_total
+        balance = net_remittable - rider_remitted
+        balance_deduction = max(Decimal("0.00"), balance)
+
         # total_commission tracks the NET commission (gross minus
-        # deductions) to match the frontend's totalCommission() which
-        # sums riderNetCommission = riderCommission - riderDeductions.
-        total_commission += max(Decimal("0.00"), rider_commission - rider_deductions_total)
+        # balance deduction and rider deductions) to match the
+        # frontend's totalCommission() which sums:
+        #   riderNetCommission = riderCommission
+        #                        - riderBalanceDeduction
+        #                        - riderDeductions
+        net_commission = max(
+            Decimal("0.00"),
+            rider_commission - balance_deduction - rider_deductions_total,
+        )
+        total_commission += net_commission
 
     # Link ALL CreditPayments to this remittance and accumulate total
     # repayments.  Payments attributed to active riders (via care_of)

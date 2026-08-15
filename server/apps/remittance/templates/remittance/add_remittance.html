@@ -42,7 +42,9 @@
                             <label for="remittance-date" class="font-label-caps text-label-caps text-on-surface-variant">REMITTANCE DATE</label>
                             <input id="remittance-date" x-model="remittanceDate" @change="checkDate()" type="date" max="{{ default_date }}"
                                    class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <p x-show="dateExists" x-cloak class="text-error text-body-sm font-medium" x-text="dateError"></p>
+                            <p x-show="dateExists" x-cloak
+                               :class="isFinalizedView ? 'text-on-surface-variant text-body-sm' : 'text-error text-body-sm font-medium'"
+                               x-text="dateError"></p>
                             <p x-show="!dateExists && remittanceDate" x-cloak class="text-on-surface-variant text-body-sm" x-text="formatDate(remittanceDate)"></p>
                         </div>
                     </div>
@@ -50,12 +52,14 @@
             </div>
 
             <!-- ============ EXISTING REMITTANCE PANEL (read-only) ============ -->
-            <!-- Shown when the selected date already has a DRAFT or
-                 FINALIZED remittance in the DB.  Renders the saved
-                 record's details so the user can see what's there
-                 before deciding to edit (draft) or pick another date
-                 (finalized). -->
-            <div x-show="existingRemittance" x-cloak
+            <!-- Shown when the selected date already has a DRAFT
+                 remittance in the DB.  Renders the saved record's
+                 details so the user can see what's there before
+                 deciding to load it into the form.  FINALIZED records
+                 are loaded directly into the form fields (read-only)
+                 and are surfaced via the finalized banner below
+                 instead of this panel. -->
+            <div x-show="existingRemittance && !isFinalizedView" x-cloak
                  x-transition.opacity.duration.200ms
                  class="md:col-span-12 hydr8-reveal-item">
                 <div class="bg-surface-container-lowest border rounded-xl overflow-hidden"
@@ -260,6 +264,24 @@
                             <span class="text-on-surface-variant">Offering: <span class="font-data-mono text-primary" x-text="peso(existingRemittance ? existingRemittance.totals.offering : 0)"></span></span>
                             <span x-show="existingRemittance && existingRemittance.totals.other_sales > 0" class="text-on-surface-variant">Other Sales: <span class="font-data-mono text-tertiary" x-text="peso(existingRemittance ? existingRemittance.totals.other_sales : 0)"></span></span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ FINALIZED READ-ONLY BANNER ============ -->
+            <!-- Shown when the selected date has a FINALIZED remittance.
+                 The record's data is loaded into the form fields below
+                 (all disabled); this banner explains why. -->
+            <div x-show="isFinalizedView" x-cloak
+                 x-transition.opacity.duration.200ms
+                 class="md:col-span-12 hydr8-reveal-item">
+                <div class="bg-error-container/40 border border-error/30 rounded-xl px-5 py-3 flex items-center gap-3">
+                    <span class="material-symbols-outlined text-error shrink-0">lock</span>
+                    <div class="min-w-0">
+                        <p class="font-body-md text-on-surface font-medium">
+                            Finalized Remittance<span x-show="existingRemittance && existingRemittance.finalized_by"> · by <strong x-text="existingRemittance ? existingRemittance.finalized_by : ''"></strong></span><span x-show="existingRemittance && existingRemittance.finalized_at"> · <span x-text="existingRemittance ? existingRemittance.finalized_at : ''"></span></span>
+                        </p>
+                        <p class="text-body-sm text-on-surface-variant">All fields below are read-only. Pick another date to create a new remittance.</p>
                     </div>
                 </div>
             </div>
@@ -477,6 +499,7 @@
                                         </td>
                                         <td class="py-4 px-4">
                                             <input x-model.number="line.sold" type="number" min="0" step="1"
+                                                   :disabled="isFinalizedView"
                                                    @input="line.sold = sanitizeCount(line.sold)"
                                                    :style="`width: ${Math.max(3, String(line.sold ?? '').length + 1)}ch`"
                                                    :class="line.sold === '' || line.sold === null || (Number(line.sold)||0) < 0
@@ -493,7 +516,7 @@
                                         <td class="py-4 px-4 text-right font-data-mono text-tertiary"
                                             x-text="peso(lineCommission(line, selectedRiderId))"></td>
                                         <td class="py-4 px-2 text-right">
-                                            <button type="button" @click="removeLine(idx)"
+                                            <button type="button" x-show="!isFinalizedView" @click="removeLine(idx)"
                                                     class="text-on-surface-variant hover:text-error transition-colors"
                                                     title="Remove product">
                                                 <span class="material-symbols-outlined text-[20px]">delete</span>
@@ -506,7 +529,7 @@
                     </div>
 
                     <!-- Add Product combobox row -->
-                    <div class="relative" x-data="{ open: false, query: '' }">
+                    <div class="relative" x-data="{ open: false, query: '' }" x-show="!isFinalizedView">
                         <button type="button" @click="open = true"
                                 class="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-primary/40 text-primary font-medium hover:bg-primary/5 transition-all w-full justify-center">
                             <span class="material-symbols-outlined text-[20px]">add_circle</span>
@@ -574,19 +597,21 @@
                                         <tr class="hover:bg-surface-container-low/50 transition-colors">
                                             <td class="py-4 px-4 min-w-0">
                                                 <input x-model="exp.description" type="text" placeholder="Expense particulars..."
-                                                       class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors">
+                                                       :disabled="isFinalizedView"
+                                                       class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                                             </td>
                                             <td class="py-4 px-4 text-right whitespace-nowrap">
                                                 <div class="flex items-center justify-end gap-1">
                                                     <span class="font-data-mono text-data-mono text-error/60 shrink-0">−₱</span>
                                                     <input x-model="exp.amount" type="number" min="0" step="0.01"
+                                                           :disabled="isFinalizedView"
                                                            @input="exp.amount = sanitizeAmount(exp.amount)"
                                                            :style="`min-width: 10ch; width: ${Math.max(12, String(exp.amount ?? '').length + 6)}ch`"
                                                            class="bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-error/60 focus:border-error focus:border-b-2 text-right font-data-mono text-data-mono text-error focus:ring-0 focus:outline-none py-1 shrink-0 transition-[width] duration-75">
                                                 </div>
                                             </td>
                                             <td class="py-4 px-2 text-right">
-                                                <button type="button" @click="removeRiderExpense(idx)"
+                                                <button type="button" x-show="!isFinalizedView" @click="removeRiderExpense(idx)"
                                                         class="text-on-surface-variant hover:text-error transition-colors"
                                                         title="Remove expense">
                                                     <span class="material-symbols-outlined text-[20px]">delete</span>
@@ -595,7 +620,7 @@
                                         </tr>
                                     </template>
                                     <!-- Add Expense row (clickable, like Add Product) -->
-                                    <tr>
+                                    <tr x-show="!isFinalizedView">
                                         <td colspan="3" class="py-0">
                                             <button type="button" @click="addRiderExpense()"
                                                     class="flex items-center gap-2 px-4 py-3 w-full text-on-surface-variant font-medium hover:text-primary transition-colors">
@@ -653,19 +678,21 @@
                                         <tr class="hover:bg-surface-container-low/50 transition-colors">
                                             <td class="py-4 px-4 min-w-0">
                                                 <input x-model="ded.description" type="text" placeholder="Deduction particulars..."
-                                                       class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors">
+                                                       :disabled="isFinalizedView"
+                                                       class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                                             </td>
                                             <td class="py-4 px-4 text-right whitespace-nowrap">
                                                 <div class="flex items-center justify-end gap-1">
                                                     <span class="font-data-mono text-data-mono text-error/60 shrink-0">−₱</span>
                                                     <input x-model="ded.amount" type="number" min="0" step="0.01"
+                                                           :disabled="isFinalizedView"
                                                            @input="ded.amount = sanitizeAmount(ded.amount)"
                                                            :style="`min-width: 10ch; width: ${Math.max(12, String(ded.amount ?? '').length + 6)}ch`"
                                                            class="bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-error/60 focus:border-error focus:border-b-2 text-right font-data-mono text-data-mono text-error focus:ring-0 focus:outline-none py-1 shrink-0 transition-[width] duration-75">
                                                 </div>
                                             </td>
                                             <td class="py-4 px-2 text-right">
-                                                <button type="button" @click="removeRiderDeduction(idx)"
+                                                <button type="button" x-show="!isFinalizedView" @click="removeRiderDeduction(idx)"
                                                         class="text-on-surface-variant hover:text-error transition-colors"
                                                         title="Remove deduction">
                                                     <span class="material-symbols-outlined text-[20px]">delete</span>
@@ -674,7 +701,7 @@
                                         </tr>
                                     </template>
                                     <!-- Add Deduction row (clickable) -->
-                                    <tr>
+                                    <tr x-show="!isFinalizedView">
                                         <td colspan="3" class="py-0">
                                             <button type="button" @click="addRiderDeduction()"
                                                     class="flex items-center gap-2 px-4 py-3 w-full text-on-surface-variant font-medium hover:text-primary transition-colors">
@@ -726,6 +753,7 @@
                                         <span class="relative inline-flex items-center">
                                             <span class="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant/60 font-data-mono text-data-mono pointer-events-none">₱</span>
                                             <input x-model.number="selectedRider().remitted" type="number" min="0" step="0.01"
+                                                   :disabled="isFinalizedView"
                                                    placeholder="0.00"
                                                    @input="selectedRider().remitted = sanitizeAmount(selectedRider().remitted)"
                                                    :style="`min-width: 10ch; width: ${Math.max(12, String(selectedRider().remitted ?? '').length + 6)}ch`"
@@ -901,6 +929,7 @@
                                                 <div class="flex items-center justify-end gap-1">
                                                     <span class="font-data-mono text-data-mono text-on-surface-variant/50 shrink-0">₱</span>
                                                     <input x-model.number="selectedStaff().salary_override" type="number" min="0" step="0.01"
+                                                           :disabled="isFinalizedView"
                                                            :placeholder="selectedStaff().base_rate.toFixed(2)"
                                                            @input="selectedStaff().salary_override = sanitizeAmount(selectedStaff().salary_override)"
                                                            :style="`min-width: 10ch; width: ${Math.max(12, String(selectedStaff().salary_override ?? '').length + 6)}ch`"
@@ -911,7 +940,7 @@
                                                 </div>
                                             </td>
                                             <td class="py-4 px-2">
-                                                <button type="button" x-show="hasSalaryOverride(selectedStaffId)"
+                                                <button type="button" x-show="!isFinalizedView && hasSalaryOverride(selectedStaffId)"
                                                         @click="selectedStaff().salary_override = ''"
                                                         class="text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
                                                         title="Reset to daily rate">
@@ -925,19 +954,21 @@
                                             <tr class="hover:bg-surface-container-low/50 transition-colors">
                                                 <td class="py-4 px-4 min-w-0">
                                                     <input x-model="ded.description" type="text" placeholder="Deduction particulars..."
-                                                           class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors">
+                                                           :disabled="isFinalizedView"
+                                                           class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                                                 </td>
                                                 <td class="py-4 px-4 text-right whitespace-nowrap">
                                                     <div class="flex items-center justify-end gap-1">
                                                         <span class="font-data-mono text-data-mono text-error/60 shrink-0">−₱</span>
                                                         <input x-model="ded.amount" type="number" min="0" step="0.01"
+                                                               :disabled="isFinalizedView"
                                                                @input="ded.amount = sanitizeAmount(ded.amount)"
                                                                :style="`min-width: 10ch; width: ${Math.max(12, String(ded.amount ?? '').length + 6)}ch`"
                                                                class="bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-error/60 focus:border-error focus:border-b-2 text-right font-data-mono text-data-mono text-error focus:ring-0 focus:outline-none py-1 shrink-0 transition-[width] duration-75">
                                                     </div>
                                                 </td>
                                                 <td class="py-4 px-2 text-right">
-                                                    <button type="button" @click="removeDeduction(idx)"
+                                                    <button type="button" x-show="!isFinalizedView" @click="removeDeduction(idx)"
                                                             class="text-on-surface-variant hover:text-error transition-colors"
                                                             title="Remove deduction">
                                                         <span class="material-symbols-outlined text-[20px]">delete</span>
@@ -947,7 +978,7 @@
                                         </template>
 
                                         <!-- ===== ADD DEDUCTION ROW (clickable, like Add Product) ===== -->
-                                        <tr>
+                                        <tr x-show="!isFinalizedView">
                                             <td colspan="3" class="py-0">
                                                 <button type="button" @click="addDeduction()"
                                                         class="flex items-center gap-2 px-4 py-3 w-full text-on-surface-variant font-medium hover:text-primary transition-colors">
@@ -1057,7 +1088,8 @@
                             <div class="relative flex-1 flex items-center">
                                 <span class="absolute left-3 text-primary font-data-mono text-data-mono">₱</span>
                                 <input x-model="manualOffering" type="number" min="0" step="0.01" placeholder="0.00"
-                                       class="w-full bg-surface-container border-2 border-primary/20 rounded pl-8 pr-3 py-3 font-data-mono text-data-mono focus:ring-2 focus:ring-primary focus:border-transparent">
+                                       :disabled="isFinalizedView"
+                                       class="w-full bg-surface-container border-2 border-primary/20 rounded pl-8 pr-3 py-3 font-data-mono text-data-mono focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed">
                             </div>
                             <p class="text-body-sm text-on-surface-variant/70">Voluntary offering above the tithe.</p>
                         </div>
@@ -1082,8 +1114,9 @@
                             <div class="relative">
                                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 font-data-mono text-data-mono pointer-events-none">₱</span>
                                 <input x-model.number="otherSales" type="number" min="0" step="0.01" placeholder="0.00"
+                                       :disabled="isFinalizedView"
                                        @input="otherSales = sanitizeAmount(otherSales)"
-                                       class="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg pl-8 pr-3 py-2.5 font-data-mono text-data-mono text-primary text-right focus:ring-2 focus:ring-primary focus:border-transparent">
+                                       class="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg pl-8 pr-3 py-2.5 font-data-mono text-data-mono text-primary text-right focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-60 disabled:cursor-not-allowed">
                             </div>
                             <p class="font-body-sm text-on-surface-variant/70 mt-2">
                                 Sales that cannot be liquidated against listed products (e.g. miscellaneous items). Added to Total Sales.
@@ -1121,6 +1154,7 @@
                                                 <div class="relative w-32">
                                                     <span class="absolute left-2 top-1/2 -translate-y-1/2 text-tertiary/70 font-data-mono text-data-mono pointer-events-none">₱</span>
                                                     <input x-model.number="emp.commission_override" type="number" min="0" step="0.01"
+                                                           :disabled="isFinalizedView"
                                                            :placeholder="riderNetCommission(emp.id).toFixed(2)"
                                                            @input="emp.commission_override = sanitizeAmount(emp.commission_override)"
                                                            :class="hasCommissionOverride(emp.id) ? 'border-tertiary/50 bg-tertiary/5 text-tertiary font-bold' : 'border-outline-variant/20 text-tertiary'"
@@ -1129,7 +1163,7 @@
                                                 <div class="flex items-center gap-1.5">
                                                     <p class="font-label-caps text-[9px] text-on-surface-variant/60 uppercase"
                                                        x-text="hasCommissionOverride(emp.id) ? 'override · ' + peso(riderNetCommission(emp.id)) : 'net · ' + peso(riderNetCommission(emp.id))"></p>
-                                                    <button type="button" x-show="hasCommissionOverride(emp.id)"
+                                                    <button type="button" x-show="!isFinalizedView && hasCommissionOverride(emp.id)"
                                                             @click="emp.commission_override = ''"
                                                             class="text-on-surface-variant hover:text-error transition-colors"
                                                             title="Reset to computed commission">
@@ -1144,6 +1178,7 @@
                                                 <div class="relative w-32">
                                                     <span class="absolute left-2 top-1/2 -translate-y-1/2 text-secondary/70 font-data-mono text-data-mono pointer-events-none">₱</span>
                                                     <input x-model.number="emp.salary_override" type="number" min="0" step="0.01"
+                                                           :disabled="isFinalizedView"
                                                            :placeholder="staffNetSalary(emp.id).toFixed(2)"
                                                            @input="emp.salary_override = sanitizeAmount(emp.salary_override)"
                                                            :class="hasSalaryOverride(emp.id) ? 'border-secondary/50 bg-secondary/5 text-secondary font-bold' : 'border-outline-variant/20 text-secondary'"
@@ -1152,7 +1187,7 @@
                                                 <div class="flex items-center gap-1.5">
                                                     <p class="font-label-caps text-[9px] text-on-surface-variant/60 uppercase"
                                                        x-text="hasSalaryOverride(emp.id) ? 'override · ' + peso(staffNetSalary(emp.id)) : 'net · ' + peso(staffNetSalary(emp.id))"></p>
-                                                    <button type="button" x-show="hasSalaryOverride(emp.id)"
+                                                    <button type="button" x-show="!isFinalizedView && hasSalaryOverride(emp.id)"
                                                             @click="emp.salary_override = ''"
                                                             class="text-on-surface-variant hover:text-error transition-colors"
                                                             title="Reset to base salary">
@@ -1208,7 +1243,7 @@
                             </button>
                             {% endif %}
                             <button type="button" @click="showClearConfirm = true"
-                                    x-show="hasCache || hasDraft"
+                                    x-show="!isFinalizedView && (hasCache || hasDraft)"
                                     x-cloak
                                     class="w-full px-4 py-2.5 rounded-lg border border-error/30 text-error font-medium hover:bg-error/5 hover:border-error/50 transition-all flex items-center justify-center gap-2"
                                     title="Delete saved draft and clear form">
@@ -1710,6 +1745,13 @@
                 pendingDraftState: null,    // draft_state awaiting confirm
                 _previousRemittanceDate: null,  // tracked to clear old cache on date change
 
+                // ---- finalized read-only view ----
+                // When the selected date has a FINALIZED remittance, the
+                // saved record is loaded into the form fields and every
+                // input is disabled.  This flag drives the :disabled /
+                // x-show bindings across the form.
+                isFinalizedView: false,
+
                 // ---- tab state (Rider | Staff) ----
                 activeTab: 'rider',
 
@@ -1777,13 +1819,19 @@
                 },
                 async checkDate() {
                     const iso = this.remittanceDate;
+                    // If we were viewing a finalized record, drop its data
+                    // so it doesn't leak into the newly selected date.
+                    const wasFinalized = this.isFinalizedView;
+                    this.isFinalizedView = false;
                     if (!iso) {
                         this.dateExists = false;
                         this.dateError = '';
                         this.existingRemittance = null;
                         this.pendingDraftState = null;
+                        if (wasFinalized) this._resetFormFields();
                         return;
                     }
+                    if (wasFinalized) this._resetFormFields();
                     // Clear the previous date's localStorage cache so stale
                     // entries don't accumulate when the user switches dates.
                     if (this._previousRemittanceDate && this._previousRemittanceDate !== iso) {
@@ -1824,8 +1872,16 @@
                                 this._lastSnapshot = JSON.stringify(this._extractCacheState());
                             } else {
                                 this.dateExists = true;
-                                this.dateError = 'A finalized remittance for ' + this.formatDate(iso) + ' already exists. Please choose another date.';
+                                this.dateError = 'This date has a finalized remittance — shown read-only below. Choose another date to create a new entry.';
                                 this.pendingDraftState = null;
+                                // Load the finalized record into the form
+                                // fields and lock them as read-only.
+                                const formState = data.summary && data.summary.form_state
+                                    ? data.summary.form_state : null;
+                                if (formState) {
+                                    this.applyDraftState(formState);
+                                    this.isFinalizedView = true;
+                                }
                             }
                         } else {
                             // No record exists for this date — reset the form
@@ -2529,6 +2585,10 @@
                 _startAutoSave() {
                     if (this._autoSaveTimer) clearInterval(this._autoSaveTimer);
                     this._autoSaveTimer = setInterval(() => {
+                        // Don't persist anything while viewing a finalized
+                        // record — its data is read-only and shouldn't be
+                        // cached as if it were a user-entered draft.
+                        if (this.isFinalizedView) return;
                         try {
                             const snapshot = JSON.stringify(this._extractCacheState());
                             if (snapshot !== this._lastSnapshot) {
