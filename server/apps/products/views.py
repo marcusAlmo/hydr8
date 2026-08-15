@@ -75,7 +75,7 @@ def _serialize_for_alpine(data: dict) -> dict:
     return out
 
 
-def _is_admin_or_staff(user) -> bool:
+def _is_admin(user) -> bool:
     """Returns True if the user may mutate products/commission rates.
 
     Restricted to Admin role (and platform superusers). Staff users get a
@@ -183,7 +183,7 @@ def products_save_view(request):
     contains the real DB id and formatted values for each new product so
     the client can promote draft rows to read-only rows.
     """
-    if not _is_admin_or_staff(request.user):
+    if not _is_admin(request.user):
         return _forbidden()
 
     try:
@@ -290,7 +290,7 @@ def commission_save_view(request):
     atomically via ``save_commission_matrix``; any failure rolls back
     the whole batch.
     """
-    if not _is_admin_or_staff(request.user):
+    if not _is_admin(request.user):
         return _forbidden()
 
     try:
@@ -333,7 +333,7 @@ def commission_bulk_set_view(request):
           "rate": "5.00"
         }
     """
-    if not _is_admin_or_staff(request.user):
+    if not _is_admin(request.user):
         return _forbidden()
 
     try:

@@ -26,6 +26,8 @@ from apps.core.models import Product
 from apps.users.models import DriverCommission
 
 if TYPE_CHECKING:
+    import uuid
+
     from apps.users.models import User as UserType
 
 
@@ -53,7 +55,7 @@ def _get_tenant_product(product_id: int, user: "UserType"):
     )
 
 
-def _get_tenant_driver(driver_id, user: "UserType"):
+def _get_tenant_driver(driver_id: uuid.UUID | str, user: "UserType"):
     """Fetches an active, non-deleted driver scoped to the user's tenant."""
     from apps.users.models import User
     return (
@@ -130,7 +132,7 @@ def create_product(
             "A product with this name and variation already exists."
         )
 
-    product = Product.create(
+    product = Product.objects.create(
         name=name,
         variation=variation,
         price=price_decimal,
@@ -285,7 +287,7 @@ def delete_product(*, product_id: int, performed_by: "UserType") -> Product:
 
 def set_commission_rate(
     *,
-    driver_id,
+    driver_id: uuid.UUID | str,
     product_id: int,
     rate: str | Decimal,
     performed_by: "UserType",

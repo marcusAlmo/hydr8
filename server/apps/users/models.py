@@ -121,6 +121,9 @@ class User(AbstractUser):
 
     class Meta:
         db_table = 'users_user'
+        indexes = [
+            models.Index(fields=['company', 'deleted_at', 'deactivated_at', 'is_active']),
+        ]
 
     def set_password(self, raw_password: str) -> None:
         """Hashes the raw password and records its 90-day expiry."""
@@ -201,6 +204,10 @@ class DriverCommission(models.Model):
 
     class Meta:
         db_table = 'users_driver_commission'
+        indexes = [
+            models.Index(fields=['company', 'driver', 'product']),
+            models.Index(fields=['company', 'product']),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'driver', 'product'],
