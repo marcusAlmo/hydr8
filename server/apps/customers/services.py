@@ -785,6 +785,26 @@ def _log_ledger_edit(*, record, changes: dict, performed_by: "UserType") -> None
     )
 
 
+def _log_ledger_delete(*, record, performed_by: "UserType") -> None:
+    """Creates a manual LogEntry for a ledger record deletion."""
+    content_type = ContentType.objects.get_for_model(record)
+    LogEntry.objects.create(
+        content_type=content_type,
+        object_pk=str(record.pk),
+        object_repr=str(record),
+        action=LogEntry.Action.DELETE,
+        actor=performed_by,
+        actor_email=performed_by.email,
+        changes={
+            "deleted": ["", str(record.pk)],
+        },
+        additional_data={
+            "event": "ledger_delete",
+            "company_id": record.company_id,
+        },
+    )
+
+
 def _field_change(old, new):
     """Normalizes values for the audit log changes dict."""
     return [str(old), str(new)]
@@ -1135,3 +1155,223 @@ def edit_borrowed_container(
             borrowed.customer_id,
         )
         return borrowed
+
+
+# ---------------------------------------------------------------------------
+# Ledger history delete services (admin-only)
+# ---------------------------------------------------------------------------
+# Deletion is restricted to Admin users.  All deletes require PIN
+# verification (reusing the same gate as edits) and recompute the
+# customer's debt balance / aggregate borrowed counters so the ledger
+# stays consistent.
+#
+# CreditPayment.remittance uses on_delete=PROTECT, so payments linked to
+# a remittance cannot be deleted while that remittance exists.  The
+# services below block early with a clear message when a deletion would
+# violate that constraint.
+
+
+def _verify_ledger_delete(*, record, pin: str, performed_by: "UserType") -> None:
+    """Validates admin role and PIN before a ledger record deletion.
+
+    Deletion is admin-only.  PIN is always required (even for admins) so
+    that accidental clicks cannot destroy financial records without a
+    deliberate, authenticated confirmation.
+    """
+    if not is_admin(performed_by):
+        raise ValidationError("Only administrators may delete ledger records.")
+
+    # Reuse the edit gate for PIN + (admin-bypassed) immutability checks.
+    _verify_ledger_edit(record=record, pin=pin, performed_by=performed_by)
+
+
+def delete_credit_line(
+    *,
+    credit_line_id: str,
+    customer: Customer,
+    pin: str,
+    performed_by: "UserType",
+) -> None:
+    """Deletes a CreditLine and cascades its non-remittance payments.
+
+    Restores the customer's debt balance by the outstanding portion
+    (``total_credit_amount`` minus the sum of payment amounts already
+    collected).  All child ``CreditPayment`` rows are deleted alongside
+    the line.
+
+    Raises ``ValidationError`` if:
+      - the caller is not an admin
+      - the PIN is missing/incorrect
+      - any payment is linked to a remittance (PROTECT constraint would
+        block the delete — the admin must delete the remittance first)
+      - the delete would drive the debt balance negative
+    """
+    with transaction.atomic():
+        line = _resolve_credit_line_for_edit(
+            credit_line_id=credit_line_id, customer=customer, user=performed_by
+        )
+        _verify_ledger_delete(record=line, pin=pin, performed_by=performed_by)
+
+        payments = list(line.payments.select_for_update(of=("self",)))
+        remittance_linked = [p for p in payments if p.remittance_id is not None]
+        if remittance_linked:
+            raise ValidationError(
+                "Cannot delete this credit line — one or more payments are "
+                "linked to a remittance. Remove the remittance linkage first."
+            )
+
+        locked_customer = (
+            Customer.objects.select_for_update().filter(pk=line.customer_id).first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Customer not found.")
+
+        collected = sum((p.amount for p in payments), Decimal("0.00"))
+        outstanding = line.total_credit_amount - collected
+        projected = locked_customer.debt_balance - outstanding
+        if projected < 0:
+            raise ValidationError(
+                "Delete would result in a negative debt balance."
+            )
+
+        # Audit-log the line and each cascaded payment BEFORE deleting,
+        # while the rows still exist for object_repr.
+        _log_ledger_delete(record=line, performed_by=performed_by)
+        for p in payments:
+            _log_ledger_delete(record=p, performed_by=performed_by)
+
+        # Delete payments first (child), then the line (parent).
+        for p in payments:
+            p.delete()
+        line.delete()
+
+        Customer.objects.filter(pk=line.customer_id).update(
+            debt_balance=F("debt_balance") - outstanding,
+        )
+
+        logger.info(
+            "[%s] Deleted CreditLine id=%s customer_id=%s outstanding=%s "
+            "cascade_payments=%d",
+            performed_by.id,
+            line.id,
+            line.customer_id,
+            outstanding,
+            len(payments),
+        )
+
+
+def delete_credit_payment(
+    *,
+    payment_id: str,
+    customer: Customer,
+    pin: str,
+    performed_by: "UserType",
+) -> None:
+    """Deletes a single CreditPayment and restores the debt balance.
+
+    Restores the parent ``CreditLine.qty_remaining`` by the payment's
+    ``containers_paid`` and reduces ``Customer.debt_balance`` by the
+    payment ``amount``.
+
+    Raises ``ValidationError`` if:
+      - the caller is not an admin
+      - the PIN is missing/incorrect
+      - the payment is linked to a remittance (PROTECT constraint)
+    """
+    with transaction.atomic():
+        payment = _resolve_credit_payment_for_edit(
+            payment_id=payment_id, customer=customer, user=performed_by
+        )
+        _verify_ledger_delete(record=payment, pin=pin, performed_by=performed_by)
+
+        if payment.remittance_id is not None:
+            raise ValidationError(
+                "Cannot delete a payment linked to a remittance. "
+                "Remove the remittance linkage first."
+            )
+
+        credit_line = (
+            CreditLine.objects.select_for_update().filter(pk=payment.credit_line_id).first()
+        )
+        if credit_line is None:
+            raise ValidationError("Credit line not found.")
+
+        locked_customer = (
+            Customer.objects.select_for_update().filter(pk=credit_line.customer_id).first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Customer not found.")
+
+        _log_ledger_delete(record=payment, performed_by=performed_by)
+
+        payment.delete()
+        CreditLine.objects.filter(pk=credit_line.pk).update(
+            qty_remaining=F("qty_remaining") + payment.containers_paid,
+        )
+        Customer.objects.filter(pk=credit_line.customer_id).update(
+            debt_balance=F("debt_balance") + payment.amount,
+        )
+
+        logger.info(
+            "[%s] Deleted CreditPayment id=%s credit_line_id=%s amount=%s",
+            performed_by.id,
+            payment.id,
+            payment.credit_line_id,
+            payment.amount,
+        )
+
+
+def delete_borrowed_container(
+    *,
+    borrowed_id: str,
+    customer: Customer,
+    pin: str,
+    performed_by: "UserType",
+) -> None:
+    """Deletes a BorrowedContainer and restores the aggregate counter.
+
+    Reduces the customer's aggregate borrowed counter for the container
+    type by the outstanding quantity (``qty_borrowed - qty_returned``).
+
+    Raises ``ValidationError`` if:
+      - the caller is not an admin
+      - the PIN is missing/incorrect
+      - the delete would drive the aggregate counter negative
+    """
+    with transaction.atomic():
+        borrowed = _resolve_borrowed_for_edit(
+            borrowed_id=borrowed_id, customer=customer, user=performed_by
+        )
+        _verify_ledger_delete(record=borrowed, pin=pin, performed_by=performed_by)
+
+        locked_customer = (
+            Customer.objects.select_for_update().filter(pk=borrowed.customer_id).first()
+        )
+        if locked_customer is None:
+            raise ValidationError("Customer not found.")
+
+        field = _CONTAINER_FIELDS.get(borrowed.container_key)
+        if field is None:
+            raise ValidationError("Unknown container type.")
+
+        outstanding = borrowed.qty_borrowed - borrowed.qty_returned
+        current = getattr(locked_customer, field)
+        if current - outstanding < 0:
+            raise ValidationError(
+                "Delete would result in a negative unreturned container count."
+            )
+
+        _log_ledger_delete(record=borrowed, performed_by=performed_by)
+
+        borrowed.delete()
+        Customer.objects.filter(pk=borrowed.customer_id).update(
+            **{field: F(field) - outstanding}
+        )
+
+        logger.info(
+            "[%s] Deleted BorrowedContainer id=%s customer_id=%s outstanding=%d",
+            performed_by.id,
+            borrowed.id,
+            borrowed.customer_id,
+            outstanding,
+        )

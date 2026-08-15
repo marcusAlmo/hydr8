@@ -21,6 +21,7 @@ from .selectors import (
     get_remittance_date_data,
     get_remittance_history_context,
     get_remittance_row,
+    get_remittance_summary_for_date,
     remittance_exists_for_date,
     remittance_status_for_date,
 )
@@ -288,6 +289,14 @@ def check_remittance_date_view(request):
     if status != "FINALIZED":
         credit_data = get_remittance_date_data(request.user, target_date)
 
+    # When a remittance exists (draft or finalized), attach a full
+    # read-only summary so the frontend can display the saved record
+    # below the date field.  For drafts, the summary also carries a
+    # ``draft_state`` the "Load draft" button can apply to the form.
+    summary = None
+    if exists:
+        summary = get_remittance_summary_for_date(request.user, target_date)
+
     return JsonResponse({
         "ok": True,
         "exists": exists,
@@ -295,6 +304,7 @@ def check_remittance_date_view(request):
         "repayments": credit_data["repayments"] if credit_data else [],
         "total_credits": credit_data["total_credits"] if credit_data else 0,
         "credit_repaid_counts": credit_data["credit_repaid_counts"] if credit_data else {},
+        "summary": summary,
     })
 
 

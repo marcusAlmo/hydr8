@@ -16,7 +16,10 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.customers.services import record_customer_collection, record_customer_debt
-from apps.remittance.selectors import get_remittance_date_data
+from apps.remittance.selectors import (
+    get_remittance_date_data,
+    get_remittance_summary_for_date,
+)
 from apps.users.models import DriverCommission, Role, User
 
 
@@ -278,3 +281,165 @@ class CheckDateCreditDataTests(TestCase):
         # Repayments should still be returned for a draft date.
         self.assertEqual(len(data["repayments"]), 1)
         self.assertEqual(data["total_credits"], 200.0)
+
+
+class CheckDateSummaryTests(TestCase):
+    """Tests for the read-only ``summary`` payload returned by the
+    check-date endpoint when a draft or finalized remittance exists for
+    the selected date."""
+
+    def setUp(self):
+        cache.clear()
+        self.admin_role, _ = Role.objects.get_or_create(name="Admin")
+        self.driver_role, _ = Role.objects.get_or_create(name="Driver")
+
+        self.admin = User.objects.create_user(
+            username="admin_sum",
+            password="securepassword123",
+            first_name="Ad",
+            last_name="Min",
+            role=self.admin_role,
+        )
+        self.rider = User.objects.create_user(
+            username="rider_sum",
+            password="securepassword123",
+            first_name="Ri",
+            last_name="Der",
+            role=self.driver_role,
+        )
+        self.product = Product.objects.create(
+            name="Alkaline",
+            variation="Round",
+            price=Decimal("40.00"),
+        )
+        DriverCommission.objects.create(
+            driver=self.rider,
+            product=self.product,
+            rate_per_unit=Decimal("5.00"),
+        )
+        self.today = timezone.localdate()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _rider_payload(self, sold=2):
+        return [{
+            "id": str(self.rider.pk),
+            "commission_override": "",
+            "product_lines": [
+                {"product_key": str(self.product.pk), "sold": sold,
+                 "credited": 0, "borrowed": 0},
+            ],
+        }]
+
+    # --- selector -----------------------------------------------------------
+
+    def test_selector_returns_none_when_no_remittance(self):
+        self.assertIsNone(
+            get_remittance_summary_for_date(self.admin, self.today)
+        )
+
+    def test_selector_returns_summary_for_draft(self):
+        from apps.remittance.services import save_remittance_draft
+        save_remittance_draft(
+            performed_by=self.admin,
+            riders_data=self._rider_payload(sold=3),
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=self.today,
+        )
+        summary = get_remittance_summary_for_date(self.admin, self.today)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["status"], "DRAFT")
+        self.assertEqual(summary["date"], self.today.isoformat())
+        self.assertEqual(summary["created_by"], self.admin.full_name)
+        self.assertEqual(len(summary["riders"]), 1)
+        self.assertEqual(summary["riders"][0]["name"], self.rider.full_name)
+        self.assertEqual(len(summary["riders"][0]["product_lines"]), 1)
+        self.assertEqual(summary["riders"][0]["product_lines"][0]["qty_sold"], 3)
+        # Drafts carry a form-facing draft_state for the "Load draft" button.
+        self.assertIsNotNone(summary["draft_state"])
+        self.assertIn("rider_sold", summary["draft_state"])
+
+    def test_selector_returns_summary_for_finalized_without_draft_state(self):
+        from apps.remittance.services import create_remittance
+        create_remittance(
+            performed_by=self.admin,
+            riders_data=self._rider_payload(sold=2),
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=self.today,
+            finalize=True,
+        )
+        summary = get_remittance_summary_for_date(self.admin, self.today)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["status"], "FINALIZED")
+        self.assertEqual(summary["finalized_by"], self.admin.full_name)
+        self.assertIsNotNone(summary["finalized_at"])
+        # Finalized records are locked — no draft_state.
+        self.assertIsNone(summary["draft_state"])
+        # Totals are populated from the finalized record.
+        self.assertGreater(summary["totals"]["total_sales"], 0)
+
+    # --- endpoint -----------------------------------------------------------
+
+    def test_check_date_endpoint_includes_summary_for_draft(self):
+        from apps.remittance.services import save_remittance_draft
+        save_remittance_draft(
+            performed_by=self.admin,
+            riders_data=self._rider_payload(sold=1),
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=self.today,
+        )
+        self.client.force_login(self.admin)
+        resp = self.client.get(
+            reverse("remittance:check_date"),
+            {"date": self.today.isoformat()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["exists"])
+        self.assertEqual(data["status"], "DRAFT")
+        self.assertIsNotNone(data["summary"])
+        self.assertEqual(data["summary"]["status"], "DRAFT")
+        self.assertIsNotNone(data["summary"]["draft_state"])
+
+    def test_check_date_endpoint_includes_summary_for_finalized(self):
+        from apps.remittance.services import create_remittance
+        create_remittance(
+            performed_by=self.admin,
+            riders_data=self._rider_payload(sold=2),
+            expenses_data=[],
+            manual_offering="0",
+            tithe_rate="0.10",
+            remittance_date=self.today,
+            finalize=True,
+        )
+        self.client.force_login(self.admin)
+        resp = self.client.get(
+            reverse("remittance:check_date"),
+            {"date": self.today.isoformat()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["exists"])
+        self.assertEqual(data["status"], "FINALIZED")
+        self.assertIsNotNone(data["summary"])
+        self.assertEqual(data["summary"]["status"], "FINALIZED")
+        self.assertIsNone(data["summary"]["draft_state"])
+
+    def test_check_date_endpoint_summary_none_when_no_remittance(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(
+            reverse("remittance:check_date"),
+            {"date": self.today.isoformat()},
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertFalse(data["exists"])
+        self.assertIsNone(data["summary"])
+

@@ -49,6 +49,201 @@
                 </div>
             </div>
 
+            <!-- ============ EXISTING REMITTANCE PANEL (read-only) ============ -->
+            <!-- Shown when the selected date already has a DRAFT or
+                 FINALIZED remittance in the DB.  Renders the saved
+                 record's details so the user can see what's there
+                 before deciding to edit (draft) or pick another date
+                 (finalized). -->
+            <div x-show="existingRemittance" x-cloak
+                 x-transition.opacity.duration.200ms
+                 class="md:col-span-12 hydr8-reveal-item">
+                <div class="bg-surface-container-lowest border rounded-xl overflow-hidden"
+                     :class="existingRemittance && existingRemittance.status === 'FINALIZED'
+                             ? 'border-error/30'
+                             : 'border-tertiary/30'">
+
+                    <!-- Panel header -->
+                    <div class="px-5 py-4 flex items-center justify-between gap-3"
+                         :class="existingRemittance && existingRemittance.status === 'FINALIZED'
+                                 ? 'bg-error-container/40'
+                                 : 'bg-tertiary-container/40'">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined"
+                                  :class="existingRemittance && existingRemittance.status === 'FINALIZED'
+                                          ? 'text-error'
+                                          : 'text-tertiary'"
+                                  x-text="existingRemittance && existingRemittance.status === 'FINALIZED' ? 'lock' : 'draft'"></span>
+                            <div>
+                                <h3 class="font-headline-sm text-body-md font-bold text-on-surface">
+                                    <span x-text="existingRemittance && existingRemittance.status === 'FINALIZED'
+                                                  ? 'Finalized Remittance on this date' : 'Draft Remittance on this date'"></span>
+                                </h3>
+                                <p class="text-body-sm text-on-surface-variant">
+                                    Created by <span x-text="existingRemittance ? existingRemittance.created_by : ''" class="font-medium"></span>
+                                    <template x-if="existingRemittance && existingRemittance.finalized_by">
+                                        <span> · Finalized by <strong x-text="existingRemittance.finalized_by"></strong></span>
+                                    </template>
+                                    <template x-if="existingRemittance && existingRemittance.finalized_at">
+                                        <span> on <span x-text="existingRemittance.finalized_at"></span></span>
+                                    </template>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-1 rounded-full font-label-caps text-label-caps uppercase tracking-wide"
+                                  :class="existingRemittance && existingRemittance.status === 'FINALIZED'
+                                          ? 'bg-error/15 text-error'
+                                          : 'bg-tertiary/15 text-tertiary'"
+                                  x-text="existingRemittance ? existingRemittance.status : ''"></span>
+                            <!-- Load draft button (drafts only) -->
+                            <button x-show="existingRemittance && existingRemittance.status === 'DRAFT' && pendingDraftState"
+                                    type="button"
+                                    @click="showLoadDraftConfirm = true"
+                                    class="px-4 py-2 rounded-lg bg-primary text-on-primary font-medium flex items-center gap-2 hover:bg-primary-container transition-all active:scale-95">
+                                <span class="material-symbols-outlined text-[20px]">download</span>
+                                Load Draft
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panel body -->
+                    <div class="p-5 space-y-5">
+                        <!-- Totals strip -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3" x-data="{ t: existingRemittance ? existingRemittance.totals : {} }">
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Sales</p>
+                                <p class="font-data-mono text-[15px] text-primary" x-text="peso(t.total_sales)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Repayments</p>
+                                <p class="font-data-mono text-[15px] text-tertiary" x-text="peso(t.total_repayments)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Remittance</p>
+                                <p class="font-data-mono text-[15px] text-tertiary font-bold" x-text="peso(t.net_remittance)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Profit</p>
+                                <p class="font-data-mono text-[15px] text-primary font-bold" x-text="peso(t.net_profit)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Credits</p>
+                                <p class="font-data-mono text-[15px] text-error" x-text="peso(t.total_credits)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Expenses</p>
+                                <p class="font-data-mono text-[15px] text-error" x-text="peso(t.total_expenses)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Commission</p>
+                                <p class="font-data-mono text-[15px] text-[#D97706]" x-text="peso(t.total_commission)"></p>
+                            </div>
+                            <div class="rounded-lg bg-surface-container-low p-3">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Salary</p>
+                                <p class="font-data-mono text-[15px] text-[#D97706]" x-text="peso(t.total_salary)"></p>
+                            </div>
+                        </div>
+
+                        <!-- Riders -->
+                        <template x-if="existingRemittance && existingRemittance.riders && existingRemittance.riders.length > 0">
+                            <div class="space-y-3">
+                                <p class="font-label-caps text-label-caps text-on-surface-variant uppercase">Riders</p>
+                                <template x-for="(rider, idx) in (existingRemittance ? existingRemittance.riders : [])" :key="idx">
+                                    <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low/50 overflow-hidden">
+                                        <div class="px-4 py-2.5 flex items-center justify-between bg-surface-container-low">
+                                            <div class="flex items-center gap-2">
+                                                <span class="material-symbols-outlined text-on-surface-variant text-[20px]">two_wheeler</span>
+                                                <span class="font-medium text-on-surface" x-text="rider.name"></span>
+                                            </div>
+                                            <div class="flex items-center gap-3 text-body-sm">
+                                                <span class="text-on-surface-variant">Payable: <span class="font-data-mono text-on-surface" x-text="peso(rider.subtotal_payable)"></span></span>
+                                                <span class="text-on-surface-variant">Commission: <span class="font-data-mono text-[#D97706]" x-text="peso(rider.subtotal_commission)"></span></span>
+                                            </div>
+                                        </div>
+                                        <div class="divide-y divide-outline-variant/10">
+                                            <template x-for="(line, li) in rider.product_lines" :key="li">
+                                                <div class="px-4 py-2 flex items-center justify-between text-body-sm">
+                                                    <span class="text-on-surface" x-text="line.product_name"></span>
+                                                    <div class="flex items-center gap-4 text-on-surface-variant">
+                                                        <span>Sold: <span class="font-data-mono text-on-surface" x-text="line.qty_sold"></span></span>
+                                                        <span x-show="line.qty_credited > 0">Credited: <span class="font-data-mono" x-text="line.qty_credited"></span></span>
+                                                        <span x-show="line.borrowed > 0">Borrowed: <span class="font-data-mono" x-text="line.borrowed"></span></span>
+                                                        <span class="font-data-mono text-primary" x-text="peso(line.subtotal_payable)"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <!-- Per-rider expenses / deductions -->
+                                        <template x-if="(rider.expenses && rider.expenses.length > 0) || (rider.deductions && rider.deductions.length > 0)">
+                                            <div class="px-4 py-2.5 bg-surface-container-low/30 border-t border-outline-variant/10 space-y-1.5">
+                                                <template x-for="(exp, ei) in rider.expenses" :key="'e'+ei">
+                                                    <div class="flex items-center justify-between text-body-sm">
+                                                        <span class="text-on-surface-variant"><span class="material-symbols-outlined text-[14px] align-middle mr-1">payments</span><span x-text="exp.description"></span></span>
+                                                        <span class="font-data-mono text-error" x-text="peso(exp.amount)"></span>
+                                                    </div>
+                                                </template>
+                                                <template x-for="(ded, di) in rider.deductions" :key="'d'+di">
+                                                    <div class="flex items-center justify-between text-body-sm">
+                                                        <span class="text-on-surface-variant"><span class="material-symbols-outlined text-[14px] align-middle mr-1">remove_circle</span><span x-text="ded.description"></span></span>
+                                                        <span class="font-data-mono text-error" x-text="peso(ded.amount)"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- General expenses -->
+                        <template x-if="existingRemittance && existingRemittance.expenses && existingRemittance.expenses.length > 0">
+                            <div class="space-y-2">
+                                <p class="font-label-caps text-label-caps text-on-surface-variant uppercase">General Expenses</p>
+                                <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low/50 divide-y divide-outline-variant/10">
+                                    <template x-for="(exp, ei) in existingRemittance.expenses" :key="'ge'+ei">
+                                        <div class="px-4 py-2 flex items-center justify-between text-body-sm">
+                                            <span class="text-on-surface" x-text="exp.description"></span>
+                                            <span class="font-data-mono text-error" x-text="peso(exp.amount)"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Staff payments -->
+                        <template x-if="existingRemittance && existingRemittance.staff && existingRemittance.staff.length > 0">
+                            <div class="space-y-2">
+                                <p class="font-label-caps text-label-caps text-on-surface-variant uppercase">Staff Pay</p>
+                                <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low/50 divide-y divide-outline-variant/10">
+                                    <template x-for="(sp, si) in existingRemittance.staff" :key="'s'+si">
+                                        <div class="px-4 py-2 flex items-center justify-between text-body-sm">
+                                            <div class="flex flex-col">
+                                                <span class="text-on-surface font-medium" x-text="sp.name"></span>
+                                                <template x-for="(ded, di) in sp.deductions" :key="'sd'+si+di">
+                                                    <span class="text-on-surface-variant text-[12px] pl-4">— <span x-text="ded.description"></span>: <span class="font-data-mono text-error" x-text="peso(ded.amount)"></span></span>
+                                                </template>
+                                            </div>
+                                            <div class="flex items-center gap-3 text-on-surface-variant">
+                                                <span>Salary: <span class="font-data-mono text-on-surface" x-text="peso(sp.salary)"></span></span>
+                                                <span>Net: <span class="font-data-mono text-[#D97706]" x-text="peso(sp.net_pay)"></span></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Tithes & offerings footer -->
+                        <div class="flex flex-wrap items-center gap-4 pt-3 border-t border-outline-variant/20 text-body-sm">
+                            <span class="text-on-surface-variant">Tithes: <span class="font-data-mono text-primary" x-text="peso(existingRemittance ? existingRemittance.totals.tithes : 0)"></span></span>
+                            <span class="text-on-surface-variant">Offering: <span class="font-data-mono text-primary" x-text="peso(existingRemittance ? existingRemittance.totals.offering : 0)"></span></span>
+                            <span x-show="existingRemittance && existingRemittance.totals.other_sales > 0" class="text-on-surface-variant">Other Sales: <span class="font-data-mono text-tertiary" x-text="peso(existingRemittance ? existingRemittance.totals.other_sales : 0)"></span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ============ FULL-WIDTH SUMMARY KPI CARD ============ -->
             <!-- Categorized into 4 columns:
                  Revenue    → Sales · Repayments
@@ -1077,6 +1272,45 @@
             </div>
         </div>
 
+        <!-- ============ Load Draft Confirmation Modal ============ -->
+        <!-- Confirms before overwriting the current form entries with
+             the saved draft's values for the selected date. -->
+        <div x-show="showLoadDraftConfirm" x-cloak
+             class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
+             @keydown.escape.window="showLoadDraftConfirm = false">
+            <div @click.outside="showLoadDraftConfirm = false"
+                 class="bg-surface-container-lowest rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div class="px-6 py-4 bg-tertiary text-on-tertiary flex items-center gap-3">
+                    <span class="material-symbols-outlined">download</span>
+                    <h3 class="font-headline-sm text-headline-sm">Load Draft?</h3>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-body-md text-on-surface">
+                        This will replace the current form entries with the
+                        saved draft values for
+                        <strong x-text="formatDate(remittanceDate)"></strong>.
+                    </p>
+                    <p class="text-body-sm text-on-surface-variant">
+                        Any quantities, expenses, or staff pay you've already
+                        entered on this page will be overwritten. The saved
+                        draft itself is not affected — you can still save or
+                        clear it afterwards.
+                    </p>
+                </div>
+                <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/20 flex justify-end gap-3">
+                    <button type="button" @click="showLoadDraftConfirm = false"
+                            class="px-5 py-2.5 rounded-lg border border-outline-variant text-on-surface-variant font-medium hover:bg-surface-container-low transition-colors">
+                        Cancel
+                    </button>
+                    <button type="button" @click="confirmLoadDraft()"
+                            class="px-6 py-2.5 rounded-lg bg-tertiary text-on-tertiary font-semibold flex items-center gap-2 hover:bg-tertiary/90 transition-all active:scale-95">
+                        <span class="material-symbols-outlined text-[20px]">download</span>
+                        Load Draft
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- ============ Finalize Review Modal ============ -->
         <div x-show="reviewOpen" x-cloak
              class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
@@ -1447,6 +1681,13 @@
                 dateError: '',
                 dateChecking: false,
 
+                // ---- existing remittance (draft/finalized) for the
+                // selected date — populated by checkDate() so the
+                // user can see what's already saved before editing ----
+                existingRemittance: null,   // summary dict or null
+                showLoadDraftConfirm: false,
+                pendingDraftState: null,    // draft_state awaiting confirm
+
                 // ---- tab state (Rider | Staff) ----
                 activeTab: 'rider',
 
@@ -1514,11 +1755,20 @@
                 },
                 async checkDate() {
                     const iso = this.remittanceDate;
-                    if (!iso) { this.dateExists = false; this.dateError = ''; return; }
+                    if (!iso) {
+                        this.dateExists = false;
+                        this.dateError = '';
+                        this.existingRemittance = null;
+                        this.pendingDraftState = null;
+                        return;
+                    }
                     this.dateChecking = true;
                     try {
                         const response = await fetch('{% url 'remittance:check_date' %}?date=' + encodeURIComponent(iso));
                         const data = await response.json();
+                        // Always capture the read-only summary first so
+                        // the panel can render regardless of status.
+                        this.existingRemittance = data.summary || null;
                         if (!response.ok) {
                             this.dateExists = true;
                             this.dateError = data.error || 'Invalid date.';
@@ -1529,13 +1779,21 @@
                             if (data.status === 'DRAFT') {
                                 this.dateExists = false;
                                 this.dateError = '';
+                                // Stash the draft's form-facing state so
+                                // the "Load draft" button can apply it on
+                                // confirm without a second round-trip.
+                                this.pendingDraftState = data.summary && data.summary.draft_state ? data.summary.draft_state : null;
+                                this.hasDraft = true;
                             } else {
                                 this.dateExists = true;
                                 this.dateError = 'A finalized remittance for ' + this.formatDate(iso) + ' already exists. Please choose another date.';
+                                this.pendingDraftState = null;
                             }
                         } else {
                             this.dateExists = false;
                             this.dateError = '';
+                            this.pendingDraftState = null;
+                            this.hasDraft = false;
                         }
                         // Refresh date-dependent credit data (repayments,
                         // total credits, per-rider credited/repaid counts)
@@ -1562,9 +1820,64 @@
                     } catch (err) {
                         this.dateExists = false;
                         this.dateError = 'Unable to verify the selected date. Please try again.';
+                        this.existingRemittance = null;
+                        this.pendingDraftState = null;
                     } finally {
                         this.dateChecking = false;
                     }
+                },
+                // Apply a draft_state (from check-date response) to the
+                // editable form.  Mirrors the server-side hydration in
+                // get_add_remittance_context so a mid-session date
+                // change can load a different date's draft on confirm.
+                applyDraftState(state) {
+                    if (!state) return;
+                    const riderSold = state.rider_sold || {};
+                    const riderExpenses = state.rider_expenses || {};
+                    const riderDeductions = state.rider_deductions || {};
+                    const riderOverrides = state.rider_commission_overrides || {};
+                    const riderRemittances = state.rider_remittances || {};
+                    for (const r of this.riders) {
+                        const soldMap = riderSold[r.id];
+                        if (soldMap) {
+                            for (const line of r.product_lines) {
+                                const cached = soldMap[line.product_key];
+                                if (cached !== undefined) line.sold = cached;
+                            }
+                        }
+                        r.expenses = (riderExpenses[r.id] || []).map(e => ({
+                            description: e.description || '',
+                            amount: e.amount || '',
+                        }));
+                        r.deductions = (riderDeductions[r.id] || []).map(d => ({
+                            description: d.description || '',
+                            amount: d.amount || '',
+                        }));
+                        r.commission_override = riderOverrides[r.id] || '';
+                        r.remitted = riderRemittances[r.id] || '';
+                    }
+                    const staffData = state.staff_data || {};
+                    for (const s of this.staffs) {
+                        const saved = staffData[s.id];
+                        if (saved) {
+                            s.salary_override = saved.salary_override || '';
+                            s.deductions = (saved.deductions || []).map(d => ({
+                                description: d.description || '',
+                                amount: d.amount || '',
+                            }));
+                        } else {
+                            s.salary_override = '';
+                            s.deductions = [];
+                        }
+                    }
+                    this.manualOffering = state.offering_amount || '';
+                    this.otherSales = state.other_sales !== undefined ? String(state.other_sales) : '';
+                },
+                confirmLoadDraft() {
+                    this.applyDraftState(this.pendingDraftState);
+                    this.showLoadDraftConfirm = false;
+                    this.hasDraft = true;
+                    this.showToast('Draft loaded into the form.', 'success');
                 },
                 productName(key) {
                     const p = this.products.find(p => p.key === key);

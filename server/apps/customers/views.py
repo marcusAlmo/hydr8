@@ -11,7 +11,7 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
 from apps.settings.selectors import get_default_credit_limit
-from apps.users.permissions import is_back_office
+from apps.users.permissions import is_admin, is_back_office
 
 from .selectors import (
     DEFAULT_DIR,
@@ -29,6 +29,9 @@ from .selectors import (
 )
 from .services import (
     create_customer,
+    delete_borrowed_container,
+    delete_credit_line,
+    delete_credit_payment,
     delete_customer,
     edit_borrowed_container,
     edit_credit_line,
@@ -675,5 +678,126 @@ def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
     response = render(request, "customers/partials/customer_history.html", context)
     response["HX-Trigger"] = json.dumps(
         {"showToast": {"msg": "Record updated.", "type": "success"}}
+    )
+    return response
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="60/m", method="GET", block=True)
+def customer_history_delete_view(request, customer_id: str, item_id: str):
+    """HTMX endpoint — returns the inline delete-confirm form for a ledger entry.
+
+    Admin-only; non-admins receive a 403 so the delete button never
+    appears for them in the first place (the template gates on
+    ``is_deletable``), but this is a defense-in-depth check.
+    """
+    if not is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+
+    kind, pk = _parse_history_item_id(item_id)
+    if not kind:
+        return HttpResponse("Record not found.", status=404)
+    display_id = f"{kind}-{pk}"
+    item = _get_history_item(request.user, customer, kind, pk)
+    if item is None:
+        return HttpResponse("Record not found.", status=404)
+
+    context = {
+        "customer_id": customer_id,
+        "item_id": display_id,
+        "item": _history_item_context(item),
+    }
+    return render(request, "customers/partials/history_delete_confirm.html", context)
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["POST"])
+@ratelimit(key="user", rate="30/m", method="POST", block=True)
+def customer_history_delete_submit_view(request, customer_id: str, item_id: str):
+    """HTMX endpoint — deletes a ledger entry after admin + PIN verification.
+
+    Deletion is admin-only.  The service layer re-checks admin status and
+    PIN, recomputes the customer's debt balance / aggregate counters, and
+    blocks records linked to a remittance (PROTECT constraint).
+    """
+    if not is_admin(request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    customer = get_customer_by_display_id(request.user, customer_id)
+    if customer is None:
+        return HttpResponse("Customer not found.", status=404)
+
+    kind, pk = _parse_history_item_id(item_id)
+    if not kind:
+        return HttpResponse("Record not found.", status=404)
+    display_id = f"{kind}-{pk}"
+    pin = request.POST.get("pin", "")
+    try:
+        if kind == "CL":
+            delete_credit_line(
+                credit_line_id=str(pk),
+                customer=customer,
+                pin=pin,
+                performed_by=request.user,
+            )
+        elif kind == "CP":
+            delete_credit_payment(
+                payment_id=str(pk),
+                customer=customer,
+                pin=pin,
+                performed_by=request.user,
+            )
+        elif kind == "BC":
+            delete_borrowed_container(
+                borrowed_id=str(pk),
+                customer=customer,
+                pin=pin,
+                performed_by=request.user,
+            )
+        else:
+            raise ValidationError("Invalid record reference.")
+    except ValidationError as e:
+        msg = error_message(e)
+        item = _get_history_item(request.user, customer, kind, pk)
+        if item is not None:
+            response = render(
+                request,
+                "customers/partials/history_delete_confirm.html",
+                {
+                    "customer_id": customer_id,
+                    "item_id": display_id,
+                    "item": _history_item_context(item),
+                    "error": msg,
+                },
+                status=400,
+            )
+            response["HX-Retarget"] = f"#history-item-{display_id}"
+            response["HX-Reswap"] = "innerHTML"
+            response["HX-Trigger"] = json.dumps(
+                {"showToast": {"msg": msg, "type": "error"}}
+            )
+            return response
+        response = render(
+            request,
+            "customers/partials/form_error.html",
+            {"message": msg},
+            status=400,
+        )
+        response["HX-Trigger"] = json.dumps(
+            {"showToast": {"msg": msg, "type": "error"}}
+        )
+        return response
+
+    context = get_customer_history_context(customer, request.user)
+    response = render(request, "customers/partials/customer_history.html", context)
+    response["HX-Trigger"] = json.dumps(
+        {"showToast": {"msg": "Record deleted.", "type": "success"}}
     )
     return response

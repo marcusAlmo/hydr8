@@ -877,6 +877,30 @@ def _history_entry_editable(record, user) -> tuple[bool, str]:
     return True, ""
 
 
+def _history_entry_deletable(record, user) -> tuple[bool, str]:
+    """Returns (is_deletable, reason) for a ledger record.
+
+    Deletion is admin-only.  Additionally, records linked to a remittance
+    (directly, or via child payments) cannot be deleted because the
+    ``CreditPayment.remittance`` FK uses ``on_delete=PROTECT``.
+    """
+    if not is_admin(user):
+        return False, "Admin only"
+
+    if record._meta.model_name == "creditpayment":
+        if record.remittance_id is not None:
+            return False, "Linked to a remittance"
+        return True, ""
+
+    if record._meta.model_name == "creditline":
+        if record.payments.filter(remittance__isnull=False).exists():
+            return False, "Has payments linked to a remittance"
+        return True, ""
+
+    # BorrowedContainer — no remittance linkage, always deletable for admin.
+    return True, ""
+
+
 def _history_sort_key(dt: datetime | None) -> datetime:
     """Returns a stable sort key for a history entry."""
     return dt or timezone.now()
@@ -887,6 +911,7 @@ def _history_credit_line(line: CreditLine, user: "UserType") -> dict:
     if line.product.variation:
         product_name = f"{product_name} — {line.product.variation}"
     is_editable, reason = _history_entry_editable(line, user)
+    is_deletable, del_reason = _history_entry_deletable(line, user)
     return {
         "kind": "credit_line",
         "pk": line.pk,
@@ -905,11 +930,14 @@ def _history_credit_line(line: CreditLine, user: "UserType") -> dict:
         "recorded_by": _care_of_summary(line.care_of),
         "is_editable": is_editable,
         "edit_disabled_reason": reason,
+        "is_deletable": is_deletable,
+        "delete_disabled_reason": del_reason,
     }
 
 
 def _history_credit_payment(payment: CreditPayment, user: "UserType") -> dict:
     is_editable, reason = _history_entry_editable(payment, user)
+    is_deletable, del_reason = _history_entry_deletable(payment, user)
     product = payment.credit_line.product.name
     if payment.credit_line.product.variation:
         product = f"{product} — {payment.credit_line.product.variation}"
@@ -935,11 +963,14 @@ def _history_credit_payment(payment: CreditPayment, user: "UserType") -> dict:
         "recorded_by": _care_of_summary(payment.recorded_by),
         "is_editable": is_editable,
         "edit_disabled_reason": reason,
+        "is_deletable": is_deletable,
+        "delete_disabled_reason": del_reason,
     }
 
 
 def _history_borrowed(borrowed: BorrowedContainer, user: "UserType") -> dict:
     is_editable, reason = _history_entry_editable(borrowed, user)
+    is_deletable, del_reason = _history_entry_deletable(borrowed, user)
     return {
         "kind": "borrowed",
         "pk": borrowed.pk,
@@ -957,6 +988,8 @@ def _history_borrowed(borrowed: BorrowedContainer, user: "UserType") -> dict:
         "recorded_by": _care_of_summary(borrowed.recorded_by),
         "is_editable": is_editable,
         "edit_disabled_reason": reason,
+        "is_deletable": is_deletable,
+        "delete_disabled_reason": del_reason,
     }
 
 
@@ -981,6 +1014,8 @@ def _history_container_return(borrowed: BorrowedContainer, user: "UserType") -> 
         "recorded_by": _care_of_summary(borrowed.recorded_by),
         "is_editable": False,
         "edit_disabled_reason": "Return is part of the borrowing record",
+        "is_deletable": False,
+        "delete_disabled_reason": "Return is part of the borrowing record",
     }
 
 

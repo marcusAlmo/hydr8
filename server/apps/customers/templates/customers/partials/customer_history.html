@@ -54,7 +54,7 @@ Expects:
                 {% endif %}
             </div>
 
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 flex items-center gap-1">
                 {% if item.is_editable %}
                 <button
                     type="button"
@@ -74,6 +74,28 @@ Expects:
                     title="{{ item.edit_disabled_reason }}"
                 >
                     <span class="material-symbols-outlined text-[18px]">edit</span>
+                </button>
+                {% endif %}
+
+                {% if item.is_deletable %}
+                <button
+                    type="button"
+                    hx-get="{% url 'customers:history_delete' customer.id item.display_id %}"
+                    hx-target="#history-item-{{ item.display_id }}"
+                    hx-swap="innerHTML"
+                    class="p-1.5 rounded-lg text-error hover:bg-error/10 transition-colors"
+                    title="Delete this record"
+                >
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+                {% else %}
+                <button
+                    type="button"
+                    disabled
+                    class="p-1.5 rounded-lg text-on-surface-variant/40 cursor-not-allowed"
+                    title="{{ item.delete_disabled_reason }}"
+                >
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
                 </button>
                 {% endif %}
             </div>

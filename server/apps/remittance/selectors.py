@@ -624,6 +624,215 @@ def get_remittance_date_data(user: "UserType", target_date: date) -> dict:
     }
 
 
+def _peso_float(value) -> float:
+    """Coerce a Decimal/float/None to a plain float for JSON output."""
+    if value is None:
+        return 0.0
+    try:
+        return float(value)
+    except (TypeError, ValueError, InvalidOperation):
+        return 0.0
+
+
+def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict | None:
+    """Returns a full read-only summary of the remittance (draft or
+    finalized) for ``target_date``, or ``None`` if no remittance exists.
+
+    The summary is shaped for the Add Remittance page's read-only
+    "existing remittance" panel — it includes riders, product lines,
+    expenses, deductions, staff payments, and all monetary totals.
+
+    For DRAFT remittances the response also carries a ``draft_state``
+    key (the same shape produced by :func:`_load_draft_state`) so the
+    frontend "Load draft" button can populate the editable form without
+    a second round-trip.
+
+    Returns::
+
+        {
+            "status": "DRAFT" | "FINALIZED",
+            "date": "YYYY-MM-DD",
+            "created_by": str,
+            "finalized_by": str | None,
+            "finalized_at": str | None,
+            "riders": [
+                {
+                    "name": str,
+                    "commission_override": float | None,
+                    "remitted": float | None,
+                    "subtotal_payable": float,
+                    "subtotal_commission": float,
+                    "product_lines": [
+                        {
+                            "product_name": str,
+                            "qty_sold": int,
+                            "qty_credited": int,
+                            "borrowed": int,
+                            "subtotal_payable": float,
+                            "subtotal_commission": float,
+                        }, ...
+                    ],
+                    "expenses": [{"description": str, "amount": float}, ...],
+                    "deductions": [{"description": str, "amount": float}, ...],
+                }, ...
+            ],
+            "expenses": [{"description": str, "amount": float}, ...],
+            "staff": [
+                {
+                    "name": str,
+                    "salary": float,
+                    "net_pay": float,
+                    "deductions": [{"description": str, "amount": float}, ...],
+                }, ...
+            ],
+            "totals": {
+                "total_sales": float,
+                "total_credits": float,
+                "total_commission": float,
+                "total_salary": float,
+                "total_expenses": float,
+                "other_sales": float,
+                "net_remittance": float,
+                "net_profit": float,
+                "total_repayments": float,
+                "tithes": float,
+                "offering": float,
+            },
+            "draft_state": dict | None,   # only for DRAFT
+        }
+    """
+    rem = (
+        Remittance.objects
+        .for_user(user)
+        .filter(date=target_date)
+        .select_related("created_by", "finalized_by")
+        .first()
+    )
+    if rem is None:
+        return None
+
+    # --- Riders + product lines + expenses + deductions --------------
+    rider_rows = (
+        RemittanceRider.objects
+        .filter(remittance=rem)
+        .select_related("rider")
+        .prefetch_related(
+            Prefetch("expenses", queryset=Expense.objects.order_by("id")),
+            Prefetch("deductions", queryset=RiderDeduction.objects.order_by("id")),
+        )
+        .order_by("rider__first_name", "rider__last_name")
+    )
+    rider_id_to_row: dict[int, RemittanceRider] = {rr.rider_id: rr for rr in rider_rows}
+
+    lines = (
+        RemittanceRiderProductLine.objects
+        .filter(remittance_rider__remittance=rem)
+        .select_related("remittance_rider__rider", "product")
+        .order_by("remittance_rider__rider__first_name", "product__name", "product__variation")
+    )
+
+    riders_summary: list[dict] = []
+    # Group product lines by rider.
+    lines_by_rider: dict[int, list[dict]] = {}
+    for line in lines:
+        rider_id = line.remittance_rider.rider_id
+        product = line.product
+        product_name = product.name
+        if product.variation:
+            product_name = f"{product_name} - {product.variation}"
+        lines_by_rider.setdefault(rider_id, []).append({
+            "product_name": product_name,
+            "qty_sold": line.qty_sold,
+            "qty_credited": line.qty_credited,
+            "borrowed": line.borrowed_items,
+            "subtotal_payable": _peso_float(line.subtotal_payable),
+            "subtotal_commission": _peso_float(line.subtotal_commission),
+        })
+
+    for rr in rider_rows:
+        riders_summary.append({
+            "name": rr.rider.full_name,
+            "commission_override": _peso_float(rr.commission_override) if rr.commission_override is not None else None,
+            "remitted": _peso_float(rr.remitted) if rr.remitted is not None else None,
+            "subtotal_payable": _peso_float(rr.subtotal_payable),
+            "subtotal_commission": _peso_float(rr.subtotal_commission),
+            "product_lines": lines_by_rider.get(rr.rider_id, []),
+            "expenses": [
+                {"description": exp.description, "amount": _peso_float(exp.amount)}
+                for exp in rr.expenses.all()
+            ],
+            "deductions": [
+                {"description": ded.description, "amount": _peso_float(ded.amount)}
+                for ded in rr.deductions.all()
+            ],
+        })
+
+    # --- General (unattributed) expenses -----------------------------
+    general_expenses = [
+        {"description": exp.description, "amount": _peso_float(exp.amount)}
+        for exp in (
+            Expense.objects
+            .filter(remittance=rem, remittance_rider__isnull=True)
+            .order_by("id")
+        )
+    ]
+
+    # --- Staff payments ----------------------------------------------
+    staff_summary: list[dict] = []
+    for sp in (
+        RemittanceStaff.objects
+        .filter(remittance=rem)
+        .select_related("staff")
+        .order_by("staff__first_name", "staff__last_name")
+    ):
+        staff_summary.append({
+            "name": sp.staff.full_name,
+            "salary": _peso_float(sp.effective_salary),
+            "net_pay": _peso_float(sp.net_pay),
+            "deductions": [
+                {"description": d.description, "amount": _peso_float(d.amount)}
+                for d in StaffDeduction.objects.filter(remittance_staff=sp).order_by("id")
+            ],
+        })
+
+    finalized_at_str = None
+    if rem.finalized_at is not None:
+        finalized_at_str = timezone.localtime(rem.finalized_at).strftime("%b %d, %Y %I:%M %p")
+
+    summary = {
+        "status": rem.status,
+        "date": rem.date.isoformat(),
+        "created_by": rem.created_by.full_name if rem.created_by else "—",
+        "finalized_by": rem.finalized_by.full_name if rem.finalized_by else None,
+        "finalized_at": finalized_at_str,
+        "riders": riders_summary,
+        "expenses": general_expenses,
+        "staff": staff_summary,
+        "totals": {
+            "total_sales": _peso_float(rem.total_sales),
+            "total_credits": _peso_float(rem.total_credit_sales),
+            "total_commission": _peso_float(rem.total_commission),
+            "total_salary": _peso_float(rem.total_salary),
+            "total_expenses": _peso_float(rem.total_expenses),
+            "other_sales": _peso_float(rem.total_other_sales),
+            "net_remittance": _peso_float(rem.net_remittance),
+            "net_profit": _peso_float(rem.net_profit),
+            "total_repayments": _peso_float(rem.total_repayments_received),
+            "tithes": _peso_float(rem.tithe_amount),
+            "offering": _peso_float(rem.offering_amount),
+        },
+    }
+
+    # For drafts, attach the form-facing state so the "Load draft"
+    # button can populate the editable form without a second request.
+    if rem.status == Remittance.StatusChoices.DRAFT:
+        summary["draft_state"] = _load_draft_state(user, target_date)
+    else:
+        summary["draft_state"] = None
+
+    return summary
+
+
 def _remittance_row(rem: Remittance) -> dict:
     """Builds the template-facing dict for a single remittance row.
 
