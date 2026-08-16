@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Customers | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="customers" %}
+{% endblock %}
+
+{% block content %}
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-4">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Customers</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
+        </div>
+    </header>
+
+    <!-- Content Canvas with tabbed sections -->
+    <div
+        class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar"
+        x-data="{ activeTab: 'summary' }"
+    >
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md mb-6">Manage customer accounts, track outstanding debts, and view top performers.</p>
+
+        <!-- Tab Navigation -->
+        <nav class="flex items-center gap-1 mb-3 border-b border-outline-variant/20" role="tablist">
+            <button
+                role="tab"
+                @click="activeTab = 'summary'"
+                :class="activeTab === 'summary' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">summarize</span>
+                Summary
+            </button>
+            <button
+                role="tab"
+                @click="activeTab = 'ranking'"
+                :class="activeTab === 'ranking' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant border-b-2 border-transparent hover:text-on-surface'"
+                class="px-4 py-3 font-headline-sm text-sm font-bold transition-all duration-200 flex items-center gap-2 -mb-px"
+            >
+                <span class="material-symbols-outlined text-[18px]">leaderboard</span>
+                Ranking
+            </button>
+        </nav>
+
+        <!-- Tab Description -->
+        <p class="text-on-surface-variant font-body-sm text-body-sm mb-6">
+            <span x-show="activeTab === 'summary'">Overview of key customer metrics, the full directory, and debt KPIs.</span>
+            <span x-show="activeTab === 'ranking'" x-cloak>See your top-performing customers by sales volume and payment reliability.</span>
+        </p>
+
+        <!-- Tab: Summary -->
+        <div x-show="activeTab === 'summary'" x-transition.opacity.duration.200ms class="hydr8-reveal">
+            {% include "customers/partials/stats_row.html" %}
+            {% include "customers/partials/customer_table.html" %}
+        </div>
+
+        <!-- Tab: Ranking -->
+        <div x-show="activeTab === 'ranking'" x-transition.opacity.duration.200ms x-cloak class="hydr8-reveal">
+            {% include "customers/partials/ranking.html" %}
+        </div>
+    </div>
+{% endblock %}

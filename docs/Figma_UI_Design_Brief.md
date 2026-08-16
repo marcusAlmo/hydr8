@@ -57,7 +57,7 @@ Generate the following 11 distinct screens, adhering strictly to the design syst
 **Purpose:** The central hub offering real-time visibility into daily operations.
 *   **Global Filters:** A sticky top bar or top-right card containing date shortcuts (Today, Yesterday, Last 7 Days) and a Branch dropdown.
 *   **Metric Cards (Top Row):** 4 clean cards showing: Active Riders, Containers Dispatched, Expected Receivables (₱), and Low Stock Alerts.
-*   **Charts & Visuals:** A large line chart ("Dispatch Rate / Hourly") with a comparative overlay (dotted line) for yesterday's data.
+*   **Charts & Visuals:** A daily-granularity sales trend line chart (one point per finalized remittance day) with a comparative overlay (dotted line) for the prior period. The operations model is a single afternoon remittance entry per day — there is no hourly dispatch tracking.
 *   **Order Queue List:** A scrollable card showing the live queue (Requester, Qty, Status Badge).
 *   **AI Insight Trigger:** A floating action button (FAB) at the bottom right with a spark/magic icon, opening a side-panel chat interface for AI analytics.
 

@@ -20,4 +20,16 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('apps.users.urls')),
+    path('analytics/', include('apps.analytics.urls')),
+    path('remittance/', include('apps.remittance.urls')),
+    path('customers/', include('apps.customers.urls')),
+    path('products/', include('apps.products.urls')),
+    path('employees/', include('apps.employees.urls')),
+    path('settings/', include('apps.settings.urls')),
+    path('audit/', include('apps.audit.urls')),
 ]
+
+# Custom error handlers — render friendly fragments for common errors.
+handler403 = 'apps.users.views.ratelimited_view'
+handler404 = 'apps.core.views.handler404_view'
+handler500 = 'apps.core.views.handler500_view'

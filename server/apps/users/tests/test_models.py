@@ -9,18 +9,35 @@ class UserModelTests(SimpleTestCase):
     def test_user_initial_state(self):
         """Test that a user starts with default active status using SimpleTestCase."""
         user = User(username="testuser", email="testuser@example.com")
-        self.assertEqual(user.status, User.StatusChoices.ACTIVE)
+        self.assertTrue(user.is_active)
         self.assertIsNone(user.deleted_at)
 
     def test_user_name_property_returns_full_name(self):
         """Test name property returns first + last name when set."""
         user = User(username="johndoe", first_name="John", last_name="Doe")
         self.assertEqual(user.name, "John Doe")
+        self.assertEqual(user.full_name, "John Doe")
 
     def test_user_name_property_falls_back_to_username(self):
         """Test name property falls back to username when first/last name are empty."""
         user = User(username="johndoe")
         self.assertEqual(user.name, "johndoe")
+        self.assertEqual(user.full_name, "johndoe")
+
+    def test_user_name_properties_with_single_name(self):
+        """Test full_name and short_name fall back to username when only one of first_name/last_name is provided per schema requirement."""
+        user_first = User(username="johndoe", first_name="John")
+        self.assertEqual(user_first.full_name, "johndoe")
+        self.assertEqual(user_first.short_name, "johndoe")
+
+        user_last = User(username="janedoe", last_name="Doe")
+        self.assertEqual(user_last.full_name, "janedoe")
+        self.assertEqual(user_last.short_name, "janedoe")
+
+    def test_user_short_name_formatting(self):
+        """Test short_name returns initial + last_name correctly."""
+        user = User(username="johndoe", first_name="john", last_name="Doe")
+        self.assertEqual(user.short_name, "J. Doe")
 
     def test_set_pin_and_check_pin(self):
         """Test setting and verifying PIN hashes without DB writes."""
@@ -56,7 +73,7 @@ class UserModelTests(SimpleTestCase):
         user = User(username="driver1")
         product = Product(name="Gallon Water", variation="Round")
         commission = DriverCommission(driver=user, product=product, rate_per_unit=5.00)
-        self.assertEqual(str(commission), "driver1 - Gallon Water")
+        self.assertEqual(str(commission), "Driver commission — Gallon Water")
 
     def test_role_str(self):
         """Test Role __str__ representation."""

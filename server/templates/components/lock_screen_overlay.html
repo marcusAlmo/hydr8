@@ -1,0 +1,252 @@
+{% comment %}
+  Idle lock-screen overlay.
+
+  Rendered inside base.html for every authenticated user whose tenant has
+  a non-zero ``lockscreen_timeout_minutes`` SystemConfig value.  The
+  Alpine.js component tracks user activity (mouse, keyboard, scroll,
+  touch) and, after the configured idle period, blurs the current page
+  and prompts for the user's PIN.
+
+  On 3 failed PIN attempts the server logs the user out and the client
+  redirects to the login page — matching the standalone screen-lock
+  page rule.
+
+  The overlay uses ``backdrop-blur-sm`` + ``bg-black/40`` so the page
+  visuals remain visible (blurred) behind the PIN card, exactly like
+  the products pricing PIN modal.
+{% endcomment %}
+{% if user.is_authenticated and lockscreen_timeout_minutes > 0 %}
+<div
+    x-data="lockScreenOverlay({
+        timeoutMinutes: {{ lockscreen_timeout_minutes }},
+        verifyUrl: '{% url 'users:screen_lock_verify' %}',
+        armUrl: '{% url 'users:screen_lock_arm' %}',
+        csrfToken: '{{ csrf_token }}',
+    })"
+    x-init="init()"
+    @mousemove.window.throttle.1000ms="resetIdle()"
+    @mousedown.window="resetIdle()"
+    @keydown.window="resetIdle()"
+    @scroll.window.throttle.1000ms="resetIdle()"
+    @touchstart.window="resetIdle()"
+    @click.window="resetIdle()"
+>
+    <!-- Blurred backdrop + PIN card -->
+    <div
+        x-show="locked"
+        x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+    >
+        <!-- PIN card -->
+        <div
+            x-show="locked"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 border border-outline-variant/30"
+            @click.stop
+        >
+            <!-- Header -->
+            <div class="flex items-start gap-3 mb-5">
+                <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-secondary text-[22px]">screen_lock_portrait</span>
+                </div>
+                <div>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">Screen Locked</h3>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+                        Enter your PIN to unlock. After 3 failed attempts you will be logged out.
+                    </p>
+                </div>
+            </div>
+
+            <!-- PIN form -->
+            <form @submit.prevent="submitPin()">
+                <div class="mb-4">
+                    <input
+                        type="password"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="6"
+                        x-model="pinInput"
+                        x-ref="pinField"
+                        placeholder="••••"
+                        autocomplete="off"
+                        class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                        :class="pinError ? 'border-error ring-2 ring-error/30' : ''"
+                        :disabled="verifying"
+                    >
+                    <p
+                        x-show="pinError"
+                        x-text="pinError"
+                        x-cloak
+                        class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1"
+                    ></p>
+                    <p
+                        x-show="attemptsLeft !== null && !pinError"
+                        x-cloak
+                        class="mt-2 font-body-sm text-body-sm text-on-surface-variant text-center"
+                    >
+                        Attempts remaining: <span class="font-semibold text-error" x-text="attemptsLeft"></span>
+                    </p>
+                    <p
+                        x-show="verifying"
+                        x-cloak
+                        class="mt-2 font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1"
+                    >
+                        <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        Verifying…
+                    </p>
+                </div>
+
+                <button
+                    type="submit"
+                    :disabled="verifying || pinInput.length < 4"
+                    class="w-full bg-primary text-on-primary px-4 py-2.5 rounded-lg font-bold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                    <span class="material-symbols-outlined text-[18px]">lock_open</span>
+                    Unlock
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * lockScreenOverlay — Alpine.js component for the idle lock-screen.
+ *
+ * Tracks user activity via window-level event listeners (registered
+ * declaratively on the root element) and arms a ``setTimeout`` idle
+ * timer.  When the timer fires the blurred overlay is shown and the
+ * user must enter their PIN.  The PIN is verified against the server
+ * via a JSON POST to ``users:screen_lock_verify``.
+ *
+ * On 3 failed attempts the server logs the user out and returns
+ * ``{logged_out: true, redirect: "/users/"}``; the client then
+ * navigates to the login page.
+ */
+function lockScreenOverlay(config) {
+    return {
+        timeoutMinutes: config.timeoutMinutes,
+        verifyUrl: config.verifyUrl,
+        armUrl: config.armUrl,
+        csrfToken: config.csrfToken,
+
+        locked: false,
+        pinInput: '',
+        pinError: '',
+        attemptsLeft: null,
+        verifying: false,
+
+        _idleTimer: null,
+
+        init() {
+            if (this.timeoutMinutes > 0) {
+                this._startIdleTimer();
+            }
+        },
+
+        _startIdleTimer() {
+            this._clearIdleTimer();
+            const ms = this.timeoutMinutes * 60 * 1000;
+            this._idleTimer = setTimeout(() => this._lock(), ms);
+        },
+
+        _clearIdleTimer() {
+            if (this._idleTimer) {
+                clearTimeout(this._idleTimer);
+                this._idleTimer = null;
+            }
+        },
+
+        resetIdle() {
+            // Ignore activity while the overlay is up — the user must
+            // unlock with their PIN, not just wiggle the mouse.
+            if (this.locked || this.timeoutMinutes <= 0) return;
+            this._startIdleTimer();
+        },
+
+        _lock() {
+            this.locked = true;
+            this.pinInput = '';
+            this.pinError = '';
+            this.attemptsLeft = null;
+            // Arm the server-side lock flag so that a page refresh (or
+            // any navigation) is caught by ScreenLockMiddleware and
+            // redirected to the full-page lock screen.  Fire-and-forget:
+            // the overlay shows immediately; the POST runs in the
+            // background.  If it fails the middleware backstop won't
+            // engage for *this* idle event, but the next idle cycle
+            // retries and a manual lock still works.
+            this._armServer();
+            this.$nextTick(() => {
+                if (this.$refs.pinField) this.$refs.pinField.focus();
+            });
+        },
+
+        async _armServer() {
+            try {
+                await fetch(this.armUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken,
+                    },
+                    body: '{}',
+                });
+            } catch (e) {
+                // Swallow — overlay is already shown client-side.
+            }
+        },
+
+        async submitPin() {
+            if (this.pinInput.length < 4) {
+                this.pinError = 'PIN must be at least 4 digits.';
+                return;
+            }
+            this.verifying = true;
+            this.pinError = '';
+            try {
+                const resp = await fetch(this.verifyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.csrfToken,
+                    },
+                    body: JSON.stringify({ pin: this.pinInput }),
+                });
+                const data = await resp.json();
+                if (data.verified) {
+                    this.locked = false;
+                    this.pinInput = '';
+                    this.attemptsLeft = null;
+                    this._startIdleTimer();
+                } else if (data.logged_out) {
+                    window.location.href = data.redirect || '/users/';
+                } else {
+                    this.pinError = data.error || 'Incorrect PIN.';
+                    this.attemptsLeft = data.attempts_left ?? null;
+                    this.pinInput = '';
+                    this.$nextTick(() => {
+                        if (this.$refs.pinField) this.$refs.pinField.focus();
+                    });
+                }
+            } catch (e) {
+                this.pinError = 'Could not verify PIN. Please try again.';
+            } finally {
+                this.verifying = false;
+            }
+        },
+    };
+}
+</script>
+{% endif %}

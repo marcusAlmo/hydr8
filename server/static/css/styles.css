@@ -21,11 +21,7 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    min-height: 100dvh;
     overflow-x: hidden;
     position: relative;
 }
@@ -222,4 +218,137 @@ body {
     0% { transform: translateX(-100%) rotate(45deg); }
     100% { transform: translateX(100%) rotate(45deg); }
 }
+
+/* Cloak Alpine.js elements until initialized */
+[x-cloak] { display: none !important; }
+
+/* ── Editable product field — minimal underline indicator ──
+   Used by the Products & Pricing table.  Defined in static CSS
+   (not Tailwind CDN) so the styles are always available even
+   though the classes are applied dynamically via Alpine :class.
+   Explicitly sets all four sides so the Tailwind forms-plugin
+   default input border (1px all sides) is fully overridden. */
+.editable-underline {
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 1px solid #bec8d2;          /* outline-variant */
+    border-radius: 0;
+    cursor: text;
+    transition: border-color 0.2s ease, border-width 0.2s ease;
+}
+.editable-underline:focus {
+    border-bottom: 2px solid #006591;          /* primary */
+    outline: none;
+}
+.editable-underline-dirty {
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 2px solid #006591;          /* primary */
+    border-radius: 0;
+    cursor: text;
+    transition: border-color 0.2s ease;
+}
+.editable-underline-dirty:focus {
+    outline: none;
+}
+
+/* Muted placeholders — uses the outline-variant design token so hints
+   stay subtle and never compete with real input values. Applies to all
+   text inputs, textareas, and selects across the app. */
+input::placeholder,
+textarea::placeholder {
+    color: #bec8d2;          /* outline-variant */
+    opacity: 1;
+    font-weight: 400;
+}
+select:invalid,
+select option[value=""]:disabled {
+    color: #bec8d2;          /* outline-variant — muted "Select..." prompt */
+}
+
+/* ============================================================
+   Skeleton Loaders — shimmer placeholders shown while HTMX
+   fetches the real dashboard data.
+   ============================================================ */
+
+/* Base shimmer bar — a grey rounded rectangle with a moving highlight */
+.hydr8-skeleton-bar {
+    background: linear-gradient(
+        90deg,
+        rgba(190, 200, 210, 0.25) 25%,
+        rgba(190, 200, 210, 0.45) 50%,
+        rgba(190, 200, 210, 0.25) 75%
+    );
+    background-size: 200% 100%;
+    animation: hydr8-shimmer 1.4s ease-in-out infinite;
+}
+
+/* The skeleton container itself is just a normal card — the shimmer
+   bars inside provide the animation. */
+.hydr8-skeleton {
+    pointer-events: none;
+}
+
+@keyframes hydr8-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   Reveal Animations — soft fade + slide-up when HTMX swaps in
+   real content to replace a skeleton, or when a server-rendered
+   page first paints.  Apply `.hydr8-reveal` to a container for a
+   single fade-in, or `.hydr8-stagger` to a parent + `.hydr8-reveal-item`
+   to each child for a cascading entrance.
+   ============================================================ */
+
+.hydr8-reveal {
+    animation: hydr8-reveal-in 0.5s ease-out both;
+}
+
+.hydr8-reveal-item {
+    opacity: 0;
+    animation: hydr8-reveal-item-in 0.5s ease-out both;
+}
+
+/* Cascading stagger — children reveal one after another without
+   needing inline animation-delay styles.  Supports up to 12 items. */
+.hydr8-stagger > .hydr8-reveal-item:nth-child(1)  { animation-delay: 0.05s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(2)  { animation-delay: 0.10s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(3)  { animation-delay: 0.15s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(4)  { animation-delay: 0.20s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(5)  { animation-delay: 0.25s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(6)  { animation-delay: 0.30s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(7)  { animation-delay: 0.35s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(8)  { animation-delay: 0.40s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(9)  { animation-delay: 0.45s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(10) { animation-delay: 0.50s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(11) { animation-delay: 0.55s; }
+.hydr8-stagger > .hydr8-reveal-item:nth-child(12) { animation-delay: 0.60s; }
+
+@keyframes hydr8-reveal-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hydr8-reveal-item-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Respect reduced-motion preference — disable all reveal/shimmer
+   motion for users who prefer less animation. */
+@media (prefers-reduced-motion: reduce) {
+    .hydr8-reveal,
+    .hydr8-reveal-item {
+        animation: none !important;
+        opacity: 1 !important;
+    }
+    .hydr8-skeleton-bar {
+        animation: none !important;
+    }
+}
+
 

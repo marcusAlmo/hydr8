@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="dashboard" %}
+{% endblock %}
+
+{% block content %}
+    <!-- TopNavBar -->
+    <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
+        <div class="flex items-center gap-2">
+            <h2 class="font-headline-md text-headline-md font-black text-primary">Dashboard</h2>
+            <div class="h-4 w-px bg-outline-variant mx-2"></div>
+            <p class="font-body-sm text-body-sm text-on-surface-variant">{{ today_date }}</p>
+        </div>
+    </header>
+
+    <!-- Content Canvas -->
+    <div class="flex-1 overflow-y-auto px-margin-page py-6 pb-12 custom-scrollbar">
+        <!-- Page Description -->
+        <p class="text-on-surface-variant font-body-md text-body-md mb-6">Monitor daily sales, outstanding debts, and operational health at a glance.</p>
+
+        {# ── Stats row — skeleton → HTMX lazy-load ── #}
+        <div id="stats-section"
+             hx-get="{% url 'analytics:dashboard_stats' %}"
+             hx-trigger="load"
+             hx-swap="outerHTML">
+            {% include "analytics/partials/skeletons/stats_skeleton.html" %}
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 flex flex-col gap-8">
+                {# ── Recent remittances — skeleton → HTMX lazy-load ── #}
+                <div id="recent-remittances-section"
+                     hx-get="{% url 'analytics:dashboard_recent_remittances' %}"
+                     hx-trigger="load"
+                     hx-swap="outerHTML">
+                    {% include "analytics/partials/skeletons/recent_remittances_skeleton.html" %}
+                </div>
+
+                {# ── Outstanding debts — skeleton → HTMX lazy-load ── #}
+                <div id="outstanding-debts-section"
+                     hx-get="{% url 'analytics:dashboard_outstanding_debts' %}"
+                     hx-trigger="load"
+                     hx-swap="outerHTML">
+                    {% include "analytics/partials/skeletons/outstanding_debts_skeleton.html" %}
+                </div>
+            </div>
+            {% include "analytics/partials/today_remittance_panel.html" %}
+        </div>
+    </div>
+{% endblock %}

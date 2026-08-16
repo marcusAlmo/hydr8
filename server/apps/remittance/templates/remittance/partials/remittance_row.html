@@ -1,0 +1,198 @@
+{% comment %}Single remittance row — shared by the history table and the
+   update_paid_status HTMX endpoint (outerHTML swap).
+
+   Draft rows show a DRAFT badge and (for admins) a Finalize link that
+   redirects to the Add Remittance page with the draft's date pre-loaded,
+   instead of the tithes/offering paid checkboxes.
+
+   Alpine tracks the dirty state between the DB-backed original values
+   and the current checkbox state. When either flag is mutated, a
+   "Confirm" button appears; clicking it POSTs to update_paid_status
+   which persists the change and re-renders this partial.
+
+   Clicking the row toggles an expandable accordion (second <tr>) showing
+   the full 4-column KPI summary (Revenue · Deductions · Summary · Obligations).
+
+   Both <tr>s are wrapped in a <tbody x-data> so they share one Alpine scope.
+
+   Optimistic UI: checkboxes update instantly via x-model; the row border
+   reacts via :class. On Confirm, a saving spinner shows on the button.
+   If the server returns an error (4xx/5xx), the rollback() method
+   reverts the checkbox states and clears saving so the user can retry.{% endcomment %}
+<tbody class="rem-row-group"
+       x-data="remittanceRow({
+           tithes_paid: {{ rem.tithes_paid|yesno:'true,false' }},
+           offering_paid: {{ rem.offering_paid|yesno:'true,false' }},
+           is_draft: {{ rem.is_draft|yesno:'true,false' }}
+       })"
+       @rollback-row="rollback()">
+    <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 rem-row"
+        :class="(!tithesPaid || !offeringPaid) ? 'border-l-[#f59e0b]' : 'border-l-transparent'">
+        <td class="px-6 py-3 font-data-mono text-on-surface whitespace-nowrap cursor-pointer" @click="expanded = !expanded">
+            <span class="material-symbols-outlined text-outline text-[16px] transition-transform duration-200 inline-block align-middle mr-1"
+                  :class="expanded ? 'rotate-90' : ''">chevron_right</span>
+            {{ rem.date }}
+            {% if rem.is_draft %}
+                <span class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFBF00]/15 text-[#B45309] text-[10px] font-bold uppercase tracking-wider">
+                    <span class="material-symbols-outlined text-[12px]">edit_note</span>
+                    Draft
+                </span>
+            {% endif %}
+        </td>
+        <td class="px-6 py-3 cursor-pointer" @click="expanded = !expanded">
+            <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full {{ rem.avatar_bg }} text-[10px] flex items-center justify-center font-bold {{ rem.avatar_text }}">{{ rem.initials }}</div>
+                <span class="text-body-sm font-medium">{{ rem.created_by }}</span>
+            </div>
+        </td>
+        <td class="px-6 py-3 text-right font-data-mono cursor-pointer" @click="expanded = !expanded">{{ rem.total_sales }}</td>
+        <td class="px-6 py-3 text-right font-data-mono text-on-surface-variant cursor-pointer" @click="expanded = !expanded">{{ rem.total_repayments }}</td>
+        <td class="px-6 py-3 text-right font-data-mono text-on-surface-variant cursor-pointer" @click="expanded = !expanded">{{ rem.total_expenses }}</td>
+        <td class="px-6 py-3 text-right font-data-mono text-on-surface-variant cursor-pointer" @click="expanded = !expanded">{{ rem.total_commission }}</td>
+        <td class="px-6 py-3 text-right font-data-mono text-tertiary font-bold cursor-pointer" @click="expanded = !expanded">{{ rem.net_profit }}</td>
+        <td class="px-6 py-3 text-right font-data-mono text-primary font-bold cursor-pointer" @click="expanded = !expanded">{{ rem.tithes }}</td>
+
+        {% if rem.is_draft %}
+            <!-- Draft: tithes/offering paid don't apply yet -->
+            <td class="px-6 py-3 text-center" colspan="2"></td>
+            <td class="px-6 py-3 text-center">
+                {% if is_admin %}
+                    <a href="{% url 'remittance:add' %}?date={{ rem.date }}"
+                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-body-sm font-semibold hover:bg-primary/20 transition-colors">
+                        <span class="material-symbols-outlined text-[16px]">lock_open</span>
+                        Finalize
+                    </a>
+                {% else %}
+                    <span class="text-on-surface-variant/40 text-body-sm italic">—</span>
+                {% endif %}
+            </td>
+        {% else %}
+            <!-- Finalized: tithes/offering paid checkboxes -->
+            <td class="px-6 py-3 text-center">
+                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
+                       type="checkbox"
+                       name="tithes_paid"
+                       value="on"
+                       x-model="tithesPaid">
+            </td>
+            <td class="px-6 py-3 text-center">
+                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
+                       type="checkbox"
+                       name="offering_paid"
+                       value="on"
+                       x-model="offeringPaid">
+            </td>
+            <td class="px-6 py-3 text-center">
+                <div class="flex items-center justify-center gap-1.5" x-cloak x-show="dirty"
+                     x-transition:enter="transition ease-out duration-150"
+                     x-transition:enter-start="opacity-0 scale-75"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-100"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-75">
+                    <button type="button"
+                            @click="confirm()"
+                            hx-post="{% url 'remittance:update_paid_status' rem.id %}"
+                            hx-target="closest .rem-row-group"
+                            hx-swap="outerHTML"
+                            hx-include="closest .rem-row-group"
+                            hx-disabled-elt="this"
+                            hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('rollback-row', {bubbles: true}))"
+                            :disabled="saving"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-on-primary text-label font-label-caps hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label="Confirm payment status update">
+                        <span x-show="!saving" class="material-symbols-outlined text-[16px]">check</span>
+                        <span x-show="saving" x-cloak class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        <span x-text="saving ? 'Saving…' : 'Confirm'">Confirm</span>
+                    </button>
+                    <button type="button"
+                            @click="cancel()"
+                            class="inline-flex items-center px-2 py-1 rounded-md text-outline hover:bg-surface-container-high transition-colors text-label font-label-caps"
+                            aria-label="Revert payment status">
+                        Cancel
+                    </button>
+                </div>
+            </td>
+        {% endif %}
+    </tr>
+
+    <!-- ===== Expandable KPI Summary Accordion (separate row) ===== -->
+    <tr x-show="expanded" x-cloak
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0">
+        <td colspan="11" class="!p-0">
+            <div class="border-t border-outline-variant/20 bg-surface-container-low/30 px-6 py-4">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Revenue -->
+                    <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-3">
+                        <p class="font-label-caps text-label-caps text-primary border-b border-primary/20 pb-2">Revenue</p>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Cash Sales</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-primary">₱{{ rem.total_sales }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Repayments</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-tertiary">₱{{ rem.total_repayments }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Drivers Remittance</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-primary">₱{{ rem.drivers_remittance }}</p>
+                        </div>
+                    </div>
+                    <!-- Deductions -->
+                    <div class="rounded-lg bg-error/5 border border-error/20 p-4 space-y-3">
+                        <p class="font-label-caps text-label-caps text-error border-b border-error/20 pb-2">Deductions</p>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Credits</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-error">₱{{ rem.total_credits }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Expenses</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-error">₱{{ rem.total_expenses }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-[#D97706]">₱{{ rem.net_commissions }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-[#D97706]">₱{{ rem.net_salaries }}</p>
+                        </div>
+                    </div>
+                    <!-- Summary -->
+                    <div class="rounded-lg bg-tertiary/5 border border-tertiary/20 p-4 space-y-3">
+                        <p class="font-label-caps text-label-caps text-tertiary border-b border-tertiary/20 pb-2">Summary</p>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Remittance</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-tertiary font-bold">₱{{ rem.net_remittance }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Gross Commissions</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-[#D97706]">₱{{ rem.gross_commissions }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Containers Sold</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-on-surface">{{ rem.containers_sold }}</p>
+                        </div>
+                    </div>
+                    <!-- Obligations -->
+                    <div class="rounded-lg bg-[#FFBF00]/5 border border-[#FFBF00]/30 p-4 space-y-3">
+                        <p class="font-label-caps text-label-caps text-[#FFBF00] border-b border-[#FFBF00]/30 pb-2">Obligations</p>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Tithes (10%)</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-[#FFBF00]">₱{{ rem.tithes }}</p>
+                        </div>
+                        <div class="flex flex-col">
+                            <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Offerings</p>
+                            <p class="font-data-mono text-data-mono text-[16px] text-[#FFBF00]">₱{{ rem.offerings }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </td>
+    </tr>
+</tbody>

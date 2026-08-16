@@ -17,6 +17,22 @@ Hydr8 is a daily operations tool for a water refilling and delivery business. Th
 5. Track customer debts and borrowed containers independently.
 6. Get AI-powered operational insights via a Gemma 2B edge model running locally in the browser (WebGPU).
 
+### Canonical Data Sources (Dashboard)
+
+| Dashboard metric | Canonical source | Notes |
+|---|---|---|
+| Outstanding Debt ("Total Unpaid Credits") | `Customer.debt_balance` | Denormalized per-customer running balance. This is the single source of truth for the dashboard stat card — **not** `RiderCredit` nor `CreditLine` aggregates. `RiderCredit` is still used for the Long-Running Debts table (aged rider-issued credits), but the headline total comes from `Σ Customer.debt_balance`. |
+| Today's Total Sales | `Remittance.total_sales` for today | Trend = delta vs yesterday's finalized remittance. |
+| Unreturned Containers | `Σ Customer.borrowed_round_8gal + borrowed_slim_8gal + borrowed_other` | Breakdown chips use the same three fields. |
+
+### Operational Model (Remittance Entry)
+
+The business runs a **single daily remittance**: staff enter the afternoon's total dispatched quantities once per day to speed up reconciliation — they do **not** log each dispatch as it happens. Consequently:
+
+- There is **no hourly dispatch tracking** and no per-dispatch timestamped transaction model.
+- `Remittance.date` is a `DateField` (daily granularity) and remains the time unit for all charts.
+- Dashboard charts are daily-granularity (sales trend line, rider leaderboard bar) — see Phase 7.
+
 ---
 
 ## 2. App Architecture

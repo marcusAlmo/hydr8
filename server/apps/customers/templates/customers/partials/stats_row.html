@@ -1,0 +1,32 @@
+{% comment %}
+Asymmetric stats row — summary cards for the Customers page.
+Expects context:
+  - stats: list of { col_span, label, icon, icon_class, value, value_size,
+                     trend?, trend_direction?, subtitle?, border_class }
+{% endcomment %}
+<section class="grid grid-cols-1 md:grid-cols-12 gap-gutter mb-6 hydr8-stagger">
+    {% for stat in stats %}
+    <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between transition-all duration-300 cursor-default hydr8-reveal-item">
+        <div class="flex justify-between items-start mb-2">
+            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
+            <span class="material-symbols-outlined {{ stat.icon_class }}">{{ stat.icon }}</span>
+        </div>
+        <div>
+            <h3 class="font-data-mono text-2xl text-on-surface font-bold"
+               x-data="countUp({
+                   target: {{ stat.raw_value|default_if_none:'null' }},
+                   prefix: '{{ stat.value_prefix|default:'' }}',
+                   decimals: {{ stat.value_decimals|default:'0' }}
+               })">{{ stat.value }}</h3>
+            {% if stat.trend %}
+            <p class="mt-1 font-body-sm text-body-sm text-tertiary flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">trending_{{ stat.trend_direction }}</span>
+                {{ stat.trend }}
+            </p>
+            {% elif stat.subtitle %}
+            <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</section>

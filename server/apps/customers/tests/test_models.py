@@ -7,9 +7,9 @@ from apps.tests.fakes import FakeCustomerRepository
 
 class CustomerModelTests(SimpleTestCase):
     def test_customer_str(self):
-        """Test Customer string representation."""
-        customer = Customer(name="John Doe Store")
-        self.assertEqual(str(customer), "John Doe Store")
+        """Test Customer string representation is a non-PII display ID."""
+        customer = Customer(name="John Doe Store", pk=1)
+        self.assertEqual(str(customer), "HY-0001")
 
     def test_customer_defaults(self):
         """Test Customer default balance and borrowed counts."""
@@ -20,19 +20,21 @@ class CustomerModelTests(SimpleTestCase):
         self.assertEqual(customer.borrowed_other, 0)
 
     def test_credit_line_str(self):
-        """Test CreditLine string representation."""
+        """Test CreditLine string representation is a non-PII display ID."""
         customer = Customer(name="Store A")
         product = Product(name="Water 5G", variation="Slim")
-        credit_line = CreditLine(customer=customer, product=product, qty_remaining=5)
-        self.assertEqual(str(credit_line), "Store A - Water 5G (5 left)")
+        credit_line = CreditLine(customer=customer, product=product, qty_remaining=5, pk=42)
+        # RA 10173: __str__ must not expose customer names.
+        self.assertEqual(str(credit_line), "CL-42 (5 left)")
 
     def test_credit_payment_str(self):
-        """Test CreditPayment string representation."""
+        """Test CreditPayment string representation is a non-PII display ID."""
         customer = Customer(name="Store B")
         product = Product(name="Water 5G", variation="Round")
         credit_line = CreditLine(customer=customer, product=product, qty_remaining=2)
-        payment = CreditPayment(credit_line=credit_line, amount=Decimal("150.00"))
-        self.assertEqual(str(payment), f"Payment of 150.00 for {str(credit_line)}")
+        payment = CreditPayment(credit_line=credit_line, amount=Decimal("150.00"), pk=7)
+        # RA 10173: __str__ must not expose customer names.
+        self.assertEqual(str(payment), "CP-7 (150.00)")
 
     def test_fake_customer_repository(self):
         """Test FakeCustomerRepository in-memory operations."""

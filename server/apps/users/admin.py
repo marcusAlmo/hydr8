@@ -6,26 +6,42 @@ from .models import Role, Permission, User, DriverCommission
 
 @admin.register(Role)
 class RoleAdmin(ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
+    list_display = ('name', 'company', 'is_default', 'description', 'created_at', 'updated_at', 'deleted_at')
+    list_filter = ('company', 'is_default')
     search_fields = ('name',)
+    readonly_fields = ('created_at', 'updated_at', 'deleted_at')
     fieldsets = (
         ("Role Details", {
-            "fields": ("name",)
+            "fields": (
+                ("name", "is_default"),
+                "company",
+                "description",
+            ),
+            "classes": ["tab"],
+        }),
+        ("Audit Metadata", {
+            "fields": ("created_at", "updated_at", "deleted_at"),
+            "classes": ["tab"],
         }),
     )
 
 @admin.register(Permission)
 class PermissionAdmin(ModelAdmin):
-    list_display = ('role', 'action', 'can_read', 'can_write', 'can_update', 'can_delete')
+    list_display = ('role', 'action', 'can_read', 'can_write', 'can_update', 'can_delete', 'updated_at')
     list_filter = ('role', 'action', 'can_read', 'can_write', 'can_update', 'can_delete')
     search_fields = ('role__name', 'action')
+    readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         ("Resource Assignment", {
             "fields": ("role", "action"),
             "classes": ["tab"],
         }),
         ("Access Levels (RWUD)", {
-            "fields": ("can_read", "can_write", "can_update", "can_delete"),
+            "fields": (("can_read", "can_write"), ("can_update", "can_delete")),
+            "classes": ["tab"],
+        }),
+        ("Audit Metadata", {
+            "fields": ("created_at", "updated_at"),
             "classes": ["tab"],
         }),
     )
@@ -36,21 +52,22 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
 
-    list_display = ('username', 'email', 'first_name', 'last_name', 'role', 'status')
-    list_filter = ('role', 'status', 'is_superuser', 'is_staff')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'company', 'role', 'is_active')
+    list_filter = ('company', 'role', 'is_active', 'is_superuser', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name')
-    
+    readonly_fields = ('last_login', 'date_joined', 'created_at', 'updated_at', 'deleted_at')
+
     fieldsets = (
-        ("Authentication", {
-            "fields": ("username", "password"),
+        ("Authentication & Security", {
+            "fields": (("username", "password"),),
             "classes": ["tab"],
         }),
         ("Personal Information", {
             "fields": ("first_name", "last_name", "email"),
             "classes": ["tab"],
         }),
-        ("Role & Status", {
-            "fields": ("role", "status"),
+        ("Tenancy & Role", {
+            "fields": ("company", "role", "deactivated_at"),
             "classes": ["tab"],
         }),
         ("Django Permissions", {
@@ -63,15 +80,33 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):  # type: ignore
             ),
             "classes": ["tab"],
         }),
-        ("Important Dates", {
-            "fields": ("last_login", "date_joined", "deleted_at"),
+        ("Important Dates & Audit", {
+            "fields": (
+                ("last_login", "date_joined"),
+                ("created_at", "updated_at", "deleted_at"),
+            ),
             "classes": ["tab"],
         }),
     )
 
 @admin.register(DriverCommission)
 class DriverCommissionAdmin(ModelAdmin):
-    list_display = ('driver', 'product', 'rate_per_unit', 'updated_at')
-    list_filter = ('product',)
+    list_display = ('driver', 'product', 'company', 'rate_per_unit', 'created_at', 'updated_at')
+    list_filter = ('company', 'product')
     search_fields = ('driver__username', 'product__name')
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        ("Commission Details", {
+            "fields": (
+                ("driver", "product"),
+                "company",
+                "rate_per_unit",
+            ),
+            "classes": ["tab"],
+        }),
+        ("Audit Metadata", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ["tab"],
+        }),
+    )
 

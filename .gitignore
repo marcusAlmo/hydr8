@@ -1,0 +1,35 @@
+# Python virtual environments
+.venv/
+venv/
+ENV/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+
+# Environment files
+.env
+.env.*
+!*.example
+
+# Devin local MCP config (contains secret references)
+.devin/mcp_config.local.json
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.sqlite3
+
+# Static files / coverage
+staticfiles/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
