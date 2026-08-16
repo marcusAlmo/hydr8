@@ -529,6 +529,15 @@ def record_customer_collection(
                 f"Cannot pay {qty_paid} units — only "
                 f"{credit_line.qty_remaining} remaining."
             )
+        # Auto-compute the money value when the client submitted units
+        # without an amount.  The collect modal's Alpine @input handler
+        # is supposed to fill amount = qty × unit_price, but if that
+        # client-side auto-fill fails (JS disabled, manual edit, etc.)
+        # we must not persist a CreditPayment with containers_paid > 0
+        # and amount = 0 — that would decouple "Total Repayments" from
+        # the repaid unit counts on the remittance form.
+        if qty_paid > 0 and amount == 0:
+            amount = Decimal(qty_paid) * credit_line.unit_price_snapshot
         parsed_payments.append((credit_line, qty_paid, amount, paid_at))
 
     if not parsed_returns and not parsed_payments:

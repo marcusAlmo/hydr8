@@ -25,7 +25,33 @@ Expects context:
     class="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm p-4"
     @click="$dispatch('close-modal')"
     @keydown.escape.window="$dispatch('close-modal')"
-    x-data="{ totalPaid: 0.00, totalReturned: 0, saving: false }"
+    x-data="{
+        totalPaid: 0.00,
+        totalReturned: 0,
+        saving: false,
+        syncAmounts(form) {
+            // Before submitting, re-compute any amount field that is 0
+            // or empty while its qty_paid is > 0.  The per-row @input
+            // auto-fill on the qty field normally keeps amount in sync,
+            // but a user can manually clear the amount field after the
+            // auto-fill ran — without this guard the form would submit
+            // qty_paid > 0 with amount = 0, creating a CreditPayment
+            // that decouples "Total Repayments" from repaid unit counts.
+            form.querySelectorAll('input[name^=qty_paid_]').forEach(qtyInput => {
+                const qty = parseInt(qtyInput.value) || 0;
+                if (qty <= 0) return;
+                const amountName = qtyInput.name.replace('qty_paid_', 'amount_paid_');
+                const amountInput = form.elements[amountName];
+                if (!amountInput) return;
+                const current = parseFloat(amountInput.value) || 0;
+                if (current === 0) {
+                    const price = parseFloat(qtyInput.dataset.unitPrice) || 0;
+                    amountInput.value = (qty * price).toFixed(2);
+                    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+        }
+    }"
     x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
     x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
     @save-failed="saving = false"
@@ -71,7 +97,7 @@ Expects context:
               hx-post="{% url 'customers:collect_submit' customer.id %}"
               hx-target="#collect-form-error-{{ customer.id }}"
               hx-swap="innerHTML"
-              x-on:submit="saving = true"
+              x-on:submit="syncAmounts($el); saving = true"
               hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))">
             {% csrf_token %}
 

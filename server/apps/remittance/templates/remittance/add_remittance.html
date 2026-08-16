@@ -2284,6 +2284,15 @@
                         sum + (Number(rp.amount) || 0), 0);
                 },
                 totalRepaymentCommission() {
+                    // For FINALIZED records, the live `repayments` array
+                    // is empty.  Compute from the per-line repaid units
+                    // (set by applyDraftState from form_state.rider_repaid)
+                    // × the rider's commission rate for that product.
+                    if (this.isFinalizedView) {
+                        return this.riders.reduce((sum, r) =>
+                            sum + r.product_lines.reduce((s, line) =>
+                                s + (Number(line.repaid) || 0) * this.rateFor(r, line.product_key), 0), 0);
+                    }
                     return this.repayments.reduce((sum, rp) =>
                         sum + this.repaymentCommission(rp), 0);
                 },
@@ -2308,6 +2317,15 @@
                     return productSales + (Number(this.otherSales) || 0);
                 },
                 totalRepayments() {
+                    // For FINALIZED records, the live `repayments` array
+                    // is empty (the linked CreditPayments are excluded by
+                    // _repayments_for_date because they belong to a
+                    // FINALIZED remittance).  Fall back to the stored
+                    // total from the summary, the same pattern used for
+                    // totalCreditsSeed.
+                    if (this.isFinalizedView && this.existingRemittance && this.existingRemittance.totals) {
+                        return Number(this.existingRemittance.totals.total_repayments) || 0;
+                    }
                     // Sum the amount of ALL repayments collected today,
                     // regardless of whether care_of is a rider or staff.
                     // Matches the backend (services.py accumulates

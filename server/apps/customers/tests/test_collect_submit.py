@@ -189,6 +189,49 @@ class RecordCollectionServiceTests(TestCase):
                 }],
             )
 
+    def test_payment_with_zero_amount_auto_computes_from_unit_price(self):
+        """When qty_paid > 0 but amount = 0, the amount is auto-computed
+        from qty_paid × credit_line.unit_price_snapshot.
+
+        This guards against the client-side auto-fill (Alpine @input)
+        failing to populate the amount field, which would otherwise
+        create a CreditPayment with containers_paid > 0 and amount = 0
+        — decoupling "Total Repayments" from repaid unit counts on the
+        remittance form.
+        """
+        line = self._credit(qty=5, price="40.00")
+        result = record_customer_collection(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            performed_by=self.staff,
+            returns=[],
+            payments=[{
+                "credit_line_id": str(line.pk),
+                "qty_paid": 3,
+                "amount": "0",
+            }],
+        )
+        self.assertEqual(result["payments_recorded"], 3)
+        self.assertEqual(result["total_collected"], Decimal("120.00"))
+        payment = CreditPayment.objects.get(credit_line=line)
+        self.assertEqual(payment.containers_paid, 3)
+        self.assertEqual(payment.amount, Decimal("120.00"))
+
+    def test_payment_with_zero_amount_and_zero_qty_is_skipped(self):
+        """An all-zero payment entry is still skipped (no auto-compute)."""
+        borrowed = self._borrow(qty=5)
+        line = self._credit(qty=5, price="40.00")
+        record_customer_collection(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            performed_by=self.staff,
+            returns=[{"borrowed_id": str(borrowed.pk), "qty": 1}],
+            payments=[{
+                "credit_line_id": str(line.pk),
+                "qty_paid": 0,
+                "amount": "0",
+            }],
+        )
+        self.assertFalse(CreditPayment.objects.filter(credit_line=line).exists())
+
     # --- combined / edge cases ----------------------------------------------
 
     def test_combined_returns_and_payments(self):
@@ -395,3 +438,25 @@ class CollectSubmitViewTests(TestCase):
         self.assertEqual(self.customer.debt_balance, Decimal("120.00"))
         self.customer.refresh_from_db()
         self.assertEqual(self.customer.borrowed_round_8gal, 3)
+
+    def test_submit_auto_computes_amount_when_zero(self):
+        """POST with qty_paid > 0 and amount = 0 auto-computes the amount
+        server-side from qty_paid × unit_price_snapshot.
+
+        Regression guard for the bug where a CreditPayment was persisted
+        with containers_paid > 0 and amount = 0, decoupling "Total
+        Repayments" (sum of amount) from the repaid unit counts (sum of
+        containers_paid) on the remittance form.
+        """
+        response = self.client.post(self._url, {
+            f"qty_paid_CL-{self.credit_line.pk}": "2",
+            f"amount_paid_CL-{self.credit_line.pk}": "0.00",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.credit_line.refresh_from_db()
+        self.assertEqual(self.credit_line.qty_remaining, 2)
+        payment = CreditPayment.objects.get(credit_line=self.credit_line)
+        self.assertEqual(payment.containers_paid, 2)
+        self.assertEqual(payment.amount, Decimal("80.00"))
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.debt_balance, Decimal("80.00"))
