@@ -391,7 +391,7 @@
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-label-caps font-label-caps text-outline uppercase">Total Sales</span>
-                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(latestValue('total_sales'))"></div>
+                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(rangeSum('total_sales'))"></div>
                         </div>
                         <span class="flex items-center gap-1 text-tertiary text-body-sm font-bold">
                             <span class="material-symbols-outlined text-[14px]">trending_up</span>
@@ -444,7 +444,7 @@
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-label-caps font-label-caps text-outline uppercase">Commissions Paid</span>
-                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(latestValue('commissions_paid'))"></div>
+                            <div class="font-data-mono text-headline-md text-on-surface font-bold" x-text="formatPeso(rangeSum('commissions_paid'))"></div>
                         </div>
                         <span class="flex items-center gap-1 text-tertiary text-body-sm font-bold">
                             <span class="material-symbols-outlined text-[14px]">trending_up</span>
@@ -472,7 +472,7 @@
                             <span class="text-label-caps font-label-caps text-outline uppercase">Rider Performance</span>
                             <div class="font-data-mono text-headline-md text-on-surface font-bold">
                                 <span x-text="totalRiderUnits()"></span>
-                                <span class="text-body-sm text-outline font-body-sm font-normal ml-1">units today</span>
+                                <span class="text-body-sm text-outline font-body-sm font-normal ml-1" x-text="dateRange === 'today' ? 'units today' : 'units in range'"></span>
                             </div>
                         </div>
                         <span class="text-label-caps font-label-caps text-outline uppercase">Units Sold</span>
@@ -643,6 +643,7 @@
                 customFrom: '',
                 customTo: '',
                 dateRanges: [
+                    { key: 'today', label: 'Today' },
                     { key: '7d',  label: '7D'  },
                     { key: '14d', label: '14D' },
                     { key: '30d', label: '30D' },
@@ -688,6 +689,7 @@
                     if (this.dateRange === 'custom' && this.customFrom && this.customTo) {
                         return `${this.customFrom} → ${this.customTo}`;
                     }
+                    if (this.dateRange === 'today') return 'Today';
                     const r = this.dateRanges.find(d => d.key === this.dateRange);
                     return r ? `Last ${r.label}` : 'Last 30D';
                 },
@@ -704,7 +706,7 @@
                         }
                         return this.seed.labels.length;
                     }
-                    return { '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] ?? 30;
+                    return { 'today': 1, '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] ?? 30;
                 },
                 sliceStart() {
                     return this.seed.labels.length - this.rangeLength();
@@ -769,7 +771,10 @@
                     const start = this.sliceStart();
                     return this.seed.riders
                         .filter(r => this.selectedRiders.includes(r.name))
-                        .reduce((sum, r) => sum + (r.units_sold[r.units_sold.length - 1] ?? 0), 0);
+                        .reduce(
+                            (sum, r) => sum + r.units_sold.slice(start).reduce((a, b) => a + (Number(b) || 0), 0),
+                            0,
+                        );
                 },
                 formatPeso(value) {
                     return '₱' + Number(value).toLocaleString('en-PH', {
