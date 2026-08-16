@@ -31,7 +31,7 @@ from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
 from apps.users.permissions import is_staff_role as user_is_staff_role
 from apps.users.signals import login_failed
-from .selectors import get_roles_for_user, get_user_by_id
+from .selectors import get_roles_for_user, get_user_by_id, username_exists
 from .services import (
     change_user_password,
     check_login_lockout,
@@ -650,7 +650,7 @@ class AddUserForm(forms.Form):
 
     def clean_username(self):
         username = self.cleaned_data.get('username', '').strip()
-        if User.objects.filter(username=username, deleted_at__isnull=True).exists():
+        if username_exists(username):
             raise ValidationError("A user with that username already exists.")
         return username
 

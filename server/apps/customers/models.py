@@ -80,6 +80,11 @@ class Customer(models.Model):
             models.Index(fields=['company', 'debt_balance']),
             models.Index(fields=['company', 'last_credit_at']),
             models.Index(fields=['company', 'status']),
+            models.Index(
+                fields=['deleted_at'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='idx_customer_active',
+            ),
         ]
         constraints = [
             # Prevents race conditions where concurrent payment collections

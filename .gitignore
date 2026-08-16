@@ -18,3 +18,18 @@ Thumbs.db
 
 # Devin local MCP config (contains secret references)
 .devin/mcp_config.local.json
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.sqlite3
+
+# Static files / coverage
+staticfiles/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log

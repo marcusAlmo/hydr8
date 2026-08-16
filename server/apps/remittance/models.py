@@ -45,6 +45,7 @@ class Remittance(models.Model):
 
     class Meta:
         db_table = 'remittance_remittance'
+        verbose_name_plural = 'remittances'
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'date'],
@@ -83,6 +84,7 @@ class RemittanceRider(models.Model):
 
     class Meta:
         db_table = 'remittance_remittance_rider'
+        verbose_name_plural = 'remittance riders'
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'remittance', 'rider'],
@@ -124,6 +126,7 @@ class RemittanceRiderProductLine(models.Model):
 
     class Meta:
         db_table = 'remittance_remittance_rider_productline'
+        verbose_name_plural = 'remittance rider product lines'
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'remittance_rider', 'product'],
@@ -166,6 +169,7 @@ class Expense(models.Model):
 
     class Meta:
         db_table = 'remittance_expense'
+        verbose_name_plural = 'expenses'
         indexes = [
             models.Index(fields=['company', 'remittance']),
             models.Index(fields=['company', 'remittance_rider']),
@@ -199,6 +203,7 @@ class RiderCredit(models.Model):
 
     class Meta:
         db_table = 'remittance_rider_credit'
+        verbose_name_plural = 'rider credits'
         indexes = [
             models.Index(fields=['company', 'rider']),
             models.Index(fields=['company', 'is_repaid']),
@@ -229,6 +234,7 @@ class RiderCreditRepayment(models.Model):
 
     class Meta:
         db_table = 'remittance_rider_credit_repayment'
+        verbose_name_plural = 'rider credit repayments'
         indexes = [
             models.Index(fields=['company', 'rider_credit']),
             models.Index(fields=['company', 'remittance']),
@@ -272,6 +278,7 @@ class RiderDeduction(models.Model):
 
     class Meta:
         db_table = 'remittance_rider_deduction'
+        verbose_name_plural = 'rider deductions'
         indexes = [
             models.Index(fields=['company', 'remittance_rider']),
         ]
@@ -308,6 +315,7 @@ class RemittanceStaff(models.Model):
 
     class Meta:
         db_table = 'remittance_remittance_staff'
+        verbose_name_plural = 'remittance staff'
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'remittance', 'staff'],
@@ -363,6 +371,7 @@ class StaffDeduction(models.Model):
 
     class Meta:
         db_table = 'remittance_staff_deduction'
+        verbose_name_plural = 'staff deductions'
         indexes = [
             models.Index(fields=['company', 'remittance_staff']),
         ]
