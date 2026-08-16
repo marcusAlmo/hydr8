@@ -36,7 +36,7 @@ Expects context:
             // but a user can manually clear the amount field after the
             // auto-fill ran — without this guard the form would submit
             // qty_paid > 0 with amount = 0, creating a CreditPayment
-            // that decouples "Total Repayments" from repaid unit counts.
+            // that decouples 'Total Repayments' from repaid unit counts.
             form.querySelectorAll('input[name^=qty_paid_]').forEach(qtyInput => {
                 const qty = parseInt(qtyInput.value) || 0;
                 if (qty <= 0) return;
