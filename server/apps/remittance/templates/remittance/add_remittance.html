@@ -1902,13 +1902,24 @@
                             this._resetFormFields();
                             this._lastSnapshot = JSON.stringify(this._extractCacheState());
                         }
+                        // Always update totalCreditsSeed so the "Total
+                        // Credits" KPI reflects the selected date.  For
+                        // editable dates the value comes from the live
+                        // CreditLine query; for FINALIZED dates it comes
+                        // from the stored remittance snapshot in the
+                        // summary (data.total_credits is 0 for finalized
+                        // dates because the endpoint skips credit_data).
+                        if (this.dateExists && data.summary && data.summary.totals) {
+                            this.totalCreditsSeed = data.summary.totals.total_credits || 0;
+                        } else {
+                            this.totalCreditsSeed = data.total_credits || 0;
+                        }
                         // Refresh date-dependent credit data (repayments,
-                        // total credits, per-rider credited/repaid counts)
-                        // whenever the selected date is available for
-                        // editing — i.e. not locked by a FINALIZED record.
+                        // per-rider credited/repaid counts) only when the
+                        // date is available for editing — i.e. not locked
+                        // by a FINALIZED record.
                         if (!this.dateExists) {
                             this.repayments = data.repayments || [];
-                            this.totalCreditsSeed = data.total_credits || 0;
                             const counts = data.credit_repaid_counts || {};
                             for (const rider of this.riders) {
                                 const riderCounts = counts[rider.id] || {};
