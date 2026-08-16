@@ -12,7 +12,15 @@ from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
-from django.db.models import Prefetch, Q, Sum
+from django.db.models import (
+    IntegerField,
+    OuterRef,
+    Prefetch,
+    Q,
+    Subquery,
+    Sum,
+)
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.core.models import Product, SystemConfig
@@ -887,6 +895,60 @@ def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict
     return summary
 
 
+def _containers_sold_subquery():
+    """Subquery annotating the total qty_sold for a remittance.
+
+    Sums ``qty_sold`` across every rider product line.  Only sold units —
+    repaid and credited units are excluded.  Kept as a subquery to avoid the
+    cartesian-product inflation that a joined ``Sum`` would cause when other
+    multi-row annotations are present.
+    """
+    return (
+        RemittanceRiderProductLine.objects
+        .filter(remittance_rider__remittance=OuterRef("pk"))
+        .values("remittance_rider__remittance")
+        .annotate(total=Sum("qty_sold"))
+        .values("total")
+    )
+
+
+def _gross_commission_subquery():
+    """Subquery annotating the total gross commission for a remittance.
+
+    Sums ``subtotal_commission`` across every rider (the per-rider gross
+    commission before balance & manual deductions).  ``total_commission`` on
+    the Remittance model is the *net* commission, so this subquery is needed
+    for the "Gross Commissions" KPI.
+    """
+    return (
+        RemittanceRider.objects
+        .filter(remittance=OuterRef("pk"))
+        .values("remittance")
+        .annotate(total=Sum("subtotal_commission"))
+        .values("total")
+    )
+
+
+def _apply_kpi_annotations(qs):
+    """Annotates a Remittance queryset with the KPI values that are not
+    stored directly on the Remittance model.
+
+    Adds ``containers_sold_total`` (int) and ``gross_commission_total``
+    (Decimal) so :func:`_remittance_row` can render the full KPI card without
+    extra per-row queries.
+    """
+    return qs.annotate(
+        containers_sold_total=Coalesce(
+            Subquery(_containers_sold_subquery(), output_field=IntegerField()),
+            0,
+        ),
+        gross_commission_total=Coalesce(
+            Subquery(_gross_commission_subquery()),
+            Decimal("0.00"),
+        ),
+    )
+
+
 def _remittance_row(rem: Remittance) -> dict:
     """Builds the template-facing dict for a single remittance row.
 
@@ -896,6 +958,23 @@ def _remittance_row(rem: Remittance) -> dict:
     """
     creator = rem.created_by
     bg, txt = avatar_classes(creator)
+    # Total Drivers Remittance = cash riders turned in.  Not stored directly
+    # on the Remittance model, so derive it from the stored totals:
+    #   net_remittance = total_remitted + other_sales - commission - salary
+    #   → total_remitted = net_remittance - other_sales + commission + salary
+    drivers_remittance = (
+        rem.net_remittance
+        - rem.total_other_sales
+        + rem.total_commission
+        + rem.total_salary
+    )
+    # containers_sold / gross_commission_total are annotated by callers via
+    # _apply_kpi_annotations().  Fall back to 0 when the annotation is absent
+    # (e.g. ad-hoc single lookups without the annotation).
+    containers_sold = getattr(rem, "containers_sold_total", 0) or 0
+    gross_commission = getattr(rem, "gross_commission_total", None)
+    if gross_commission is None:
+        gross_commission = rem.total_commission
     return {
         "id": rem.id,
         "date": rem.date.strftime("%Y-%m-%d"),
@@ -905,12 +984,15 @@ def _remittance_row(rem: Remittance) -> dict:
         "avatar_text": txt,
         "total_sales": f"{rem.total_sales:,.2f}",
         "total_repayments": f"{rem.total_repayments_received:,.2f}",
+        "drivers_remittance": f"{drivers_remittance:,.2f}",
         "total_credits": f"{rem.total_credit_sales:,.2f}",
         "total_expenses": f"{rem.total_expenses:,.2f}",
-        "total_commission": f"{rem.total_commission:,.2f}",
-        "total_salary": f"{rem.total_salary:,.2f}",
+        "net_commissions": f"{rem.total_commission:,.2f}",
+        "net_salaries": f"{rem.total_salary:,.2f}",
         "net_salaries_commissions": f"{rem.total_commission + rem.total_salary:,.2f}",
         "net_remittance": f"{rem.net_remittance:,.2f}",
+        "gross_commissions": f"{gross_commission:,.2f}",
+        "containers_sold": int(containers_sold),
         "net_profit": f"{rem.net_profit:,.2f}",
         "tithes": f"{rem.tithe_amount:,.2f}",
         "offerings": f"{rem.offering_amount:,.2f}",
@@ -924,7 +1006,7 @@ def _remittance_row(rem: Remittance) -> dict:
 
 def get_recent_remittances(user: "UserType", limit: int = 25) -> dict:
     """Returns recent remittance rows and the total count for pagination."""
-    qs = (
+    qs = _apply_kpi_annotations(
         Remittance.objects
         .for_user(user)
         .select_related("created_by")
@@ -939,9 +1021,11 @@ def get_remittance_row(user: "UserType", remittance_id: int) -> dict | None:
     """Returns the template-facing dict for a single remittance, or
     ``None`` if it does not exist or is outside the user's tenant."""
     rem = (
-        Remittance.objects
-        .for_user(user)
-        .select_related("created_by")
+        _apply_kpi_annotations(
+            Remittance.objects
+            .for_user(user)
+            .select_related("created_by")
+        )
         .filter(id=remittance_id)
         .first()
     )

@@ -312,6 +312,10 @@
                                 <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Repayments</p>
                                 <h3 class="font-data-mono text-[18px] text-tertiary" x-text="peso(totalRepayments())"></h3>
                             </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Drivers Remittance</p>
+                                <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalDriversRemittance())"></h3>
+                            </div>
                         </div>
 
                         <!-- ===== DEDUCTIONS COLUMN ===== -->
@@ -326,8 +330,12 @@
                                 <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries & Commissions</p>
-                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission() + totalSalary())"></h3>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission())"></h3>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalSalary())"></h3>
                             </div>
                         </div>
 
@@ -341,6 +349,10 @@
                             <div class="flex flex-col">
                                 <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Gross Commissions</p>
                                 <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalGrossCommission())"></h3>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Containers Sold</p>
+                                <h3 class="font-data-mono text-[18px] text-on-surface" x-text="totalContainersSold()"></h3>
                             </div>
                         </div>
 
@@ -1410,6 +1422,10 @@
                                 <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Repayments</p>
                                 <h3 class="font-data-mono text-[18px] text-tertiary" x-text="peso(totalRepayments())"></h3>
                             </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Drivers Remittance</p>
+                                <h3 class="font-data-mono text-[18px] text-primary" x-text="peso(totalDriversRemittance())"></h3>
+                            </div>
                         </div>
                         <!-- Deductions -->
                         <div class="rounded-lg bg-error/5 border border-error/20 p-4 space-y-4">
@@ -1423,8 +1439,12 @@
                                 <h3 class="font-data-mono text-[18px] text-error" x-text="peso(totalExpenses())"></h3>
                             </div>
                             <div class="flex flex-col">
-                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries & Commissions</p>
-                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission() + totalSalary())"></h3>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Commissions</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalCommission())"></h3>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Net Salaries</p>
+                                <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalSalary())"></h3>
                             </div>
                         </div>
                         <!-- Summary -->
@@ -1437,6 +1457,10 @@
                             <div class="flex flex-col">
                                 <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Gross Commissions</p>
                                 <h3 class="font-data-mono text-[18px] text-[#D97706]" x-text="peso(totalGrossCommission())"></h3>
+                            </div>
+                            <div class="flex flex-col">
+                                <p class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase mb-1">Total Containers Sold</p>
+                                <h3 class="font-data-mono text-[18px] text-on-surface" x-text="totalContainersSold()"></h3>
                             </div>
                         </div>
                         <!-- Obligations -->
@@ -2287,6 +2311,20 @@
                 // (sold - credited + repaid) * rate, before balance & deductions.
                 totalGrossCommission() {
                     return this.riders.reduce((sum, r) => sum + this.riderGrossCommission(r.id), 0);
+                },
+                // Total Drivers Remittance = sum of cash each rider actually
+                // turned in (riderRemitted).  Revenue-side KPI showing the
+                // gross cash inflow from drivers before commissions/salaries.
+                totalDriversRemittance() {
+                    return this.riders.reduce((sum, r) => sum + this.riderRemitted(r.id), 0);
+                },
+                // Total Containers Sold = sum of qty_sold across all riders
+                // and product lines.  Only sold units — repaid and credited
+                // units are excluded.
+                totalContainersSold() {
+                    return this.riders.reduce((sum, r) =>
+                        sum + r.product_lines.reduce((s, line) =>
+                            s + Math.max(0, Number(line.sold) || 0), 0), 0);
                 },
                 // ---- UI values from backend seed ----
                 // Total Credits comes from the backend (CreditLine records
