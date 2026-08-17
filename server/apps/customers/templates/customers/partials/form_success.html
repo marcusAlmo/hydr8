@@ -1,0 +1,17 @@
+{% comment %}
+Form success response — returned by HTMX POST handlers for the customer
+modals (add, edit, record-debt, record-borrowed, collect, delete).
+
+Dispatches ``close-modal`` on the window so the open modal removes
+itself and restores body scroll.  The toast is NOT rendered here —
+the view sets ``HX-Trigger: {"showToast": ...}`` so the toast is
+created client-side via the shared ``hydr8ShowToast`` helper (defined
+in base.html).  This avoids OOB-swap issues that occur when the main
+swap target is inside a modal that closes itself immediately after.
+
+Expects context: (none — the toast message is sent via HX-Trigger)
+{% endcomment %}
+<script>
+    window.dispatchEvent(new CustomEvent('close-modal'));
+    document.body.style.overflow = '';
+</script>

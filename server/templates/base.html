@@ -1,0 +1,330 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="overflow-hidden h-dvh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <title>{% block title %}Hydr8 CRM{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'hydr8-icon.svg' %}">
+    <meta name="description" content="Hydr8 CRM - Next generation customer relationship management built for performance.">
+    <!-- Google Fonts & Material Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@500&family=Inter:wght@300;400;600;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS with Stitch Design Tokens -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+              "inverse-primary": "#89ceff",
+              "surface-dim": "#cfdaf2",
+              "tertiary": "#006c4a",
+              "primary-fixed": "#c9e6ff",
+              "on-secondary-container": "#54647a",
+              "primary": "#006591",
+              "on-tertiary-fixed-variant": "#005137",
+              "secondary": "#505f76",
+              "inverse-surface": "#263143",
+              "surface-variant": "#d8e3fb",
+              "primary-container": "#0ea5e9",
+              "secondary-container": "#d0e1fb",
+              "on-primary-fixed-variant": "#004c6e",
+              "tertiary-fixed-dim": "#68dba9",
+              "on-primary-container": "#003751",
+              "surface-container": "#e7eeff",
+              "surface-container-lowest": "#ffffff",
+              "on-secondary-fixed": "#0b1c30",
+              "error": "#ba1a1a",
+              "on-primary": "#ffffff",
+              "on-tertiary": "#ffffff",
+              "background": "#f9f9ff",
+              "on-secondary": "#ffffff",
+              "on-tertiary-container": "#003c27",
+              "tertiary-fixed": "#85f8c4",
+              "surface-container-low": "#f0f3ff",
+              "surface-bright": "#f9f9ff",
+              "on-tertiary-fixed": "#002114",
+              "on-error": "#ffffff",
+              "tertiary-container": "#35af80",
+              "on-error-container": "#93000a",
+              "surface-container-high": "#dee8ff",
+              "on-surface": "#111c2d",
+              "surface-container-highest": "#d8e3fb",
+              "surface": "#f9f9ff",
+              "primary-fixed-dim": "#89ceff",
+              "secondary-fixed-dim": "#b7c8e1",
+              "error-container": "#ffdad6",
+              "outline": "#6e7881",
+              "surface-tint": "#006591",
+              "outline-variant": "#bec8d2",
+              "on-primary-fixed": "#001e2f",
+              "inverse-on-surface": "#ecf1ff",
+              "on-background": "#111c2d",
+              "on-secondary-fixed-variant": "#38485d"
+            },
+            "borderRadius": {
+              "DEFAULT": "0.125rem",
+              "lg": "0.25rem",
+              "xl": "0.5rem",
+              "full": "0.75rem"
+            },
+            "spacing": {
+              "margin-page": "1.5rem",
+              "gutter": "1rem",
+              "stack-dense": "0.25rem",
+              "stack-compact": "0.5rem",
+              "container-max": "1440px"
+            },
+            "fontFamily": {
+              "data-mono": ["Geist Mono", "monospace"],
+              "headline-sm": ["Geist", "sans-serif"],
+              "label-caps": ["Geist", "sans-serif"],
+              "body-sm": ["Geist", "sans-serif"],
+              "headline-md": ["Geist", "sans-serif"],
+              "headline-lg": ["Geist", "sans-serif"],
+              "body-md": ["Geist", "sans-serif"],
+              "sans": ["Geist", "Inter", "sans-serif"]
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- Global Styling -->
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+
+    <!-- Pre-hydrate the sidebar width from localStorage so the aside
+         renders at its persisted width BEFORE Alpine.js initializes.
+         This eliminates the width "jump" on refresh. The value is kept
+         in sync by Alpine's $persist plugin (see sidebar.html). -->
+    <script>
+        (function () {
+            try {
+                var v = localStorage.getItem('hydr8_sidebar_expanded');
+                // $persist stores booleans as JSON strings "true"/"false".
+                // Default to expanded (240px) when unset or unparseable.
+                var expanded = v === null ? true : (v === 'true');
+                // Auto-collapse on tablet/portrait (< 1024px) so the
+                // sidebar doesn't eat 31% of the screen width.
+                if (window.matchMedia && window.matchMedia('(max-width: 1023px)').matches) {
+                    expanded = false;
+                }
+                document.documentElement.style.setProperty(
+                    '--sidebar-width', expanded ? '240px' : '80px'
+                );
+            } catch (e) {
+                document.documentElement.style.setProperty('--sidebar-width', '240px');
+            }
+        })();
+    </script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-dvh flex flex-row">
+    <!-- Dynamic Ambient Backgrounds -->
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-alt"></div>
+
+    {% block sidebar %}
+    {% endblock %}
+
+    <main class="{% block main_class %}flex-1 flex flex-col overflow-hidden relative{% endblock %}">
+        {% block content %}
+        {% endblock %}
+    </main>
+    
+    <!-- Dynamic HTMX Swap Roots -->
+    <div id="modal-root"></div>
+    <div id="drawer-root"></div>
+    {% include "components/toasts/toast_container.html" %}
+
+    <!-- Idle lock-screen overlay (blurred backdrop + PIN prompt) -->
+    {% include "components/lock_screen_overlay.html" %}
+
+    <!-- HTMX Base -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Alpine.js (Ephemeral Client State) -->
+    <!-- $persist plugin MUST load before core so persisted state is
+         available when Alpine initializes components. -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/persist@3.14.1/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+    <!-- Alpine countUp component — soft numeric value animation.
+         Registers before Alpine processes components via alpine:init.
+         Used by dashboard stat cards to count up from 0 to the target
+         value when the real content swaps in from HTMX.
+
+         Uses direct textContent manipulation (not x-text) so the
+         server-rendered fallback value stays visible until the
+         animation starts — no flash of empty content. -->
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('countUp', (opts) => ({
+                // When `target` is null/undefined the animation is skipped
+                // entirely and the server-rendered fallback text is kept —
+                // useful for non-numeric placeholders like "—".
+                target: (opts && opts.target !== undefined && opts.target !== null) ? opts.target : null,
+                prefix: (opts && opts.prefix) || '',
+                decimals: (opts && opts.decimals) || 0,
+
+                init() {
+                    this.start(this.$el);
+                },
+
+                start(el) {
+                    if (!el) return;
+                    if (this.target === null) return;       // keep server text
+                    if (this.target <= 0) {
+                        el.textContent = this._format(0);
+                        return;
+                    }
+                    const duration = 800; // ms
+                    const startTime = performance.now();
+                    const tick = (now) => {
+                        const progress = Math.min((now - startTime) / duration, 1);
+                        // ease-out-cubic for a soft deceleration
+                        const eased = 1 - Math.pow(1 - progress, 3);
+                        el.textContent = this._format(this.target * eased);
+                        if (progress < 1) {
+                            requestAnimationFrame(tick);
+                        } else {
+                            el.textContent = this._format(this.target);
+                        }
+                    };
+                    requestAnimationFrame(tick);
+                },
+
+                _format(value) {
+                    const fixed = Number(value).toFixed(this.decimals);
+                    const parts = fixed.split('.');
+                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                    return this.prefix + parts.join('.');
+                },
+            }));
+        });
+    </script>
+
+    <!-- Shared client-side toast helper — mirrors the server-rendered
+         components/toasts/toast.html template exactly so JS-triggered
+         toasts (Alpine components that call showToast()) are visually
+         identical to HTMX OOB toasts.  Appends into #toast-container,
+         uses the same .toast / .toast-{type} classes, the same Alpine
+         transitions (including scale-95), the --toast-duration CSS var
+         for the progress bar, and auto-dismisses + removes the node. -->
+    <script>
+        window.hydr8ShowToast = function (message, opts) {
+            opts = opts || {};
+            var type = opts.type || 'success';
+            var title = opts.title || '';
+            var duration = opts.duration || 4000;
+
+            var container = document.getElementById('toast-container');
+            if (!container) return;
+
+            var id = 'toast-' + Date.now();
+            var el = document.createElement('div');
+            el.id = id;
+            el.className = 'toast toast-' + type;
+            el.setAttribute('style', '--toast-duration: ' + duration + 'ms');
+            el.setAttribute('role', 'alert');
+            el.setAttribute('x-data', '{ show: true }');
+            el.setAttribute('x-show', 'show');
+            el.setAttribute('x-cloak', '');
+            el.setAttribute('x-init', 'setTimeout(() => show = false, ' + duration + ')');
+            el.setAttribute('x-transition:enter', 'transition ease-out duration-300 transform');
+            el.setAttribute('x-transition:enter-start', 'opacity-0 translate-y-4 translate-x-8 scale-95');
+            el.setAttribute('x-transition:enter-end', 'opacity-100 translate-y-0 translate-x-0 scale-100');
+            el.setAttribute('x-transition:leave', 'transition ease-in duration-200 transform');
+            el.setAttribute('x-transition:leave-start', 'opacity-100 translate-y-0 translate-x-0 scale-100');
+            el.setAttribute('x-transition:leave-end', 'opacity-0 -translate-y-4 translate-x-8 scale-95');
+
+            var body = '';
+            body += '<div class="toast-indicator-strip" aria-hidden="true"></div>';
+            body += '<div class="toast-body">';
+            if (title) body += '<strong class="toast-title">' + title + '</strong>';
+            body += '<span class="toast-message"></span>';
+            body += '</div>';
+            body += '<button type="button" class="toast-close" @click="show = false" aria-label="Close notification">&times;</button>';
+            el.innerHTML = body;
+            el.querySelector('.toast-message').textContent = message;
+
+            container.appendChild(el);
+            if (window.Alpine) window.Alpine.initTree(el);
+            // Fallback removal after the dismiss transition completes.
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, duration + 400);
+        };
+    </script>
+
+    <!-- Global HTMX Config (e.g. CSRF tokens for all requests) -->
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        })
+    </script>
+
+    <!-- Bridge HX-Trigger "showToast" events to the shared hydr8ShowToast
+         helper.  This lets any HTMX endpoint fire a toast via:
+             response['HX-Trigger'] = '{"showToast": {"msg": "...", "type": "success"}}'
+         without relying on OOB swaps (which don't always work reliably
+         when the main swap target is inside a modal that closes itself). -->
+    <script>
+        document.body.addEventListener('showToast', function (e) {
+            var d = e.detail || {};
+            window.hydr8ShowToast(d.msg || d.message || '', {
+                type: d.type || 'success',
+                title: d.title || '',
+                duration: d.duration || 4000,
+            });
+        });
+    </script>
+
+    <!-- Scroll restoration for the inner content canvas.
+         The body is overflow-hidden/h-dvh, so the document itself never
+         scrolls and the browser can't restore position on reload. We persist
+         the scrollTop of the main overflow-y-auto container per URL. -->
+    <script>
+        (function () {
+            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+            var key = 'hydr8_scroll:' + location.pathname + location.search;
+            function canvas() {
+                return document.querySelector('main [class*="overflow-y-auto"]');
+            }
+
+            function restore() {
+                var el = canvas();
+                if (!el) return;
+                var saved = sessionStorage.getItem(key);
+                if (saved !== null) el.scrollTop = parseInt(saved, 10) || 0;
+            }
+            function save() {
+                var el = canvas();
+                if (el) sessionStorage.setItem(key, String(el.scrollTop));
+            }
+
+            // The content canvas is already in the DOM by the time this runs
+            // (it's rendered in the content block, above this script).
+            var el = canvas();
+            if (el) {
+                restore();
+                el.addEventListener('scroll', function () {
+                    sessionStorage.setItem(key, String(el.scrollTop));
+                }, { passive: true });
+            }
+            // Re-restore after fonts/layout settle, in case content height
+            // wasn't available on first paint.
+            window.addEventListener('DOMContentLoaded', restore);
+            window.addEventListener('load', restore);
+            window.addEventListener('pagehide', save);
+            window.addEventListener('beforeunload', save);
+        })();
+    </script>
+
+    {% block extra_body %}{% endblock %}
+</body>
+</html>

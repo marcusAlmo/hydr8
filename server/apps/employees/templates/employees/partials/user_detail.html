@@ -1,0 +1,580 @@
+{% comment %}
+User Detail — expanded report partial loaded via HTMX into the drawer.
+
+Role-specific content:
+  - Driver (is_driver):  profile header + date range filter + 3 stat cards
+    + performance trend chart with MAC badges + commission trend chart
+    with MAC badges + daily commissions table + debts handled table
+    with sum at the bottom.
+  - Staff (is_staff):    profile header + 2 stat cards + debts assigned
+    table with sum at the bottom.
+  - Admin (is_admin):    profile header + account summary + admin actions
+    (generate temp password, edit user).
+
+Expects context (from _mock_user_detail_data):
+  - profile: { id, name, initials, username, avatar_bg, avatar_text,
+               role, status, status_label, status_class, status_dot_class,
+               pin_status, pin_label, last_login, user_uuid }
+  - role: str ("Driver" | "Staff" | "Admin")
+  - is_driver / is_staff / is_admin: bool flags
+
+  Driver-only:
+    - driver_stats: list of stat dicts
+    - commissions_daily: list of { date, units, rate, amount, amount_raw }
+    - trends_seed: JSON string of { labels, performance, commissions }
+    - debts_handled: list of debt row dicts
+    - debts_sum, debts_outstanding_amount: formatted strings
+
+  Staff-only:
+    - staff_stats: list of stat dicts
+    - debts_assigned: list of debt row dicts
+    - debts_sum, debts_outstanding_amount: formatted strings
+{% endcomment %}
+<div
+    class="flex flex-col h-full"
+    x-data='userDetailDrawer({{ trends_seed|default:"null" }}, {{ commissions_daily_json|default:"[]" }})'
+>
+    {% if pin_error %}
+    <div class="mx-6 mt-4 p-4 bg-error-container border-l-4 border-error flex items-center gap-3 rounded-md">
+        <span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">error</span>
+        <p class="font-body-sm text-on-error-container font-medium text-sm">{{ pin_error }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Profile Header -->
+    <div class="px-6 pt-6 pb-5 border-b border-outline-variant/20 bg-surface-container-low/30 flex-shrink-0">
+        <div class="flex items-start gap-4">
+            <div class="w-14 h-14 rounded-full {{ profile.avatar_bg }} {{ profile.avatar_text }} flex items-center justify-center font-bold text-lg flex-shrink-0">
+                {{ profile.initials }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h3 class="font-headline-md text-headline-md font-bold text-on-surface">{{ profile.name }}</h3>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded border
+                        {% if profile.role == 'Admin' %}bg-primary/10 text-primary border-primary/20
+                        {% elif profile.role == 'Driver' %}bg-tertiary/10 text-tertiary border-tertiary/20
+                        {% else %}bg-secondary/10 text-secondary border-secondary/20{% endif %}
+                        font-label-caps text-[10px] uppercase">{{ profile.role }}</span>
+                </div>
+                <p class="font-data-mono text-on-surface-variant text-sm mt-1">{{ profile.username }} · {{ profile.id }}</p>
+                <div class="flex items-center gap-3 mt-2 flex-wrap">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full {{ profile.status_class }} font-medium text-[12px]">
+                        <span class="w-1.5 h-1.5 rounded-full {{ profile.status_dot_class }}"></span>
+                        {{ profile.status_label }}
+                    </span>
+                    <span class="font-data-mono text-on-surface-variant text-[12px]">
+                        <span class="material-symbols-outlined text-[14px] align-middle">schedule</span>
+                        Last login: {{ profile.last_login }}
+                    </span>
+                    <span class="inline-flex items-center gap-1 text-[12px]
+                        {% if profile.pin_status == 'set' %}text-tertiary{% elif profile.pin_status == 'not_set' %}text-[#D97706]{% else %}text-outline{% endif %}">
+                        <span class="material-symbols-outlined text-[14px]">
+                            {% if profile.pin_status == 'set' %}check_circle{% elif profile.pin_status == 'not_set' %}vpn_key_alert{% else %}lock{% endif %}
+                        </span>
+                        PIN: {{ profile.pin_label }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================== DRIVER EXPANDED REPORT ====================== -->
+    {% if is_driver %}
+    <div class="flex-1 overflow-y-auto custom-scrollbar" x-init="init()">
+
+        <!-- Date Range Filter + Driver Toggle -->
+        <div class="px-6 py-4 flex items-center justify-between gap-3 border-b border-outline-variant/10 flex-wrap">
+            <!-- Date Range Filter (reusable component) -->
+            <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
+                <template x-for="r in dateRanges" :key="r.key">
+                    <button
+                        @click="setDateRange(r.key)"
+                        :class="dateRange === r.key
+                            ? 'bg-primary text-on-primary shadow-sm'
+                            : 'text-on-surface-variant hover:bg-surface-container-high'"
+                        class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                        x-text="r.label"
+                    ></button>
+                </template>
+
+                <!-- Custom Range trigger -->
+                <button
+                    @click="customRangeOpen = !customRangeOpen"
+                    :class="dateRange === 'custom'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all flex items-center gap-1.5"
+                >
+                    <span class="material-symbols-outlined text-[16px]">date_range</span>
+                    <span>Custom</span>
+                </button>
+
+                <!-- Custom Range popover -->
+                <div
+                    x-show="customRangeOpen"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="opacity-0 -translate-y-1"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="opacity-100 translate-y-0"
+                    x-transition:leave-end="opacity-0 -translate-y-1"
+                    @click.outside="customRangeOpen = false"
+                    @keydown.escape.window="customRangeOpen = false"
+                    class="absolute left-0 top-full mt-1 z-50 w-80 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden"
+                >
+                    <div class="p-4 space-y-3">
+                        <h4 class="font-headline-sm text-body-md font-bold text-on-surface">Custom Date Range</h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">From</label>
+                                <input
+                                    type="date"
+                                    x-model="customFrom"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">To</label>
+                                <input
+                                    type="date"
+                                    x-model="customTo"
+                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                >
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button @click="customRangeOpen = false" class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors">Cancel</button>
+                            <button @click="applyCustomRange()" class="px-3 py-1.5 bg-primary text-on-primary text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Range label badge -->
+            <span class="font-data-mono text-[11px] text-on-surface-variant bg-surface-container-low px-2.5 py-1 rounded-md" x-text="rangeLabel()"></span>
+        </div>
+
+        <!-- Driver Stat Cards -->
+        <section class="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 pb-2 hydr8-stagger">
+            {% for stat in driver_stats %}
+            <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between hydr8-reveal-item">
+                <div class="flex justify-between items-start">
+                    <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
+                    <span class="material-symbols-outlined {{ stat.icon_class }} text-[18px]">{{ stat.icon }}</span>
+                </div>
+                <div class="mt-3">
+                    <h4 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold"
+                       x-data="countUp({
+                           target: {{ stat.raw_value|default_if_none:'null' }},
+                           prefix: '{{ stat.value_prefix|default:'' }}',
+                           decimals: {{ stat.value_decimals|default:'0' }}
+                       })">{{ stat.value }}</h4>
+                    <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- Trend Charts (2-column) with MAC badges -->
+        <section class="px-6 py-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <!-- Performance Trend with MAC -->
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-outline-variant/20 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[18px]">show_chart</span>
+                    <h4 class="font-headline-sm text-sm font-bold text-on-surface">Performance Trend</h4>
+                    <span class="ml-auto font-label-caps text-label-caps text-outline uppercase text-[10px]" x-text="rangeLabel()"></span>
+                </div>
+                <div class="px-4 pt-3 pb-1">
+                    <!-- MAC stat badges: Min / Avg / Max -->
+                    <div class="flex items-center gap-3 mb-2 text-[11px] font-data-mono">
+                        <span class="text-outline">Min <span class="text-on-surface font-bold" x-text="minPerformance()"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Avg <span class="text-primary font-bold" x-text="avgPerformance()"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="maxPerformance()"></span></span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">Units / day</span>
+                    </div>
+                </div>
+                <div id="chart-driver-performance" class="px-2 pb-3"></div>
+            </div>
+
+            <!-- Commission Trend with MAC -->
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-outline-variant/20 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-tertiary text-[18px]">payments</span>
+                    <h4 class="font-headline-sm text-sm font-bold text-on-surface">Commission Trend</h4>
+                    <span class="ml-auto font-label-caps text-label-caps text-outline uppercase text-[10px]">Cumulative</span>
+                </div>
+                <div class="px-4 pt-3 pb-1">
+                    <!-- MAC stat badges: Min / Avg / Max -->
+                    <div class="flex items-center gap-3 mb-2 text-[11px] font-data-mono">
+                        <span class="text-outline">Min <span class="text-on-surface font-bold" x-text="formatPesoShort(minCommission())"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Avg <span class="text-tertiary font-bold" x-text="formatPesoShort(avgCommission())"></span></span>
+                        <span class="text-outline-variant/40">|</span>
+                        <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxCommission())"></span></span>
+                        <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">Daily ₱</span>
+                    </div>
+                </div>
+                <div id="chart-driver-commission" class="px-2 pb-3"></div>
+            </div>
+        </section>
+
+        <!-- Daily Commissions Table -->
+        <section class="px-6 py-3">
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-outline-variant/20 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-on-surface-variant text-[18px]">receipt_long</span>
+                    <h4 class="font-headline-sm text-sm font-bold text-on-surface">Daily Commissions Paid</h4>
+                    <span class="ml-auto font-label-caps text-label-caps text-outline uppercase text-[10px]" x-text="rangeLabel()"></span>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar max-h-[280px]">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="sticky top-0">
+                            <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Date</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-center">Units</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-right">Rate</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-right">Commission</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10 font-body-sm">
+                            <template x-for="(row, idx) in filteredCommissions()" :key="idx">
+                                <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                    <td class="px-4 py-2.5 font-data-mono text-on-surface-variant text-[13px] whitespace-nowrap" x-text="row.date"></td>
+                                    <td class="px-4 py-2.5 font-data-mono text-on-surface text-center font-bold" x-text="row.units"></td>
+                                    <td class="px-4 py-2.5 font-data-mono text-on-surface-variant text-right text-[13px]" x-text="row.rate"></td>
+                                    <td class="px-4 py-2.5 font-data-mono text-tertiary text-right font-bold" x-text="row.amount"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Debts Handled by This Driver -->
+        <section class="px-6 py-3 pb-6">
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-outline-variant/20 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-error text-[18px]">dangerous</span>
+                    <h4 class="font-headline-sm text-sm font-bold text-on-surface">Debts Handled by {{ profile.name }}</h4>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Customer</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-right">Amount</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Date</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10 font-body-sm">
+                            {% for debt in debts_handled %}
+                            <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 {{ debt.row_border }}">
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    <div class="flex flex-col gap-0.5">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ debt.customer_name }}</span>
+                                        <span class="font-data-mono text-on-surface-variant text-[11px]">{{ debt.customer_id }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap text-right">
+                                    <span class="font-data-mono text-on-surface font-bold">{{ debt.amount }}</span>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    <span class="font-data-mono text-on-surface-variant text-[13px]">{{ debt.date }}</span>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full {{ debt.status_class }} font-medium text-[11px]">{{ debt.status_label }}</span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="py-8 px-4 text-center text-on-surface-variant font-body-sm">
+                                    No debts handled by this driver.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <!-- Sum footer at the bottom (total + outstanding) -->
+                        <tfoot>
+                            <tr class="bg-surface-container-low border-t-2 border-outline-variant/30">
+                                <td class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase">Sum of Debts</td>
+                                <td class="px-4 py-3 text-right font-data-mono text-on-surface font-bold text-base">{{ debts_sum }}</td>
+                                <td class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase text-right">Outstanding</td>
+                                <td class="px-4 py-3 text-right font-data-mono text-error font-bold text-base">{{ debts_outstanding_amount }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ======================= STAFF EXPANDED REPORT ======================= -->
+    {% elif is_staff %}
+    <div class="flex-1 overflow-y-auto custom-scrollbar">
+
+        <!-- Staff Stat Cards -->
+        <section class="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 pb-2 hydr8-stagger">
+            {% for stat in staff_stats %}
+            <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-4 border-t-2 {{ stat.border_class }} flex flex-col justify-between hydr8-reveal-item">
+                <div class="flex justify-between items-start">
+                    <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
+                    <span class="material-symbols-outlined {{ stat.icon_class }} text-[18px]">{{ stat.icon }}</span>
+                </div>
+                <div class="mt-3">
+                    <h4 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold"
+                       x-data="countUp({
+                           target: {{ stat.raw_value|default_if_none:'null' }},
+                           prefix: '{{ stat.value_prefix|default:'' }}',
+                           decimals: {{ stat.value_decimals|default:'0' }}
+                       })">{{ stat.value }}</h4>
+                    <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- Debts Assigned to This Staff Member -->
+        <section class="px-6 py-3 pb-6">
+            <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm overflow-hidden">
+                <div class="px-4 py-3 border-b border-outline-variant/20 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-error text-[18px]">dangerous</span>
+                    <h4 class="font-headline-sm text-sm font-bold text-on-surface">Debts Named After {{ profile.name }}</h4>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Customer</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px] text-right">Amount</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Date</th>
+                                <th class="px-4 py-2.5 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-[10px]">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10 font-body-sm">
+                            {% for debt in debts_assigned %}
+                            <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 {{ debt.row_border }}">
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    <div class="flex flex-col gap-0.5">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ debt.customer_name }}</span>
+                                        <span class="font-data-mono text-on-surface-variant text-[11px]">{{ debt.customer_id }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap text-right">
+                                    <span class="font-data-mono text-on-surface font-bold">{{ debt.amount }}</span>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    <span class="font-data-mono text-on-surface-variant text-[13px]">{{ debt.date }}</span>
+                                </td>
+                                <td class="px-4 py-2.5 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full {{ debt.status_class }} font-medium text-[11px]">{{ debt.status_label }}</span>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="py-8 px-4 text-center text-on-surface-variant font-body-sm">
+                                    No debts assigned to this staff member.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <!-- Sum footer at the bottom (total + outstanding) -->
+                        <tfoot>
+                            <tr class="bg-surface-container-low border-t-2 border-outline-variant/30">
+                                <td class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase">Sum of Debts</td>
+                                <td class="px-4 py-3 text-right font-data-mono text-on-surface font-bold text-base">{{ debts_sum }}</td>
+                                <td class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase text-right">Outstanding</td>
+                                <td class="px-4 py-3 text-right font-data-mono text-error font-bold text-base">{{ debts_outstanding_amount }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ======================= ADMIN (no performance data) ======================= -->
+    {% else %}
+    <div class="flex-1 overflow-y-auto custom-scrollbar px-6 py-8">
+        <div class="flex flex-col items-center justify-center text-center py-8">
+            <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <span class="material-symbols-outlined text-primary text-[32px]">shield_person</span>
+            </div>
+            <h4 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-2">Administrator Account</h4>
+            <p class="font-body-sm text-body-sm text-on-surface-variant max-w-md leading-relaxed">
+                Admin users manage the system but do not have delivery performance metrics,
+                commission records, or customer debt assignments.
+            </p>
+        </div>
+
+        <!-- Admin account summary -->
+        <div class="mt-6 bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-sm p-5">
+            <h4 class="font-headline-sm text-sm font-bold text-on-surface mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[18px]">account_circle</span>
+                Account Summary
+            </h4>
+            <dl class="grid grid-cols-2 gap-y-3 gap-x-6 font-body-sm">
+                <dt class="text-on-surface-variant">User ID</dt>
+                <dd class="font-data-mono text-on-surface">{{ profile.id }}</dd>
+                <dt class="text-on-surface-variant">Username</dt>
+                <dd class="font-data-mono text-on-surface">{{ profile.username }}</dd>
+                <dt class="text-on-surface-variant">Role</dt>
+                <dd class="text-on-surface font-medium">{{ profile.role }}</dd>
+                <dt class="text-on-surface-variant">Status</dt>
+                <dd>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full {{ profile.status_class }} font-medium text-[12px]">
+                        <span class="w-1.5 h-1.5 rounded-full {{ profile.status_dot_class }}"></span>
+                        {{ profile.status_label }}
+                    </span>
+                </dd>
+                <dt class="text-on-surface-variant">PIN Security</dt>
+                <dd class="text-on-surface">{{ profile.pin_label }}</dd>
+                <dt class="text-on-surface-variant">Last Login</dt>
+                <dd class="font-data-mono text-on-surface">{{ profile.last_login }}</dd>
+            </dl>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ======================= FOOTER ACTIONS ======================= -->
+    <div class="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/30 flex items-center justify-between gap-3 flex-shrink-0" x-data="{ showTempPw: false, showEdit: false, showTempPinModal: false, tempPinInput: '', tempPinError: '' }">
+        <span class="font-data-mono text-[11px] text-on-surface-variant">{{ profile.id }} · {{ profile.role }}</span>
+        <div class="flex items-center gap-2">
+            <!-- Generate Temporary Password (admin/staff only, requires real user UUID) -->
+            {% if profile.user_uuid %}
+            <button
+                @click="showTempPw = true"
+                x-show="!showTempPw && !showEdit"
+                x-cloak
+                class="px-3 py-1.5 text-body-sm font-body-sm text-[#D97706] hover:bg-[#D97706]/10 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+                <span class="material-symbols-outlined text-[16px]">password</span>
+                Generate Temp Password
+            </button>
+            <form
+                x-show="showTempPw"
+                x-cloak
+                style="display: none;"
+                id="temp-password-form"
+                hx-post="{% url 'users:generate_temp_password' profile.user_uuid %}"
+                hx-target="#user-detail-content"
+                hx-swap="innerHTML"
+                class="flex items-center gap-2"
+            >
+                {% csrf_token %}
+                <input type="hidden" name="pin" x-model="tempPinInput">
+                <span class="font-body-sm text-body-sm text-on-surface-variant">Generate a temporary password for this user?</span>
+                <button
+                    type="button"
+                    @click="tempPinInput = ''; tempPinError = ''; showTempPinModal = true; $nextTick(() => $refs.tempPinField.focus())"
+                    class="px-3 py-1.5 bg-[#D97706] text-white font-body-sm font-bold text-sm rounded-lg hover:bg-[#D97706]/90 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                    <span class="material-symbols-outlined text-[16px]">key</span>
+                    Generate
+                </button>
+                <button
+                    type="button"
+                    @click="showTempPw = false"
+                    class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors cursor-pointer"
+                >
+                    Cancel
+                </button>
+            </form>
+
+            <!-- PIN Modal for Generate Temp Password -->
+            <div x-show="showTempPinModal"
+                 x-cloak
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                 @keydown.escape.window="showTempPinModal = false"
+                 style="position: fixed;">
+                <div x-show="showTempPinModal"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-95"
+                     class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 border border-outline-variant/30">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center flex-shrink-0">
+                            <span class="material-symbols-outlined text-on-secondary-container">lock</span>
+                        </div>
+                        <div>
+                            <h3 class="font-headline-sm text-headline-sm text-on-surface">Confirm with PIN</h3>
+                            <p class="font-body-sm text-body-sm text-on-surface-variant">Enter your PIN to generate a temp password.</p>
+                        </div>
+                    </div>
+                    <form @submit.prevent="showTempPinModal = false; $nextTick(() => document.getElementById('temp-password-form').requestSubmit())">
+                        <div class="mb-4">
+                            <input
+                                type="password"
+                                inputmode="numeric"
+                                pattern="[0-9]*"
+                                maxlength="6"
+                                x-model="tempPinInput"
+                                x-ref="tempPinField"
+                                placeholder="••••"
+                                class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                :class="tempPinError ? 'border-error ring-2 ring-error/30' : ''"
+                                autocomplete="off">
+                            <p x-show="tempPinError" x-text="tempPinError"
+                               class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1">
+                            </p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="button" @click="showTempPinModal = false; tempPinInput = ''; tempPinError = ''"
+                                    class="flex-1 px-4 py-2.5 rounded-lg font-bold text-on-surface-variant hover:bg-surface-container transition-all">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                    :disabled="tempPinInput.length < 4"
+                                    class="flex-1 bg-[#D97706] text-white px-4 py-2.5 rounded-lg font-bold hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">lock_open</span>
+                                Confirm
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Edit User (admin/staff only, requires real user UUID) -->
+            <button
+                @click="showEdit = true"
+                x-show="!showTempPw && !showEdit"
+                hx-get="{% url 'users:edit_user' profile.user_uuid %}"
+                hx-target="#user-detail-content"
+                hx-swap="innerHTML"
+                class="px-3 py-1.5 text-body-sm font-body-sm text-primary hover:bg-primary/10 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+                <span class="material-symbols-outlined text-[16px]">edit</span>
+                Edit User
+            </button>
+            {% else %}
+            <span class="font-body-sm text-body-sm text-outline-variant italic">Mock user — admin actions disabled</span>
+            {% endif %}
+
+            {% if is_driver or is_staff %}
+            <button
+                x-show="!showTempPw && !showEdit"
+                class="px-3 py-1.5 text-body-sm font-body-sm text-primary hover:bg-primary/10 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+                <span class="material-symbols-outlined text-[16px]">download</span>
+                Export Report
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Hidden HTMX target for edit form loading -->
+    <div id="edit-user-form-container" class="hidden"></div>
+</div>

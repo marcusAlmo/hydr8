@@ -1,0 +1,40 @@
+{% extends "components/modals/base_modal.html" %}
+
+{% block modal_content %}
+<form {% if action_url %}hx-post="{{ action_url }}"{% endif %}
+      {% if hx_target %}hx-target="{{ hx_target }}"{% endif %}
+      {% if hx_swap %}hx-swap="{{ hx_swap }}"{% endif %}
+      class="flex flex-col gap-4">
+    {% csrf_token %}
+
+    <div class="confirm-message-box">
+        <p class="text-sm text-slate-300 leading-relaxed">
+            {{ message|default:"Are you sure you want to proceed with this operation?" }}
+        </p>
+    </div>
+
+    {% if require_pin %}
+    <div class="form-group flex flex-col gap-1.5 mt-2">
+        <label for="admin_pin" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Admin PIN Required
+        </label>
+        <input type="password" 
+               id="admin_pin" 
+               name="admin_pin" 
+               maxlength="6" 
+               required
+               placeholder="••••"
+               class="input-pin font-mono text-center tracking-widest text-lg bg-slate-900 border border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+    </div>
+    {% endif %}
+
+    <div class="modal-footer mt-4">
+        {% include "components/buttons/secondary.html" with text=cancel_text|default:"Cancel" onclick="document.getElementById('base-modal-overlay')?.remove()" %}
+        {% if is_danger %}
+            {% include "components/buttons/danger.html" with text=confirm_text|default:"Confirm" type="submit" show_indicator=True %}
+        {% else %}
+            {% include "components/buttons/primary.html" with text=confirm_text|default:"Confirm" type="submit" show_indicator=True %}
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

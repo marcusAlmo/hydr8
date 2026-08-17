@@ -1,3 +1,1 @@
-from django.db import models
-
-# Create your models here.
+"""Read-only analytics domain; no persistent models currently required."""

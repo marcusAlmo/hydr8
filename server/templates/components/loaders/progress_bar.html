@@ -1,0 +1,18 @@
+{% comment %}
+Dynamic progress bar template for multi-step remittance processing progress.
+Usage: {% include "components/loaders/progress_bar.html" with progress=75 label="Processing remittance..." %}
+{% endcomment %}
+
+<div class="progress-bar-container w-full flex flex-col gap-1.5 {{ custom_classes }}">
+    {% if label or show_percentage %}
+    <div class="flex items-center justify-between text-xs text-slate-300">
+        <span>{{ label|default:"Processing..." }}</span>
+        <span class="font-mono font-semibold text-sky-400">{{ progress|default:0 }}%</span>
+    </div>
+    {% endif %}
+
+    <div class="progress-track w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div class="progress-fill h-full bg-gradient-to-r from-sky-500 to-emerald-400 rounded-full transition-all duration-300 ease-out"
+             style="width: {{ progress|default:0 }}%;"></div>
+    </div>
+</div>

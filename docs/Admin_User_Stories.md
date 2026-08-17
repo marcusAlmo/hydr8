@@ -2,10 +2,10 @@
 
 ### Epic 1: High-Level Operational Oversight (Dashboard & Reports)
 **User Story 1.1: Global Command Dashboard**
-> **As an Admin**, I want to view a centralized dashboard with global filters for specific branches and custom date shortcuts (today, last 7 days, this month), **so that** I can track macro-level performance metrics, dispatch rates, and receivables across the entire operation.
+> **As an Admin**, I want to view a centralized dashboard with global filters for specific branches and custom date shortcuts (today, last 7 days, this month), **so that** I can track macro-level performance metrics, daily remittance totals, and receivables across the entire operation.
 *   **Acceptance Criteria:**
     *   Filters applied on the dashboard must persist when navigating to the Reports section to prevent redundant data entry.
-    *   The frontend (HTMX) must render the hourly dispatch rate line charts smoothly, even with large datasets.
+    *   The dashboard reflects a **single daily remittance model**: staff enter the afternoon's total dispatched quantities once per day (not per-dispatch), so charts are daily-granularity (sales trend, rider leaderboard) — there is no hourly dispatch tracking.
     *   The dashboard must display aggregated ledger previews (credit lists, borrowed containers) that update in real-time.
 
 **User Story 1.2: AI-Powered Analytics**

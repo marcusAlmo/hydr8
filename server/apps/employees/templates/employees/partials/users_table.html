@@ -1,0 +1,189 @@
+{% comment %}
+Users table — searchable, filterable directory of employees & users.
+Expects context:
+  - filters: list of { label, count, active }
+  - users: list of { id, name, initials, username, avatar_bg, avatar_text,
+                     role, role_badge_class, status, status_label, status_class,
+                     status_dot_class, last_login, last_login_class,
+                     pin_status, pin_label, pin_class, pin_icon,
+                     row_border, row_opacity, name_class, actions }
+  - pagination: { showing_from, showing_to, total, total_display,
+                  current_page, total_pages }
+{% endcomment %}
+<div id="users-table" class="flex-1 flex flex-col gap-6"
+     hx-get="{% url 'employees:search' %}"
+     hx-trigger="refreshUsersTable from:body"
+     hx-target="this"
+     hx-swap="outerHTML"
+>
+
+    <!-- Filter Chips & Add CTA -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center flex-wrap gap-2">
+            {% for filter in filters %}
+            <button class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 {% if filter.active %}bg-primary text-on-primary shadow-sm{% else %}bg-surface-container text-on-surface-variant hover:bg-surface-container-highest{% endif %}">
+                {{ filter.label }}
+                <span class="font-data-mono text-xs {% if filter.active %}text-on-primary/70{% else %}text-on-surface-variant/60{% endif %}">{{ filter.count }}</span>
+            </button>
+            {% endfor %}
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="relative w-full md:w-64">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+                <input
+                    type="text"
+                    name="q"
+                    value="{{ search_query|default:'' }}"
+                    placeholder="Search by name, username, or role..."
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                    hx-get="{% url 'employees:search' %}"
+                    hx-trigger="keyup changed delay:300ms, search"
+                    hx-target="#users-table"
+                    hx-swap="outerHTML"
+                    hx-include="this"
+                    hx-preserve="true"
+                >
+            </div>
+            <button
+                type="button"
+                class="bg-primary text-on-primary px-4 py-2 rounded-lg font-body-md font-medium hover:bg-surface-tint transition-colors flex items-center gap-2 shadow-sm whitespace-nowrap"
+                hx-get="{% url 'users:add_user' %}"
+                hx-target="#user-detail-content"
+                hx-swap="innerHTML"
+                @click="$dispatch('open-drawer')"
+            >
+                <span class="material-symbols-outlined text-[18px]">person_add</span>
+                Add User
+            </button>
+        </div>
+    </div>
+
+    <!-- Users Data Table -->
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse min-w-[800px]">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-[30%]">User</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Last Login</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">PIN Security</th>
+                        <th class="px-6 py-4 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/20 font-body-sm">
+                    {% for user in users %}
+                    <tr
+                        id="user-row-{{ user.id }}"
+                        x-data="{ deleting: false }"
+                        @user-deleting.window="deleting = $event.detail.id === '{{ user.id }}'"
+                        @user-delete-failed.window="deleting = false"
+                        x-show="!deleting"
+                        x-transition:leave="transition ease-in duration-300"
+                        x-transition:leave-start="opacity-100"
+                        x-transition:leave-end="opacity-0"
+                        class="hover:bg-surface-container-low transition-colors group border-l-4 {{ user.row_border }} {{ user.row_opacity }} cursor-pointer"
+                        hx-get="{% url 'employees:detail' user.id %}"
+                        hx-target="#user-detail-content"
+                        hx-swap="innerHTML"
+                        @click="$dispatch('open-drawer')"
+                    >
+                        <!-- User name + username -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full {{ user.avatar_bg }} {{ user.avatar_text }} flex items-center justify-center font-bold text-xs flex-shrink-0">{{ user.initials }}</div>
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="font-sans font-headline-sm text-sm text-on-surface {{ user.name_class }}">{{ user.name }}</span>
+                                    <span class="font-data-mono text-on-surface-variant text-[11px]">{{ user.username }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <!-- Role badge -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded border {{ user.role_badge_class }} font-label-caps text-[10px] uppercase">{{ user.role }}</span>
+                        </td>
+                        <!-- Status pill -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full {{ user.status_class }} font-medium text-[12px]">
+                                <span class="w-1.5 h-1.5 rounded-full {{ user.status_dot_class }}"></span>
+                                {{ user.status_label }}
+                            </span>
+                        </td>
+                        <!-- Last login -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="font-data-mono {{ user.last_login_class }} text-[13px]">{{ user.last_login }}</span>
+                        </td>
+                        <!-- PIN status -->
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center gap-1 {{ user.pin_class }} text-[12px] {% if user.pin_status == 'not_set' %}font-medium px-2 py-0.5 rounded{% endif %}">
+                                <span class="material-symbols-outlined text-[14px]">{{ user.pin_icon }}</span>
+                                {{ user.pin_label }}
+                            </span>
+                        </td>
+                        <!-- Actions -->
+                        <td class="px-6 py-4 whitespace-nowrap text-right" @click.stop>
+                            <div class="flex justify-end opacity-60 group-hover:opacity-100 transition-opacity">
+                                <button
+                                    class="p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-primary rounded-md transition-colors"
+                                    title="View Details"
+                                    hx-get="{% url 'employees:detail' user.id %}"
+                                    hx-target="#user-detail-content"
+                                    hx-swap="innerHTML"
+                                    @click="$dispatch('open-drawer')"
+                                >
+                                    <span class="material-symbols-outlined text-[18px]">visibility</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="py-12 px-6 text-center text-on-surface-variant font-body-sm">
+                            <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">search_off</span>
+                            No users match your search.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                Showing {{ pagination.showing_from }}–{{ pagination.showing_to }} of {{ pagination.total_display }} users
+            </span>
+            <div class="flex items-center gap-1">
+                {% if pagination.has_previous %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Previous page"
+                        hx-get="{% url 'employees:search' %}?page={{ pagination.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#users-table"
+                        hx-swap="outerHTML">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {% endif %}
+                <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
+                <span class="px-2 text-on-surface-variant text-xs font-data-mono">/ {{ pagination.total_pages }}</span>
+                {% if pagination.has_next %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Next page"
+                        hx-get="{% url 'employees:search' %}?page={{ pagination.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#users-table"
+                        hx-swap="outerHTML">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

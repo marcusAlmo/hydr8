@@ -1,0 +1,314 @@
+{% comment %}
+Collect modal — rendered via HTMX into #modal-root.
+Lets the operator record a collection against a single customer,
+**segmented per rider** so the correct rider receives commission
+credit for the payment.
+
+For each rider who handled transactions for this customer:
+  - Borrowed containers sub-section: one row per outstanding container
+    entry tagged to that rider, with an input for how many were returned.
+  - Accredited items sub-section: one row per open credit line tagged to
+    that rider, with inputs for qty paid and amount paid.
+  - Footer: Cancel, Record Collection.
+
+Expects context:
+  - customer: dict (id, name, initials, debt_balance, payable_amount, ...)
+  - rider_groups: list of { rider: { id, name, initials, driver_code },
+                            items: [credit_line|borrowed_entry, ...] }
+    Each item carries a ``rider`` key; items are a mix of credit lines
+    and borrowed entries. The template filters by the presence of
+    ``container_key`` (borrowed entry) vs ``product`` (credit line).
+{% endcomment %}
+
+<!-- Modal Backdrop -->
+<div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-on-surface/40 backdrop-blur-sm p-4"
+    @click="$dispatch('close-modal')"
+    @keydown.escape.window="$dispatch('close-modal')"
+    x-data="{
+        totalPaid: 0.00,
+        totalReturned: 0,
+        saving: false,
+        syncAmounts(form) {
+            // Before submitting, re-compute any amount field that is 0
+            // or empty while its qty_paid is > 0.  The per-row @input
+            // auto-fill on the qty field normally keeps amount in sync,
+            // but a user can manually clear the amount field after the
+            // auto-fill ran — without this guard the form would submit
+            // qty_paid > 0 with amount = 0, creating a CreditPayment
+            // that decouples 'Total Repayments' from repaid unit counts.
+            form.querySelectorAll('input[name^=qty_paid_]').forEach(qtyInput => {
+                const qty = parseInt(qtyInput.value) || 0;
+                if (qty <= 0) return;
+                const amountName = qtyInput.name.replace('qty_paid_', 'amount_paid_');
+                const amountInput = form.elements[amountName];
+                if (!amountInput) return;
+                const current = parseFloat(amountInput.value) || 0;
+                if (current === 0) {
+                    const price = parseFloat(qtyInput.dataset.unitPrice) || 0;
+                    amountInput.value = (qty * price).toFixed(2);
+                    amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+        }
+    }"
+    x-init="setTimeout(() => { document.body.style.overflow = 'hidden' }, 0)"
+    x-on:close-modal.window="document.body.style.overflow = ''; $el.remove()"
+    @save-failed="saving = false"
+>
+    <!-- Modal Panel -->
+    <div
+        class="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-4xl w-full max-h-[88vh] overflow-hidden flex flex-col border border-outline-variant/30"
+        @click.stop
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 scale-95"
+        x-transition:enter-end="opacity-100 scale-100"
+    >
+        <!-- Header -->
+        <div class="flex items-start justify-between p-5 border-b border-outline-variant/20 bg-surface-container-low">
+            <div class="flex items-start gap-4 min-w-0 flex-1">
+                <div class="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-lg flex-shrink-0">
+                    {{ customer.initials }}
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="material-symbols-outlined text-primary text-[20px]">payments</span>
+                        <span class="font-label-caps text-label-caps text-primary uppercase tracking-wider">Collect Payment</span>
+                    </div>
+                    <h3 class="font-headline-sm text-xl font-bold text-on-surface truncate">{{ customer.name }}</h3>
+                    <div class="flex items-baseline gap-3 mt-1.5">
+                        <span class="font-data-mono text-xs text-on-surface-variant">{{ customer.id }}</span>
+                        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Total Payable</span>
+                        <span class="font-data-mono text-2xl font-bold text-error leading-none">{{ customer.debt_balance }}</span>
+                    </div>
+                </div>
+            </div>
+            <button
+                @click="$dispatch('close-modal')"
+                class="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors flex-shrink-0"
+                title="Close (Esc)">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <form id="collect-form-{{ customer.id }}"
+              class="overflow-y-auto custom-scrollbar p-5 space-y-6"
+              hx-post="{% url 'customers:collect_submit' customer.id %}"
+              hx-target="#collect-form-error-{{ customer.id }}"
+              hx-swap="innerHTML"
+              x-on:submit="syncAmounts($el); saving = true"
+              hx-on::after-request="if(event.detail.xhr.status >= 400) this.dispatchEvent(new CustomEvent('save-failed', {bubbles: true}))">
+            {% csrf_token %}
+
+            <!-- Error placeholder -->
+            <div id="collect-form-error-{{ customer.id }}"></div>
+
+            {% if rider_groups %}
+            <!-- Per-rider sections -->
+            {% for group in rider_groups %}
+            <section class="rounded-xl border border-outline-variant/20 overflow-hidden bg-surface-container-lowest">
+
+                <!-- Rider header bar -->
+                <div class="flex items-center justify-between px-4 py-3.5 bg-surface-container-low border-b border-outline-variant/20">
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                            {{ group.rider.initials }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="font-headline-sm text-base font-bold text-on-surface truncate min-w-0">{{ group.rider.name }}</span>
+                                <span class="font-data-mono text-xs bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded flex-shrink-0">{{ group.rider.driver_code }}</span>
+                            </div>
+                            <p class="text-xs text-on-surface-variant mt-0.5">
+                                {{ group.items|length }} transaction{{ group.items|length|pluralize }} handled by this rider
+                            </p>
+                        </div>
+                    </div>
+                    <span class="material-symbols-outlined text-on-surface-variant text-[22px] flex-shrink-0 ml-2">two_wheeler</span>
+                </div>
+
+                <div class="divide-y divide-outline-variant/20">
+
+                    <!-- Borrowed containers for this rider -->
+                    {% for item in group.items %}
+                    {% if item.container_key %}
+                    <div class="p-4 bg-surface-container-lowest">
+                        <div class="flex items-center gap-2 mb-2.5">
+                            <span class="material-symbols-outlined text-on-surface-variant text-[18px]">water_damage</span>
+                            <span class="font-label-caps text-[11px] text-on-surface-variant uppercase tracking-wider">Borrowed Container</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-sans text-sm text-on-surface font-bold">{{ item.container_label }}</div>
+                                <div class="flex items-baseline gap-2 mt-1">
+                                    <span class="font-data-mono text-lg font-bold text-[#D97706]">{{ item.outstanding }}</span>
+                                    <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">outstanding</span>
+                                    <span class="font-data-mono text-xs text-on-surface-variant">{{ item.id }}</span>
+                                </div>
+                                <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                                    {% if item.transaction_date %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">calendar_today</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Date: <span class="text-on-surface font-medium">{{ item.transaction_date }}</span>
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 flex-shrink-0">
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Returned</label>
+                                    <input
+                                        type="number"
+                                        name="returned_{{ item.id }}"
+                                        min="0"
+                                        max="{{ item.outstanding }}"
+                                        value="0"
+                                        @input="totalReturned = Array.from($el.closest('form').querySelectorAll('[name^=returned_BC-]')).reduce((s, el) => s + (parseInt(el.value) || 0), 0)"
+                                        class="w-20 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-1.5 transition-all duration-200">
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Returned At</label>
+                                    <input
+                                        type="date"
+                                        name="returned_at_{{ item.id }}"
+                                        value="{% now 'Y-m-d' %}"
+                                        class="w-36 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+
+                    <!-- Accredited items (credit lines) for this rider -->
+                    {% for item in group.items %}
+                    {% if item.product %}
+                    <div class="p-4 bg-surface-container-lowest">
+                        <div class="flex items-center gap-2 mb-2.5">
+                            <span class="material-symbols-outlined text-on-surface-variant text-[18px]">receipt_long</span>
+                            <span class="font-label-caps text-[11px] text-on-surface-variant uppercase tracking-wider">Accredited Item</span>
+                        </div>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <div class="font-sans text-sm text-on-surface font-bold">{{ item.product }}</div>
+                                <div class="flex items-baseline gap-2 mt-1 flex-wrap">
+                                    <span class="font-data-mono text-lg font-bold text-[#D97706]">{{ item.qty_remaining }}</span>
+                                    <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">remaining</span>
+                                    <span class="font-data-mono text-xs text-on-surface-variant">· {{ item.unit_price }}/unit</span>
+                                    <span class="font-data-mono text-sm font-bold text-on-surface">{{ item.remaining_balance }}</span>
+                                    <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">balance</span>
+                                </div>
+                                <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                                    {% if item.transaction_date %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">calendar_today</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Date: <span class="text-on-surface font-medium">{{ item.transaction_date }}</span>
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 flex-shrink-0 flex-wrap">
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Qty Paid</label>
+                                    <input
+                                        type="number"
+                                        name="qty_paid_{{ item.id }}"
+                                        min="0"
+                                        max="{{ item.qty_remaining }}"
+                                        value="0"
+                                        data-unit-price="{{ item.unit_price_num }}"
+                                        @input="const amountInput = $el.closest('form').elements['amount_paid_{{ item.id }}']; if (amountInput) { const price = parseFloat($el.dataset.unitPrice); const qty = parseInt($el.value) || 0; amountInput.value = (qty * price).toFixed(2); amountInput.dispatchEvent(new Event('input', { bubbles: true })); }"
+                                        class="w-20 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Amount Paid (₱)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        name="amount_paid_{{ item.id }}"
+                                        value="0.00"
+                                        @input="totalPaid = Array.from($el.closest('form').querySelectorAll('[name^=amount_paid_]')).reduce((s, el) => s + (parseFloat(el.value) || 0), 0)"
+                                        class="w-28 bg-surface-container text-on-surface font-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <label class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider mb-0.5">Paid At</label>
+                                    <input
+                                        type="date"
+                                        name="paid_at_{{ item.id }}"
+                                        value="{% now 'Y-m-d' %}"
+                                        class="w-36 bg-surface-container text-on-surface font-data-mono rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-2 py-1.5 transition-all duration-200">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+
+                </div><!-- /divide -->
+            </section>
+            {% endfor %}
+
+            {% else %}
+            <!-- No rider-grouped data — show empty state -->
+            <section>
+                <div class="bg-surface-container-low rounded-lg border border-outline-variant/20 p-6 text-center">
+                    <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">payments</span>
+                    <p class="text-sm text-on-surface-variant">No outstanding credit lines or borrowed containers for this customer.</p>
+                </div>
+            </section>
+            {% endif %}
+
+        </form>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between p-4 border-t border-outline-variant/20 bg-surface-container-low">
+            <div class="flex items-center gap-5">
+                <span class="flex items-center gap-2 text-sm font-data-mono text-on-surface-variant">
+                    <span class="material-symbols-outlined text-[18px]">cached</span>
+                    <span x-text="totalReturned + ' returned'">0 returned</span>
+                </span>
+                <span class="flex items-center gap-2 text-base font-data-mono text-primary font-bold">
+                    <span class="material-symbols-outlined text-[18px]">payments</span>
+                    <span x-text="'₱' + totalPaid.toFixed(2) + ' paid'">₱0.00 paid</span>
+                </span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button
+                    type="button"
+                    @click="$dispatch('close-modal')"
+                    class="px-4 py-2 bg-surface-container text-on-surface-variant text-sm font-bold rounded-lg hover:bg-surface-container-highest transition-colors">
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    form="collect-form-{{ customer.id }}"
+                    :disabled="saving"
+                    class="px-4 py-2 bg-primary text-on-primary text-sm font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!saving">Record Collection</span>
+                    <span x-show="saving" x-cloak class="flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        Saving…
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

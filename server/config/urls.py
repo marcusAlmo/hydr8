@@ -17,7 +17,24 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+from apps.core.views import health_check_view
+
 urlpatterns = [
+    path('health/', health_check_view, name='health_check'),
+    path('healthz/', health_check_view, name='healthz_check'),
+    path('up/', health_check_view, name='up_check'),
     path('admin/', admin.site.urls),
     path('', include('apps.users.urls')),
+    path('analytics/', include('apps.analytics.urls')),
+    path('remittance/', include('apps.remittance.urls')),
+    path('customers/', include('apps.customers.urls')),
+    path('products/', include('apps.products.urls')),
+    path('employees/', include('apps.employees.urls')),
+    path('settings/', include('apps.settings.urls')),
+    path('audit/', include('apps.audit.urls')),
 ]
+
+# Custom error handlers — render friendly fragments for common errors.
+handler403 = 'apps.users.views.ratelimited_view'
+handler404 = 'apps.core.views.handler404_view'
+handler500 = 'apps.core.views.handler500_view'

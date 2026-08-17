@@ -1,0 +1,38 @@
+{% comment %}
+Recent remittances table — lists recent daily remittance summaries.
+Expects context:
+  - recent_remittances: list of { date, total_sales, net_profit, tithes,
+                                  tithes_status ('paid'|'unpaid'), has_warning }
+{% endcomment %}
+<div class="flex-1 hydr8-reveal">
+    <div class="flex items-center justify-between mb-4">
+        <h4 class="font-headline-sm text-headline-sm">Recent Remittances</h4>
+        <a href="{% url 'remittance:history' %}" class="text-primary font-bold text-body-sm hover:underline">View All Remittances -></a>
+    </div>
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded overflow-hidden shadow-sm">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-surface-container text-on-surface-variant font-label-caps text-label-caps uppercase border-b border-outline-variant/20">
+                    <th class="py-3 px-4">Date</th>
+                    <th class="py-3 px-4">Total Sales</th>
+                    <th class="py-3 px-4">Net Profit</th>
+                    <th class="py-3 px-4">Tithes</th>
+                </tr>
+            </thead>
+            <tbody class="font-data-mono text-sm">
+                {% for rem in recent_remittances %}
+                <tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors border-l-4 {% if rem.has_warning %}border-l-[#D97706]{% else %}border-transparent{% endif %} group cursor-pointer">
+                    <td class="py-3 px-4">{{ rem.date }}</td>
+                    <td class="py-3 px-4">{{ rem.total_sales }}</td>
+                    <td class="py-3 px-4 text-tertiary">{{ rem.net_profit }}</td>
+                    <td class="py-3 px-4 {% if rem.tithes_status == 'unpaid' %}text-error{% else %}text-tertiary-container{% endif %}">{{ rem.tithes }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="py-6 px-4 text-center text-on-surface-variant font-body-sm">Nothing yet</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,374 @@
+from django.core.validators import MinValueValidator
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
+from apps.core.managers import TenantManager
+
+
+class Customer(models.Model):
+    """A water refilling station customer (household, sari-sari, business).
+
+    Status lifecycle:
+        ACTIVE → FLAGGED → BLACKLISTED
+            ↑___________|
+        (anomaly detection promotes to FLAGGED; manual ops can
+        BLACKLIST. Reset to ACTIVE requires explicit intervention.)
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        FLAGGED = 'flagged', 'Flagged (Anomalous)'
+        BLACKLISTED = 'blacklisted', 'Blacklisted'
+
+    name = models.CharField(max_length=255)
+    address = models.TextField(null=True, blank=True)
+    contact_number = models.CharField(max_length=20, null=True, blank=True)
+    debt_balance = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00,
+        validators=[MinValueValidator(0)],
+    )
+    credit_limit = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00,
+        validators=[MinValueValidator(0)],
+    )
+    borrowed_round_8gal = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    borrowed_slim_8gal = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    borrowed_other = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    last_credit_at = models.DateTimeField(null=True, blank=True)
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='customers',
+        db_index=True,
+    )
+
+    # --- Anomaly / blacklist tracking ---
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        db_index=True,
+    )
+    flagged_reason = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text='Human-readable reason set when status becomes FLAGGED/BLACKLISTED.',
+    )
+    flagged_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = TenantManager()
+
+    class Meta:
+        db_table = 'customers_customer'
+        verbose_name_plural = 'customers'
+        indexes = [
+            models.Index(fields=['company', 'deleted_at']),
+            models.Index(fields=['company', 'debt_balance']),
+            models.Index(fields=['company', 'last_credit_at']),
+            models.Index(fields=['company', 'status']),
+            models.Index(
+                fields=['deleted_at'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='idx_customer_active',
+            ),
+        ]
+        constraints = [
+            # Prevents race conditions where concurrent payment collections
+            # could drive debt_balance below zero.
+            models.CheckConstraint(
+                condition=models.Q(debt_balance__gte=0),
+                name='customer_debt_balance_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(credit_limit__gte=0),
+                name='customer_credit_limit_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(borrowed_round_8gal__gte=0),
+                name='customer_borrowed_round_8gal_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(borrowed_slim_8gal__gte=0),
+                name='customer_borrowed_slim_8gal_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(borrowed_other__gte=0),
+                name='customer_borrowed_other_non_negative',
+            ),
+            # Unique active customer name per company — soft-deleted rows
+            # are excluded so the name can be reused after deletion.
+            models.UniqueConstraint(
+                fields=['company', 'name'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_customer_name_per_company',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        # __str__ appears in admin list views, logs, and repr() output.
+        return f"HY-{self.pk:04d}"
+
+    @property
+    def is_anomalous(self) -> bool:
+        """True if the customer is flagged or blacklisted."""
+        return self.status in (self.Status.FLAGGED, self.Status.BLACKLISTED)
+
+
+class CreditLine(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='credit_lines')
+    remittance_rider_product = models.ForeignKey(
+        'remittance.RemittanceRiderProductLine',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='credit_lines'
+    )
+    product = models.ForeignKey('core.Product', on_delete=models.PROTECT)
+    qty_credited = models.SmallIntegerField(validators=[MinValueValidator(1)])
+    unit_price_snapshot = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+    total_credit_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+    qty_remaining = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    # The user responsible for extending this credit to the customer.
+    # May be an admin, staff, or driver — not necessarily the recorder.
+    care_of = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='credit_lines_care_of',
+        help_text='User responsible for extending this credit (admin/staff/driver).',
+    )
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='credit_lines',
+        db_index=True,
+    )
+    # Business date of the credit extension — defaults to today but can be
+    # backdated when recording backlog entries. ``created_at`` below remains
+    # the immutable audit timestamp of when the row was actually inserted.
+    transaction_date = models.DateField(
+        default=timezone.localdate,
+        db_index=True,
+        help_text='Date the credit was actually extended (may be backdated for backlog).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantManager()
+
+    class Meta:
+        db_table = 'customers_credit_line'
+        verbose_name_plural = 'credit lines'
+        indexes = [
+            models.Index(fields=['customer', 'qty_remaining']),
+            models.Index(fields=['company', 'transaction_date']),
+        ]
+        constraints = [
+            # Prevents race conditions where concurrent payments could
+            # drive qty_remaining below zero.
+            models.CheckConstraint(
+                condition=models.Q(qty_remaining__gte=0),
+                name='credit_line_qty_remaining_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(qty_remaining__lte=models.F('qty_credited')),
+                name='credit_line_qty_remaining_not_exceeds_credited',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        return f"CL-{self.pk} ({self.qty_remaining} left)"
+
+
+class BorrowedContainer(models.Model):
+    """A single lending event of containers to a customer.
+
+    Tracks each borrowing instance so responsibility can be attributed to
+    a specific user (the ``care_of`` field) — admin, staff, or driver —
+    rather than only the aggregate counters on ``Customer``.
+    """
+
+    class ContainerType(models.TextChoices):
+        ROUND_8GAL = 'round_8gal', 'Round 8gal'
+        SLIM_8GAL = 'slim_8gal', 'Slim 8gal'
+        OTHER = 'other', 'Other'
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name='borrowed_containers',
+    )
+    container_key = models.CharField(
+        max_length=20,
+        choices=ContainerType.choices,
+    )
+    qty_borrowed = models.SmallIntegerField(validators=[MinValueValidator(1)])
+    qty_returned = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    # The user responsible for lending these containers to the customer.
+    # May be an admin, staff, or driver — ensures accountability even when
+    # the admin lends directly to a walk-in customer.
+    care_of = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='borrowed_containers_care_of',
+        help_text='User responsible for lending these containers (admin/staff/driver).',
+    )
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_borrowed_containers',
+        help_text='User who recorded this borrowing entry.',
+    )
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='borrowed_containers',
+        db_index=True,
+    )
+    # Business date of the lending event — defaults to today but can be
+    # backdated when recording backlog entries. ``created_at`` below remains
+    # the immutable audit timestamp of when the row was actually inserted.
+    transaction_date = models.DateField(
+        default=timezone.localdate,
+        db_index=True,
+        help_text='Date the containers were actually lent (may be backdated for backlog).',
+    )
+    returned_at = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Date the most recent return was recorded (may be backdated).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = TenantManager()
+
+    class Meta:
+        db_table = 'customers_borrowed_container'
+        verbose_name_plural = 'borrowed containers'
+        indexes = [
+            models.Index(fields=['company', 'customer']),
+            models.Index(fields=['company', 'care_of']),
+            models.Index(fields=['company', 'transaction_date']),
+        ]
+        constraints = [
+            # Prevents race conditions where concurrent returns could
+            # drive qty_returned above qty_borrowed.
+            models.CheckConstraint(
+                condition=models.Q(qty_returned__gte=0),
+                name='borrowed_qty_returned_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(qty_returned__lte=models.F('qty_borrowed')),
+                name='borrowed_qty_returned_not_exceeds_borrowed',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        return f"BC-{self.pk} ({self.get_container_key_display()}, {self.qty_remaining} out)"
+
+    @property
+    def qty_remaining(self) -> int:
+        """Containers still unreturned for this borrowing instance."""
+        return max(0, self.qty_borrowed - self.qty_returned)
+
+    @property
+    def container_label(self) -> str:
+        """Human-readable container label (e.g. ``Round 8gal``)."""
+        return self.get_container_key_display()
+
+
+class CreditPayment(models.Model):
+    credit_line = models.ForeignKey(CreditLine, on_delete=models.PROTECT, related_name='payments')
+    remittance = models.ForeignKey(
+        'remittance.Remittance',
+        on_delete=models.PROTECT,
+        related_name='credit_payments',
+        null=True,
+        blank=True,
+        help_text='The rider remittance this payment was collected through, if any. '
+                  'Null for counter collections recorded via the Collect modal.',
+    )
+    containers_paid = models.SmallIntegerField(
+        default=0, validators=[MinValueValidator(0)],
+    )
+    amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
+    company = models.ForeignKey(
+        'settings.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='credit_payments',
+        db_index=True,
+    )
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    paid_at = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text='Date the payment was made (may be backdated for past collections).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TenantManager()
+
+    class Meta:
+        db_table = 'customers_credit_payment'
+        verbose_name_plural = 'credit payments'
+        indexes = [
+            models.Index(fields=['company', 'credit_line']),
+            models.Index(fields=['company', 'remittance']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(containers_paid__gte=0),
+                name='credit_payment_containers_paid_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(amount__gte=0),
+                name='credit_payment_amount_non_negative',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        # RA 10173: Never expose customer names in __str__ for financial models.
+        return f"CP-{self.pk} ({self.amount})"

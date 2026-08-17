@@ -1,0 +1,186 @@
+{% comment %}
+Ranking tab — two leaderboards to reward good behaviour.
+Expects context:
+  - ranking_stats: list of { col_span, label, icon, icon_class, value,
+                             value_size, subtitle?, border_class }
+  - top_payers: list of { rank, rank_class, id, name, initials,
+                          on_time_ratio, avg_payment_days, payment_count,
+                          total_paid, tier, tier_class }
+  - prompt_returners: list of { rank, rank_class, id, name, initials,
+                                avg_return_days, return_count,
+                                containers_returned, on_time_ratio }
+{% endcomment %}
+<div class="flex-1 flex flex-col gap-6">
+
+    <!-- Ranking summary cards (asymmetric grid) -->
+    <section class="grid grid-cols-1 md:grid-cols-12 gap-6 hydr8-stagger">
+        {% for stat in ranking_stats %}
+        <div class="{{ stat.col_span }} bg-surface-container-lowest border border-outline-variant/30 rounded shadow-sm p-6 border-t-2 {{ stat.border_class }} flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-default hydr8-reveal-item">
+            <div class="flex justify-between items-start">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">{{ stat.label }}</span>
+                <span class="material-symbols-outlined {{ stat.icon_class }}">{{ stat.icon }}</span>
+            </div>
+            <div class="mt-4">
+                <h3 class="font-data-mono text-{{ stat.value_size }} text-on-surface font-bold"
+                   x-data="countUp({
+                       target: {{ stat.raw_value|default_if_none:'null' }},
+                       prefix: '{{ stat.value_prefix|default:'' }}',
+                       decimals: {{ stat.value_decimals|default:'0' }}
+                   })">{{ stat.value }}</h3>
+                {% if stat.subtitle %}
+                <p class="mt-1 font-body-sm text-body-sm text-on-surface-variant">{{ stat.subtitle }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- Two-column leaderboards -->
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        <!-- Top Payers -->
+        <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+            <div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant/20 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-tertiary">verified</span>
+                    <h3 class="font-headline-sm text-sm font-bold text-on-surface">Top Payers</h3>
+                </div>
+                <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">By on-time ratio</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low/50 border-b border-outline-variant/20">
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-12">#</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Customer</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">On-Time</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Avg Pay</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Paid</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tier</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                        {% for payer in top_payers %}
+                        <tr class="hover:bg-surface-container-low transition-colors group">
+                            <!-- Rank -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full {{ payer.rank_class }} font-bold text-xs">{{ payer.rank }}</span>
+                            </td>
+                            <!-- Customer -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">{{ payer.initials }}</div>
+                                    <div class="flex flex-col">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ payer.name }}</span>
+                                        <span class="font-data-mono text-on-surface-variant text-[10px]">{{ payer.id }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- On-time ratio -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right">
+                                <span class="text-tertiary font-bold">{{ payer.on_time_ratio }}</span>
+                            </td>
+                            <!-- Avg payment days -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface-variant">{{ payer.avg_payment_days }}d</td>
+                            <!-- Total paid -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface font-bold">{{ payer.total_paid }}</td>
+                            <!-- Tier -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="font-label-caps text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider {{ payer.tier_class }}">{{ payer.tier }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="py-10 px-4 text-center text-on-surface-variant font-body-sm">
+                                <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">verified</span>
+                                No payer data yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-4 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+                <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Top 5 of 186 reliable payers</span>
+                <button class="text-primary text-xs font-bold hover:underline">View all</button>
+            </div>
+        </div>
+
+        <!-- Prompt Returners -->
+        <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+            <div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant/20 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-tertiary">cached</span>
+                    <h3 class="font-headline-sm text-sm font-bold text-on-surface">Prompt Container Returners</h3>
+                </div>
+                <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">By return speed</span>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low/50 border-b border-outline-variant/20">
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-12">#</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Customer</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Avg Return</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Returns</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Containers</th>
+                            <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">On-Time</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                        {% for returner in prompt_returners %}
+                        <tr class="hover:bg-surface-container-low transition-colors group">
+                            <!-- Rank -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full {{ returner.rank_class }} font-bold text-xs">{{ returner.rank }}</span>
+                            </td>
+                            <!-- Customer -->
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">{{ returner.initials }}</div>
+                                    <div class="flex flex-col">
+                                        <span class="font-sans text-on-surface font-headline-sm text-sm">{{ returner.name }}</span>
+                                        <span class="font-data-mono text-on-surface-variant text-[10px]">{{ returner.id }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <!-- Avg return days -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right">
+                                <span class="text-tertiary font-bold">{{ returner.avg_return_days }}d</span>
+                            </td>
+                            <!-- Return count -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface-variant">{{ returner.return_count }}</td>
+                            <!-- Containers returned -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface font-bold">{{ returner.containers_returned }}</td>
+                            <!-- On-time ratio -->
+                            <td class="px-4 py-3 whitespace-nowrap text-right">
+                                <span class="text-tertiary font-bold">{{ returner.on_time_ratio }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="py-10 px-4 text-center text-on-surface-variant font-body-sm">
+                                <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">cached</span>
+                                No return data yet.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-4 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+                <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">Top 5 of 94 prompt returners</span>
+                <button class="text-primary text-xs font-bold hover:underline">View all</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reward hint banner -->
+    <div class="bg-tertiary-container/20 border border-tertiary/30 rounded-xl p-4 flex items-center gap-3">
+        <span class="material-symbols-outlined text-tertiary">redeem</span>
+        <p class="font-body-sm text-body-sm text-on-surface-variant">
+            <span class="font-bold text-tertiary">Reward good behaviour.</span>
+            Gold/Silver tier payers and prompt returners qualify for priority delivery, credit-limit increases, and loyalty perks.
+        </p>
+    </div>
+</div>

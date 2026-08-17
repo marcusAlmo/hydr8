@@ -1,332 +1,192 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Hydr8 CRM</title>
-    <meta name="description"
-        content="Hydr8 CRM - Next generation customer relationship management built for performance.">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap" rel="stylesheet">
-
-    <style>
-        :root {
-            /* Premium Dark Theme Tokens */
-            --bg-primary: #0B0E14;
-            --bg-secondary: rgba(22, 27, 34, 0.6);
-            --text-primary: #F0F6FC;
-            --text-secondary: #8B949E;
-            --accent-glow: #3B82F6;
-            --accent-glow-secondary: #8B5CF6;
-            --input-bg: rgba(255, 255, 255, 0.05);
-            --input-border: rgba(255, 255, 255, 0.1);
-
-            /* Glassmorphism */
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --glass-bg: rgba(255, 255, 255, 0.03);
-            --glass-blur: blur(16px);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-            position: relative;
-        }
-
-        /* Dynamic Background Gradients */
-        .ambient-glow {
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
-            opacity: 0.15;
-            top: -200px;
-            left: -200px;
-            filter: blur(80px);
-            z-index: 0;
-            animation: pulse-slow 8s infinite alternate ease-in-out;
-        }
-
-        .ambient-glow-alt {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, var(--accent-glow-secondary) 0%, transparent 60%);
-            opacity: 0.15;
-            bottom: -100px;
-            right: -100px;
-            filter: blur(80px);
-            z-index: 0;
-            animation: pulse-slow 10s infinite alternate-reverse ease-in-out;
-        }
-
-        @keyframes pulse-slow {
-            0% {
-                transform: scale(0.8) translate(0, 0);
-                opacity: 0.1;
+{% load static %}<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Login | Hydr8</title>
+<link rel="icon" type="image/svg+xml" href="{% static 'hydr8-icon.svg' %}">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&amp;family=Geist+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-primary": "#89ceff",
+                    "surface-dim": "#cfdaf2",
+                    "tertiary": "#006c4a",
+                    "primary-fixed": "#c9e6ff",
+                    "on-secondary-container": "#54647a",
+                    "primary": "#006591",
+                    "on-tertiary-fixed-variant": "#005137",
+                    "secondary": "#505f76",
+                    "inverse-surface": "#263143",
+                    "surface-variant": "#d8e3fb",
+                    "primary-container": "#0ea5e9",
+                    "secondary-container": "#d0e1fb",
+                    "on-primary-fixed-variant": "#004c6e",
+                    "tertiary-fixed-dim": "#68dba9",
+                    "on-primary-container": "#003751",
+                    "surface-container": "#e7eeff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-fixed": "#0b1c30",
+                    "error": "#ba1a1a",
+                    "on-primary": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "background": "#f9f9ff",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-container": "#003c27",
+                    "tertiary-fixed": "#85f8c4",
+                    "surface-container-low": "#f0f3ff",
+                    "surface-bright": "#f9f9ff",
+                    "on-tertiary-fixed": "#002114",
+                    "on-error": "#ffffff",
+                    "tertiary-container": "#35af80",
+                    "on-error-container": "#93000a",
+                    "surface-container-high": "#dee8ff",
+                    "on-surface": "#111c2d",
+                    "surface-container-highest": "#d8e3fb",
+                    "surface": "#f9f9ff",
+                    "primary-fixed-dim": "#89ceff",
+                    "secondary-fixed-dim": "#b7c8e1",
+                    "error-container": "#ffdad6",
+                    "outline": "#6e7881",
+                    "surface-tint": "#006591",
+                    "outline-variant": "#bec8d2",
+                    "on-primary-fixed": "#001e2f",
+                    "inverse-on-surface": "#ecf1ff",
+                    "on-background": "#111c2d",
+                    "on-secondary-fixed-variant": "#38485d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-page": "1.5rem",
+                    "gutter": "1rem",
+                    "stack-dense": "0.25rem",
+                    "stack-compact": "0.5rem",
+                    "container-max": "1440px"
+            },
+            "fontFamily": {
+                    "data-mono": ["Geist Mono"],
+                    "headline-sm": ["Geist"],
+                    "label-caps": ["Geist"],
+                    "body-sm": ["Geist"],
+                    "headline-md": ["Geist"],
+                    "headline-lg": ["Geist"],
+                    "body-md": ["Geist"]
+            },
+            "fontSize": {
+                    "data-mono": ["14px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "500"}],
+                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                    "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["30px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "headline-xlg": ["60px", {"lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
             }
-
-            100% {
-                transform: scale(1.2) translate(50px, 50px);
-                opacity: 0.2;
-            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
         }
 
-        /* Navbar */
-        nav {
-            position: relative;
-            z-index: 10;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 2rem 5%;
-            background: transparent;
+        .abyss-bg {
+            background-color: #0F172A; /* Requested Abyss specifically */
         }
 
-        .brand {
-            font-size: 1.5rem;
-            font-weight: 800;
-            letter-spacing: -0.05em;
-            background: linear-gradient(to right, #fff, #a5b4fc);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        /* Main Content area */
-        main {
-            position: relative;
-            z-index: 10;
-            flex: 1;
-            display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 4rem;
-            align-items: center;
-            padding: 2rem 5%;
-            max-width: 1400px;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        @media (max-width: 960px) {
-            main {
-                grid-template-columns: 1fr;
-                text-align: center;
-                gap: 3rem;
-            }
-        }
-
-        .hero-content {
-            padding-right: 2rem;
-        }
-
-        @media (max-width: 960px) {
-            .hero-content {
-                padding-right: 0;
-            }
-        }
-
-        .hero-title {
-            font-size: 4rem;
-            font-weight: 800;
-            line-height: 1.1;
-            margin-bottom: 1.5rem;
-            letter-spacing: -0.02em;
-        }
-
-        .hero-title span {
-            background: linear-gradient(135deg, var(--accent-glow) 0%, var(--accent-glow-secondary) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .hero-subtitle {
-            font-size: 1.125rem;
-            color: var(--text-secondary);
-            margin-bottom: 2.5rem;
-            line-height: 1.6;
-            font-weight: 300;
-            max-width: 600px;
-        }
-
-        @media (max-width: 960px) {
-            .hero-subtitle {
-                margin: 0 auto 2.5rem auto;
-            }
-        }
-
-        /* Glassmorphism Card for Login */
-        .login-card {
-            background: var(--glass-bg);
-            backdrop-filter: var(--glass-blur);
-            -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 3rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            width: 100%;
-            max-width: 450px;
-            margin: 0 auto;
-        }
-
-        .login-card h2 {
-            font-size: 1.75rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        .login-card p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            margin-bottom: 2rem;
-        }
-
-        /* Form Styles */
-        .form-group {
-            margin-bottom: 1.5rem;
-            text-align: left;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 0.5rem;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 0.875rem 1rem;
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 12px;
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-        
-        .form-input:focus {
-            outline: none;
-            border-color: var(--accent-glow);
-            background: rgba(255, 255, 255, 0.08);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-        }
-
-        /* Premium Buttons */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.875rem 2rem;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 12px;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            border: none;
-            width: 100%;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent-glow) 0%, var(--accent-glow-secondary) 100%);
-            color: white;
-            box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+        .auth-card-shimmer {
             position: relative;
             overflow: hidden;
-            margin-top: 1rem;
         }
 
-        /* Button inner glare effect */
-        .btn-primary::after {
-            content: '';
+        .auth-card-shimmer::after {
+            content: "";
             position: absolute;
             top: -50%;
             left: -50%;
             width: 200%;
             height: 200%;
-            background: rgba(255, 255, 255, 0.1);
-            transform: rotate(45deg) scale(0);
-            transition: transform 0.6s ease;
+            background: linear-gradient(45deg, transparent, rgba(14, 165, 233, 0.03), transparent);
+            transform: rotate(45deg);
+            animation: shimmer 10s infinite linear;
+            pointer-events: none;
         }
 
-        .btn-primary:hover {
-            box-shadow: 0 6px 20px 0 rgba(59, 130, 246, 0.5);
-            transform: translateY(-2px);
+        @keyframes shimmer {
+            0% { transform: translateX(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) rotate(45deg); }
         }
 
-        .btn-primary:hover::after {
-            transform: rotate(45deg) scale(1);
-        }
-        
-        /* HTMX Indicator */
-        .htmx-indicator {
-            display: none;
-        }
-        .htmx-request .htmx-indicator {
-            display: inline-block;
-            margin-left: 0.5rem;
-        }
+        [x-cloak] { display: none !important; }
     </style>
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
+<body class="bg-background font-body-md text-on-background selection:bg-primary-container selection:text-on-primary-container">
+<div class="min-h-dvh flex">
+<!-- Left Panel (Abyss) -->
+<div class="hidden md:flex flex-col justify-center items-center w-1/2 abyss-bg relative overflow-hidden">
+<!-- Atmospheric micro-interaction element -->
+<div class="absolute inset-0 opacity-20 pointer-events-none">
+<div class="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-primary rounded-full blur-[120px]"></div>
+<div class="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-tertiary rounded-full blur-[120px]"></div>
+</div>
+<div class="relative z-10 flex flex-col items-center text-center space-y-2">
+<!-- Data from JSON: header_title: "Hydr8", header_subtext: "Water. Delivered. Managed." -->
+<h1 class="font-headline-lg text-headline-xlg font-black tracking-tight text-primary-fixed">
+                    Hydr8
+                </h1>
+<p class="font-body-md text-body-md text-secondary-fixed-dim uppercase tracking-[0.2em] opacity-80">
+                    Water. Delivered. Managed.
+                </p>
+</div>
+<!-- Subtle Grid Pattern Overlay -->
+<div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
+</div>
+<!-- Right Panel (Login Surface) -->
+<div class="flex-1 flex flex-col justify-center px-margin-page py-12 bg-surface-bright">
+<!-- Mobile Logo (Visible only on mobile) -->
+<div class="md:hidden flex flex-col items-center mb-12">
+<h1 class="font-headline-lg text-headline-lg font-black text-primary">Hydr8</h1>
+<p class="font-body-sm text-body-sm text-outline tracking-wider">Water. Delivered. Managed.</p>
+</div>
+<div class="mx-auto w-full max-w-[400px]">
+<div class="auth-card-shimmer bg-surface-container-lowest p-8 border border-outline-variant shadow-sm rounded-lg">
+<div class="mb-8">
+<h2 class="font-headline-md text-headline-md text-on-surface">Sign In</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Access the hydration management dashboard</p>
+</div>
+{% include "users/partials/login_form.html" %}
+<div class="mt-8 pt-6 border-t border-outline-variant/30 text-center">
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+                            Internal Enterprise System. Unauthorized access is prohibited.
+                        </p>
+</div>
+</div>
+<!-- Footer / Support Info -->
+<div class="mt-8 flex justify-center items-center gap-6 opacity-60 grayscale">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="font-label-caps text-label-caps uppercase">SECURE PORTAL</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+<span class="font-label-caps text-label-caps uppercase">REAL-TIME DATA</span>
+</div>
+</div>
+</div>
+</div>
+</div>
 
-<body>
-    <div class="ambient-glow"></div>
-    <div class="ambient-glow-alt"></div>
-
-    <nav>
-        <div class="brand">Hydr8</div>
-    </nav>
-
-    <main>
-        <div class="hero-content">
-            <h1 class="hero-title">Next-Gen <span>CRM</span> Platform</h1>
-            <p class="hero-subtitle">
-                Supercharge your customer relationships with high-performance workflows, deep analytics, and
-                privacy-first architecture. Built for scale.
-            </p>
-        </div>
-
-        <div class="login-card">
-            <h2>Welcome back</h2>
-            <p>Sign in to your account to continue</p>
-            
-            <!-- Login Form leveraging HTMX -->
-            <form hx-post="/login/" hx-target="this" hx-swap="outerHTML">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label class="form-label" for="username">Username</label>
-                    <input type="text" id="username" name="username" class="form-input" placeholder="Enter your username" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••" required>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    Sign In
-                    <span class="htmx-indicator">...</span>
-                </button>
-            </form>
-        </div>
-    </main>
-
-    <!-- Optional: Include HTMX for standardizing dynamic interactions without JS frameworks -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-</body>
-
-</html>
+</body></html>
