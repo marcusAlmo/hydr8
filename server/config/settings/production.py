@@ -1,11 +1,17 @@
 from .base import *
 
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+except ImportError:
+    sentry_sdk = None
 
 DEBUG = env.bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
+for _host in ['localhost', '127.0.0.1', '[::1]']:
+    if _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
 
 # Production-specific settings like CSRF_COOKIE_SECURE, SESSION_COOKIE_SECURE, etc.
 CSRF_COOKIE_SECURE = True
@@ -43,7 +49,7 @@ DATABASES['default']['CONN_MAX_AGE'] = 600
 
 SENTRY_DSN = env('SENTRY_DSN', default=None)
 
-if not DEBUG and SENTRY_DSN:
+if not DEBUG and SENTRY_DSN and sentry_sdk is not None:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration()],

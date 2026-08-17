@@ -79,8 +79,8 @@ class ScreenLockMiddleware:
     })
 
     # Path prefixes that bypass the lock (static/media served by
-    # WhiteNoise / Django, plus the Django admin login fallback).
-    _ALLOWED_PREFIXES = ('/static/', '/media/')
+    # WhiteNoise / Django, plus the Django admin login fallback and health checks).
+    _ALLOWED_PREFIXES = ('/static/', '/media/', '/health/', '/healthz/', '/up/')
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -148,10 +148,17 @@ class TenantMiddleware:
     available.
     """
 
+    _BYPASS_PREFIXES = ('/static/', '/media/', '/health/', '/healthz/', '/up/')
+
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
+        path = getattr(request, 'path', '')
+        for prefix in self._BYPASS_PREFIXES:
+            if path.startswith(prefix):
+                return self.get_response(request)
+
         from django.db import connection
 
         user = getattr(request, 'user', None)

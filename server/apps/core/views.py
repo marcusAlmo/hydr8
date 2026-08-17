@@ -97,3 +97,9 @@ def handler500_view(request):
     if request.headers.get("HX-Request") == "true":
         return render(request, "core/500_fragment.html", status=500)
     return render(request, "core/500.html", status=500)
+
+
+def health_check_view(request):
+    """Lightweight healthcheck endpoint for Docker/orchestrator liveness probes."""
+    return HttpResponse("OK", content_type="text/plain", status=200)
+

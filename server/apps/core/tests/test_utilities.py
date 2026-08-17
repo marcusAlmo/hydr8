@@ -170,3 +170,36 @@ class CorrelationIdFilterTests(SimpleTestCase):
         )
         filt.filter(record)
         self.assertEqual(record.correlation_id, "no-id")
+
+
+# ---------------------------------------------------------------------------
+# health check endpoints
+# ---------------------------------------------------------------------------
+
+
+class HealthCheckTests(SimpleTestCase):
+    """Tests for health check endpoints used by Docker/Coolify probes."""
+
+    def test_health_check_view_direct(self):
+        from apps.core.views import health_check_view
+        rf = RequestFactory()
+        request = rf.get('/health/')
+        response = health_check_view(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"OK")
+        self.assertEqual(response['Content-Type'], "text/plain")
+
+    def test_health_check_urls_return_ok(self):
+        for path in ['/health/', '/healthz/', '/up/']:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, b"OK")
+
+    def test_production_allowed_hosts_includes_loopback(self):
+        """Production settings always include localhost and loopback interfaces."""
+        from config.settings import production
+        self.assertIn("localhost", production.ALLOWED_HOSTS)
+        self.assertIn("127.0.0.1", production.ALLOWED_HOSTS)
+        self.assertIn("[::1]", production.ALLOWED_HOSTS)
+
+
