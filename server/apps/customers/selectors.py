@@ -702,6 +702,7 @@ def get_customer_collect_context(customer: Customer) -> dict:
                 "remaining_balance": _format_peso(remaining_balance),
                 "rider": group["rider"],
                 "care_of": _care_of_summary(line.care_of),
+                "transaction_date": line.transaction_date.strftime("%b %d, %Y") if line.transaction_date else "",
             }
         )
 
@@ -738,6 +739,7 @@ def get_customer_collect_context(customer: Customer) -> dict:
                 "outstanding": borrowed.qty_remaining,
                 "rider": group["rider"],
                 "care_of": _care_of_summary(borrowed.care_of),
+                "transaction_date": borrowed.transaction_date.strftime("%b %d, %Y") if borrowed.transaction_date else "",
             }
         )
 
@@ -960,6 +962,7 @@ def _history_credit_payment(payment: CreditPayment, user: "UserType") -> dict:
         "amount": _format_peso(payment.amount),
         "amount_num": str(payment.amount),
         "credit_line_id": f"CL-{payment.credit_line_id}",
+        "care_of": _care_of_summary(payment.credit_line.care_of),
         "recorded_by": _care_of_summary(payment.recorded_by),
         "is_editable": is_editable,
         "edit_disabled_reason": reason,
@@ -1011,6 +1014,7 @@ def _history_container_return(borrowed: BorrowedContainer, user: "UserType") -> 
         "container_key": borrowed.container_key,
         "qty_returned": borrowed.qty_returned,
         "outstanding": borrowed.qty_remaining,
+        "care_of": _care_of_summary(borrowed.care_of),
         "recorded_by": _care_of_summary(borrowed.recorded_by),
         "is_editable": False,
         "edit_disabled_reason": "Return is part of the borrowing record",
@@ -1028,7 +1032,7 @@ def get_customer_history_context(customer: Customer, user: "UserType") -> dict:
     )
     payments = (
         CreditPayment.objects.filter(credit_line__customer=customer)
-        .select_related("credit_line__product", "recorded_by", "company", "remittance")
+        .select_related("credit_line__product", "credit_line__care_of", "recorded_by", "company", "remittance")
         .order_by("-created_at")
     )
     borrowed = (

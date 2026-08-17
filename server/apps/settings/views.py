@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -25,6 +26,7 @@ from .forms import (
 )
 from .selectors import get_settings_context
 from .services import (
+    apply_credit_limit_to_all_customers,
     change_password,
     change_username,
     save_company,
@@ -142,6 +144,47 @@ def save_system_config_view(request):
         return _error_response(request, "No settings were submitted.")
 
     return _success_response(request, "System configuration saved successfully.")
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user_or_ip', rate='5/15m', method='POST', block=True)
+def apply_credit_limit_to_all_view(request):
+    """HTMX/POST endpoint — sets approved_credit_limit in SystemConfig AND
+
+    updates all existing active customers' credit limits. Requires PIN.
+    Restricted to administrators (Admin role or platform superuser).
+    """
+    if not _is_admin(request.user):
+        return _error_response(request, "Only administrators can update credit limits.", status=403)
+
+    display_value = request.POST.get("approved_credit_limit", "").strip()
+    pin = request.POST.get("pin", "").strip()
+
+    if not display_value:
+        return _error_response(request, "Approved credit limit is required.")
+    if not pin:
+        return _error_response(request, "PIN is required.")
+
+    try:
+        config_obj, count = apply_credit_limit_to_all_customers(
+            display_value=display_value,
+            pin=pin,
+            performed_by=request.user,
+        )
+    except ValidationError as exc:
+        return _error_response(request, error_message(exc))
+
+    try:
+        dec_val = Decimal(config_obj.value)
+        formatted_val = f"₱{dec_val:,.2f}"
+    except Exception:
+        formatted_val = config_obj.value
+
+    return _success_response(
+        request,
+        f"Credit limit set to {formatted_val} for {count} customer(s) and saved as future default."
+    )
 
 
 @login_required

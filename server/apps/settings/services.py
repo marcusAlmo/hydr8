@@ -17,12 +17,15 @@ from __future__ import annotations
 import logging
 from decimal import Decimal, InvalidOperation
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.core.models import SystemConfig
+from apps.customers.services import bulk_update_credit_limit
 from apps.settings.models import Company
 from apps.settings.selectors import _LOCKSCREEN_DISPLAY_TO_RAW
+from apps.users.services import validate_user_pin
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +136,40 @@ def save_system_config(*, key: str, display_value: str, performed_by) -> SystemC
     return obj
 
 
+@transaction.atomic
+def apply_credit_limit_to_all_customers(
+    *,
+    display_value: str,
+    pin: str,
+    performed_by,
+) -> tuple[SystemConfig, int]:
+    """Updates approved_credit_limit in SystemConfig AND sets all active
+
+    customers' credit_limit to this amount. Requires valid PIN verification.
+
+    Raises ValidationError if PIN is missing/invalid or value is out of range.
+    """
+    validate_user_pin(user=performed_by, pin=pin)
+
+    config_obj = save_system_config(
+        key="approved_credit_limit",
+        display_value=display_value,
+        performed_by=performed_by,
+    )
+    count = bulk_update_credit_limit(
+        credit_limit=config_obj.value,
+        performed_by=performed_by,
+    )
+    logger.info(
+        "[%s] Applied credit_limit=%s to all customers (%d updated) company_id=%s",
+        performed_by.id,
+        config_obj.value,
+        count,
+        getattr(getattr(performed_by, "company", None), "id", None),
+    )
+    return config_obj, count
+
+
 # ---------------------------------------------------------------------------
 # Company
 # ---------------------------------------------------------------------------
@@ -207,7 +244,6 @@ def change_username(*, user, current_password: str, new_username: str) -> None:
     if not new_username:
         raise ValidationError("Username cannot be empty.")
 
-    from django.contrib.auth import get_user_model
     User = get_user_model()
 
     if User.objects.filter(username__iexact=new_username).exclude(pk=user.pk).exists():

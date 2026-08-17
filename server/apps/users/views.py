@@ -43,6 +43,7 @@ from .services import (
     reset_failed_login,
     set_temporary_password,
     soft_delete_user,
+    validate_user_pin,
 )
 
 logger = logging.getLogger(__name__)
@@ -319,12 +320,14 @@ def generate_temp_password_view(request, user_id):
 
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
-    if not pin or not request.user.check_pin(pin):
-        logger.info("[%s] generate_temp_password PIN verification failed.", request.user.id)
+    try:
+        validate_user_pin(user=request.user, pin=pin)
+    except ValidationError as exc:
+        logger.info("[%s] generate_temp_password PIN verification failed: %s", request.user.id, exc)
         context = get_user_detail_context(request.user, target_user.id)
         if context is None:
             return HttpResponse("User not found.", status=404)
-        context['pin_error'] = "Incorrect PIN. Please try again." if pin else "PIN is required."
+        context['pin_error'] = error_message(exc)
         return render(request, 'employees/partials/user_detail.html', context, status=403)
 
     raw_password = set_temporary_password(user=target_user)
@@ -447,11 +450,11 @@ def edit_user_submit_view(request, user_id):
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
     pin_error = ''
-    if not pin:
-        pin_error = "PIN is required to save changes."
-    elif not request.user.check_pin(pin):
-        logger.info("[%s] edit_user PIN verification failed.", request.user.id)
-        pin_error = "Incorrect PIN. Please try again."
+    try:
+        validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to save changes.")
+    except ValidationError as exc:
+        logger.info("[%s] edit_user PIN verification failed: %s", request.user.id, exc)
+        pin_error = error_message(exc)
 
     if form.is_valid() and not pin_error:
         try:
@@ -545,8 +548,10 @@ def delete_user_view(request, user_id):
 
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
-    if not pin or not request.user.check_pin(pin):
-        logger.info("[%s] delete_user PIN verification failed.", request.user.id)
+    try:
+        validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to delete a user.")
+    except ValidationError as exc:
+        logger.info("[%s] delete_user PIN verification failed: %s", request.user.id, exc)
         form = EditUserForm(instance=target_user)
         form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
@@ -555,7 +560,7 @@ def delete_user_view(request, user_id):
             'roles': roles,
             'delete_challenge': expected_challenge,
             'can_delete': request.user.pk != target_user.pk,
-            'delete_error': "Incorrect PIN. Please enter your PIN to confirm deletion." if pin else "PIN is required to delete a user.",
+            'delete_error': error_message(exc),
         })
 
     try:
@@ -701,11 +706,11 @@ def add_user_submit_view(request):
 
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
-    if not pin:
-        form.add_error(None, "PIN is required to create a new user.")
-    elif not request.user.check_pin(pin):
-        logger.info("[%s] add_user PIN verification failed.", request.user.id)
-        form.add_error(None, "Incorrect PIN. Please try again.")
+    try:
+        validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to create a new user.")
+    except ValidationError as exc:
+        logger.info("[%s] add_user PIN verification failed: %s", request.user.id, exc)
+        form.add_error(None, error_message(exc))
 
     if form.is_valid() and not form.non_field_errors():
         try:

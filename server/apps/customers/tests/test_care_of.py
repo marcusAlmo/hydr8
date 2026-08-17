@@ -8,12 +8,14 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.core.models import Product
-from apps.customers.models import BorrowedContainer, CreditLine, Customer
+from apps.customers.models import BorrowedContainer, CreditLine, CreditPayment, Customer
 from apps.customers.services import record_customer_borrowed, record_customer_debt
 from apps.customers.selectors import (
     get_customer_collect_context,
+    get_customer_history_context,
     get_record_borrowed_context,
     get_record_debt_context,
 )
@@ -195,6 +197,7 @@ class CareOfSelectorTests(TestCase):
         self.assertEqual(entry["container_key"], "round_8gal")
         self.assertEqual(entry["outstanding"], 3)
         self.assertEqual(entry["care_of"]["name"], self.admin.full_name)
+        self.assertTrue(entry.get("transaction_date"))
 
     def test_collect_context_lists_credit_lines_with_care_of(self):
         """The collect modal surfaces the ``care_of`` user on credit lines."""
@@ -210,6 +213,7 @@ class CareOfSelectorTests(TestCase):
         credit_items = [i for i in ctx["credit_lines"] if i.get("product")]
         self.assertEqual(len(credit_items), 1)
         self.assertEqual(credit_items[0]["care_of"]["name"], self.admin.full_name)
+        self.assertTrue(credit_items[0].get("transaction_date"))
 
     def test_collect_context_groups_manual_debt_under_care_of_user(self):
         """A manually-recorded debt (no remittance rider product) is grouped
@@ -248,6 +252,85 @@ class CareOfSelectorTests(TestCase):
         rider_groups = ctx["rider_groups"]
         self.assertEqual(len(rider_groups), 1)
         self.assertEqual(rider_groups[0]["rider"]["name"], "Unassigned")
+
+    def test_customer_history_context_includes_care_of_for_all_types(self):
+        """The customer ledger history context provides care_of summary for
+        credited (credit lines), paid (credit payments), borrowed (borrowed
+        containers), and returned (container returns)."""
+        line = record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            care_of_id=str(self.admin.pk),
+            performed_by=self.staff,
+        )
+        CreditPayment.objects.create(
+            credit_line=line,
+            containers_paid=2,
+            amount=Decimal("80.00"),
+            recorded_by=self.staff,
+            paid_at=timezone.localdate(),
+        )
+        borrowed = record_customer_borrowed(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            container_key="round_8gal",
+            qty_borrowed=4,
+            care_of_id=str(self.admin.pk),
+            performed_by=self.staff,
+        )
+        borrowed.qty_returned = 2
+        borrowed.returned_at = timezone.localdate()
+        borrowed.save()
+
+        ctx = get_customer_history_context(self.customer, self.staff)
+        history = ctx["history"]
+
+        by_kind = {e["kind"]: e for e in history}
+        self.assertIn("credit_line", by_kind)
+        self.assertIn("credit_payment", by_kind)
+        self.assertIn("borrowed", by_kind)
+        self.assertIn("container_return", by_kind)
+
+        self.assertEqual(by_kind["credit_line"]["care_of"]["name"], self.admin.full_name)
+        self.assertEqual(by_kind["credit_payment"]["care_of"]["name"], self.admin.full_name)
+        self.assertEqual(by_kind["borrowed"]["care_of"]["name"], self.admin.full_name)
+        self.assertEqual(by_kind["container_return"]["care_of"]["name"], self.admin.full_name)
+
+    def test_customer_history_context_handles_unassigned_care_of(self):
+        """History entries without a care_of user specify 'Unassigned'."""
+        line = record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=2,
+            unit_price="40.00",
+            performed_by=self.staff,
+        )
+        CreditPayment.objects.create(
+            credit_line=line,
+            containers_paid=1,
+            amount=Decimal("40.00"),
+            recorded_by=self.staff,
+            paid_at=timezone.localdate(),
+        )
+        borrowed = record_customer_borrowed(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            container_key="slim_8gal",
+            qty_borrowed=3,
+            performed_by=self.staff,
+        )
+        borrowed.qty_returned = 1
+        borrowed.returned_at = timezone.localdate()
+        borrowed.save()
+
+        ctx = get_customer_history_context(self.customer, self.staff)
+        history = ctx["history"]
+        by_kind = {e["kind"]: e for e in history}
+
+        self.assertEqual(by_kind["credit_line"]["care_of"]["name"], "Unassigned")
+        self.assertEqual(by_kind["credit_payment"]["care_of"]["name"], "Unassigned")
+        self.assertEqual(by_kind["borrowed"]["care_of"]["name"], "Unassigned")
+        self.assertEqual(by_kind["container_return"]["care_of"]["name"], "Unassigned")
 
 
 class CareOfViewTests(TestCase):
@@ -352,3 +435,42 @@ class CareOfViewTests(TestCase):
         # "Care of:" appears once per borrowed entry and once per credit line.
         self.assertContains(response, "Care of:")
         self.assertContains(response, "Admin Lender")
+        self.assertContains(response, "Date:")
+
+    def test_customer_history_view_renders_care_of_for_all_types(self):
+        """GET /customers/HY-XXXX/history/ renders 'Care of:' and the assigned
+        user name for borrowed, credited, paid, and returned items."""
+        line = record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=5,
+            unit_price="40.00",
+            care_of_id=str(self.admin.pk),
+            performed_by=self.staff,
+        )
+        CreditPayment.objects.create(
+            credit_line=line,
+            containers_paid=2,
+            amount=Decimal("80.00"),
+            recorded_by=self.staff,
+            paid_at=timezone.localdate(),
+        )
+        borrowed = record_customer_borrowed(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            container_key="round_8gal",
+            qty_borrowed=4,
+            care_of_id=str(self.admin.pk),
+            performed_by=self.staff,
+        )
+        borrowed.qty_returned = 2
+        borrowed.returned_at = timezone.localdate()
+        borrowed.save()
+
+        response = self.client.get(
+            f"/customers/HY-{self.customer.pk:04d}/history/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Care of:")
+        self.assertContains(response, "Admin Lender")
+        # Ensure all 4 kinds are rendered with Care of: Admin Lender
+        self.assertEqual(response.content.decode().count("Admin Lender"), 4)

@@ -1,10 +1,11 @@
 """Tests for the Staff daily rate field and PIN-gated user mutations."""
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.users.models import Role, User
-from apps.users.services import create_user_account
+from apps.users.services import create_user_account, validate_user_pin
 
 
 class DailyRateModelTests(TestCase):
@@ -497,3 +498,54 @@ class StaffDetailDailyRateDisplayTests(TestCase):
         self.assertTrue(any(s["key"] == "daily_rate" for s in staff_stats))
         daily_rate_stat = next(s for s in staff_stats if s["key"] == "daily_rate")
         self.assertEqual(daily_rate_stat["value"], "₱550.00")
+
+
+class ValidateUserPinTests(TestCase):
+    """Unit tests for the centralized validate_user_pin service."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="pinuser",
+            password="securepassword123",
+        )
+        self.user.set_pin("1234")
+        self.user.save()
+
+    def test_valid_pin_passes(self):
+        # Should not raise any exception
+        validate_user_pin(user=self.user, pin="1234")
+
+    def test_valid_pin_with_whitespace_passes(self):
+        # Whitespace should be stripped cleanly
+        validate_user_pin(user=self.user, pin="  1234  ")
+
+    def test_wrong_pin_raises_validation_error(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(user=self.user, pin="9999")
+        self.assertEqual(ctx.exception.message, "Incorrect PIN.")
+
+    def test_empty_pin_raises_default_message(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(user=self.user, pin="")
+        self.assertEqual(ctx.exception.message, "PIN is required.")
+
+    def test_none_pin_raises_default_message(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(user=self.user, pin=None)
+        self.assertEqual(ctx.exception.message, "PIN is required.")
+
+    def test_empty_pin_raises_custom_message(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(
+                user=self.user,
+                pin="   ",
+                required_message="Custom PIN required message.",
+            )
+        self.assertEqual(ctx.exception.message, "Custom PIN required message.")
+
+    def test_user_without_pin_configured_raises_descriptive_error(self):
+        self.user.pin = None
+        self.user.save()
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(user=self.user, pin="1234")
+        self.assertIn("No PIN is configured for your account", str(ctx.exception.message))

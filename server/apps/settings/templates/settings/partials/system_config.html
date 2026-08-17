@@ -1,10 +1,15 @@
 {# System Config tab — key/value settings table with edit-mode toggle #}
-{# Alpine.js owns: editing state, dirty tracking, and original value snapshots #}
+{# Alpine.js owns: editing state, dirty tracking, original value snapshots, and PIN modal #}
 <div class="max-w-3xl"
     x-data="{
         editing: false,
         dirty: false,
         saving: false,
+        showCreditLimitPinModal: false,
+        pinInput: '',
+        pinError: '',
+        pinSubmitting: false,
+        targetCreditLimitDisplay: '',
         originals: {
             {% for setting in system_config %}'{{ setting.key }}': '{{ setting.value|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}
         },
@@ -32,6 +37,45 @@
             if (this.$refs.{{ setting.key }}) this.$refs.{{ setting.key }}.value = this.originals.{{ setting.key }};
             {% endif %}
             {% endfor %}
+        },
+        openCreditLimitPinModal() {
+            let val = this.$refs.approved_credit_limit ? this.$refs.approved_credit_limit.value : '';
+            val = (val || '').trim();
+            if (!val) {
+                return;
+            }
+            this.targetCreditLimitDisplay = val;
+            this.pinInput = '';
+            this.pinError = '';
+            this.pinSubmitting = false;
+            this.showCreditLimitPinModal = true;
+            this.$nextTick(() => {
+                if (this.$refs.creditLimitPinField) {
+                    this.$refs.creditLimitPinField.focus();
+                }
+            });
+        },
+        closeCreditLimitPinModal() {
+            this.showCreditLimitPinModal = false;
+            this.pinInput = '';
+            this.pinError = '';
+            this.pinSubmitting = false;
+        },
+        handleApplyResponse(event) {
+            this.pinSubmitting = false;
+            if (event.detail.successful) {
+                this.originals['approved_credit_limit'] = this.targetCreditLimitDisplay;
+                if (this.$refs.approved_credit_limit) {
+                    this.$refs.approved_credit_limit.value = this.targetCreditLimitDisplay;
+                }
+                this.closeCreditLimitPinModal();
+                this.cancelEdit();
+            } else {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(event.detail.xhr.responseText, 'text/html');
+                const toastMsg = doc.querySelector('.toast-message') || doc.body;
+                this.pinError = toastMsg.textContent.trim() || 'Failed to apply credit limit.';
+            }
         },
     }">
 
@@ -105,15 +149,25 @@
                             x-show="!editing"
                             class="font-data-mono text-data-mono text-on-surface">{{ setting.value }}</span>
                         {# Editable input — shown when editing #}
-                        <input
-                            x-show="editing"
-                            x-cloak
-                            x-ref="{{ setting.key }}"
-                            name="{{ setting.key }}"
-                            @input="checkDirty()"
-                            class="w-28 bg-surface-container text-on-surface font-data-mono text-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none pl-3 pr-3 py-1.5 transition-all duration-200"
-                            type="text"
-                            value="{{ setting.value }}"/>
+                        <div x-show="editing" x-cloak class="flex items-center justify-end gap-2">
+                            <input
+                                x-ref="{{ setting.key }}"
+                                name="{{ setting.key }}"
+                                @input="checkDirty()"
+                                class="w-28 bg-surface-container text-on-surface font-data-mono text-data-mono text-right rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none pl-3 pr-3 py-1.5 transition-all duration-200"
+                                type="text"
+                                value="{{ setting.value }}"/>
+                            {% if setting.key == 'approved_credit_limit' %}
+                            <button
+                                type="button"
+                                @click="openCreditLimitPinModal()"
+                                class="flex items-center gap-1 bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80 active:scale-[0.98] px-2.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all shadow-xs border border-outline-variant/20 whitespace-nowrap cursor-pointer"
+                                title="Apply this credit limit to all existing customers (requires PIN)">
+                                <span class="material-symbols-outlined text-[15px]">done_all</span>
+                                <span>Apply to all</span>
+                            </button>
+                            {% endif %}
+                        </div>
                         {% endif %}
                     </td>
                 </tr>
@@ -152,5 +206,89 @@
         class="flex items-center gap-2 pt-6 text-on-surface-variant font-body-sm text-body-sm">
         <span class="material-symbols-outlined text-[18px]">info</span>
         <span>Make changes above to enable the Save button.</span>
+    </div>
+
+    <!-- Apply to All PIN Confirmation Modal -->
+    <div x-show="showCreditLimitPinModal"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+         @keydown.escape.window="closeCreditLimitPinModal()">
+        <div x-show="showCreditLimitPinModal"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             class="bg-surface-container-lowest rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 border border-outline-variant/30">
+            <!-- Header -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-on-primary-container">done_all</span>
+                </div>
+                <div>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">Apply to All Customers</h3>
+                    <p class="font-body-sm text-body-sm text-on-surface-variant">Bulk credit limit update</p>
+                </div>
+            </div>
+
+            <div class="mb-4 bg-surface-container-low rounded-xl p-3.5 border border-outline-variant/30 text-body-sm text-on-surface-variant space-y-1.5">
+                <p>This will set the credit limit of <strong class="text-on-surface">ALL existing active customers</strong> to <span class="font-data-mono font-bold text-primary" x-text="targetCreditLimitDisplay ? ('₱' + targetCreditLimitDisplay) : ''"></span> and update the station default for new customers.</p>
+                <p class="text-xs text-on-surface-variant/80">Enter your administrator PIN to confirm this action.</p>
+            </div>
+
+            <!-- PIN Form -->
+            <form id="apply-credit-limit-form"
+                  hx-post="{% url 'settings:apply_credit_limit_all' %}"
+                  hx-swap="none"
+                  hx-on::before-request="pinSubmitting = true; pinError = ''"
+                  hx-on::after-request="handleApplyResponse(event)">
+                {% csrf_token %}
+                <input type="hidden" name="approved_credit_limit" :value="targetCreditLimitDisplay">
+
+                <div class="mb-4">
+                    <input
+                        type="password"
+                        name="pin"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        maxlength="6"
+                        x-model="pinInput"
+                        x-ref="creditLimitPinField"
+                        placeholder="••••"
+                        class="w-full h-12 text-center text-2xl font-data-mono tracking-[0.5em] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        :class="pinError ? 'border-error ring-2 ring-error/30' : ''"
+                        autocomplete="off">
+                    <p x-show="pinError" x-text="pinError"
+                       class="mt-2 font-body-sm text-body-sm text-error flex items-center gap-1">
+                    </p>
+                    <p x-show="pinSubmitting" class="mt-2 font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        Applying changes…
+                    </p>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex gap-3">
+                    <button type="button" @click="closeCreditLimitPinModal()"
+                            :disabled="pinSubmitting"
+                            class="flex-1 px-4 py-2.5 rounded-lg font-bold text-on-surface-variant hover:bg-surface-container transition-all cursor-pointer disabled:opacity-50">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            :disabled="pinSubmitting || pinInput.length < 4"
+                            class="flex-1 bg-primary text-on-primary px-4 py-2.5 rounded-lg font-bold hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+                        <span class="material-symbols-outlined text-[18px]">done_all</span>
+                        Confirm & Apply
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>

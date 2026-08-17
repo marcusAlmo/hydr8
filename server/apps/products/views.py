@@ -12,6 +12,7 @@ from django_ratelimit.decorators import ratelimit
 from apps.core.views import error_message
 from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
+from apps.users.services import validate_user_pin
 
 from .selectors import get_products_pricing_context
 from .services import (
@@ -140,13 +141,13 @@ def verify_pin_view(request):
     if not pin:
         return JsonResponse({"verified": False, "error": "PIN is required."}, status=400)
 
-    verified = request.user.check_pin(pin)
-    if verified:
+    try:
+        validate_user_pin(user=request.user, pin=pin)
         logger.info("[%s] PIN verification succeeded (products unlock).", request.user.id)
-    else:
+        return JsonResponse({"verified": True})
+    except ValidationError:
         logger.info("[%s] PIN verification failed (products unlock).", request.user.id)
-
-    return JsonResponse({"verified": verified})
+        return JsonResponse({"verified": False})
 
 
 # ---------------------------------------------------------------------------
@@ -193,11 +194,12 @@ def products_save_view(request):
 
     # --- Server-side PIN re-verification (defence in depth) ---
     pin = str(body.get("pin", "")).strip()
-    if not pin:
-        return JsonResponse({"ok": False, "error": "PIN is required."}, status=400)
-    if not request.user.check_pin(pin):
-        logger.info("[%s] products_save PIN failed.", request.user.id)
-        return JsonResponse({"ok": False, "error": "Incorrect PIN."}, status=403)
+    try:
+        validate_user_pin(user=request.user, pin=pin)
+    except ValidationError as exc:
+        logger.info("[%s] products_save PIN failed: %s", request.user.id, exc)
+        status_code = 400 if not pin else 403
+        return JsonResponse({"ok": False, "error": error_message(exc)}, status=status_code)
 
     edits = body.get("edits", []) or []
     deletes = body.get("deletes", []) or []
@@ -299,11 +301,12 @@ def commission_save_view(request):
         return JsonResponse({"ok": False, "error": "Invalid request."}, status=400)
 
     pin = str(body.get("pin", "")).strip()
-    if not pin:
-        return JsonResponse({"ok": False, "error": "PIN is required."}, status=400)
-    if not request.user.check_pin(pin):
-        logger.info("[%s] commission_save PIN failed.", request.user.id)
-        return JsonResponse({"ok": False, "error": "Incorrect PIN."}, status=403)
+    try:
+        validate_user_pin(user=request.user, pin=pin)
+    except ValidationError as exc:
+        logger.info("[%s] commission_save PIN failed: %s", request.user.id, exc)
+        status_code = 400 if not pin else 403
+        return JsonResponse({"ok": False, "error": error_message(exc)}, status=status_code)
 
     changes = body.get("changes", {}) or {}
     if not changes:
@@ -342,11 +345,12 @@ def commission_bulk_set_view(request):
         return JsonResponse({"ok": False, "error": "Invalid request."}, status=400)
 
     pin = str(body.get("pin", "")).strip()
-    if not pin:
-        return JsonResponse({"ok": False, "error": "PIN is required."}, status=400)
-    if not request.user.check_pin(pin):
-        logger.info("[%s] commission_bulk_set PIN failed.", request.user.id)
-        return JsonResponse({"ok": False, "error": "Incorrect PIN."}, status=403)
+    try:
+        validate_user_pin(user=request.user, pin=pin)
+    except ValidationError as exc:
+        logger.info("[%s] commission_bulk_set PIN failed: %s", request.user.id, exc)
+        status_code = 400 if not pin else 403
+        return JsonResponse({"ok": False, "error": error_message(exc)}, status=status_code)
 
     try:
         product_id = int(body.get("product_id"))

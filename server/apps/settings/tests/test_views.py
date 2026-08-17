@@ -4,11 +4,15 @@ Covers the GET page render and all 5 POST endpoints — including the
 admin-only restriction on system config / company writes, and the
 current-password verification on credential changes.
 """
+from decimal import Decimal
+
 from django.core.cache import cache
 from django.test import TestCase
 
 from apps.core.models import SystemConfig
+from apps.customers.models import Customer
 from apps.settings.models import Company
+from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import Role, User
 
 
@@ -114,6 +118,26 @@ class SaveSystemConfigViewTests(TestCase):
         self.assertEqual(
             SystemConfig.objects.get(
                 company=self.company, key='approved_container_limit').value, '25')
+
+    def test_saving_credit_limit_default_does_not_modify_existing_customers(self):
+        """Saving system config only updates future default, not existing customers."""
+        customer = Customer.objects.create(
+            name="Existing Customer",
+            company=self.company,
+            credit_limit=Decimal("1000.00"),
+        )
+        self.client.force_login(self.admin)
+        response = self.client.post('/settings/system-config/save/', {
+            'approved_credit_limit': '7,500.00',
+        })
+        self.assertEqual(response.status_code, 200)
+
+        # Existing customer limit remains unchanged
+        customer.refresh_from_db()
+        self.assertEqual(customer.credit_limit, Decimal("1000.00"))
+
+        # Default selector for new customers picks up new value
+        self.assertEqual(get_default_credit_limit(self.admin), Decimal("7500.00"))
 
 
 class SaveCompanyViewTests(TestCase):
@@ -266,3 +290,90 @@ class ChangePasswordViewTests(TestCase):
         # The next request should still be authenticated.
         response = self.client.get('/settings/')
         self.assertEqual(response.status_code, 200)
+
+
+class ApplyCreditLimitToAllViewTests(TestCase):
+    """Tests for POST /settings/system-config/apply-credit-limit-all/ endpoint."""
+
+    def setUp(self):
+        cache.clear()
+        self.company = Company.objects.create(name="Water Co")
+        admin_role, _ = Role.objects.get_or_create(name="Admin")
+        staff_role, _ = Role.objects.get_or_create(name="Staff")
+        self.admin = User.objects.create_user(
+            username="admin", password="securepassword123",
+            is_staff=True, company=self.company,
+        )
+        self.admin.role = admin_role
+        self.admin.set_pin("1234")
+        self.admin.save()
+
+        self.staff = User.objects.create_user(
+            username="staff", password="securepassword123",
+            company=self.company,
+        )
+        self.staff.role = staff_role
+        self.staff.set_pin("1234")
+        self.staff.save()
+
+        self.c1 = Customer.objects.create(
+            name="Customer 1", company=self.company, credit_limit=Decimal("1000.00")
+        )
+        self.c2 = Customer.objects.create(
+            name="Customer 2", company=self.company, credit_limit=Decimal("2000.00")
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_admin_with_valid_pin_updates_all_and_config(self):
+        self.client.force_login(self.admin)
+        response = self.client.post('/settings/system-config/apply-credit-limit-all/', {
+            'approved_credit_limit': '5,000.00',
+            'pin': '1234',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Credit limit set to')
+
+        self.c1.refresh_from_db()
+        self.c2.refresh_from_db()
+        self.assertEqual(self.c1.credit_limit, Decimal("5000.00"))
+        self.assertEqual(self.c2.credit_limit, Decimal("5000.00"))
+
+        row = SystemConfig.objects.get(company=self.company, key='approved_credit_limit')
+        self.assertEqual(row.value, '5000.00')
+
+    def test_staff_role_blocked(self):
+        self.client.force_login(self.staff)
+        response = self.client.post('/settings/system-config/apply-credit-limit-all/', {
+            'approved_credit_limit': '5,000.00',
+            'pin': '1234',
+        })
+        self.assertEqual(response.status_code, 403)
+
+    def test_invalid_pin_returns_error(self):
+        self.client.force_login(self.admin)
+        response = self.client.post('/settings/system-config/apply-credit-limit-all/', {
+            'approved_credit_limit': '5,000.00',
+            'pin': '0000',
+        })
+        self.assertContains(response, 'Incorrect PIN', status_code=400)
+
+        self.c1.refresh_from_db()
+        self.assertEqual(self.c1.credit_limit, Decimal("1000.00"))
+
+    def test_missing_pin_returns_error(self):
+        self.client.force_login(self.admin)
+        response = self.client.post('/settings/system-config/apply-credit-limit-all/', {
+            'approved_credit_limit': '5,000.00',
+            'pin': '',
+        })
+        self.assertContains(response, 'PIN is required', status_code=400)
+
+    def test_missing_credit_limit_returns_error(self):
+        self.client.force_login(self.admin)
+        response = self.client.post('/settings/system-config/apply-credit-limit-all/', {
+            'approved_credit_limit': '',
+            'pin': '1234',
+        })
+        self.assertContains(response, 'Approved credit limit is required', status_code=400)

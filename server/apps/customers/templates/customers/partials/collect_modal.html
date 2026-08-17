@@ -146,11 +146,21 @@ Expects context:
                                     <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">outstanding</span>
                                     <span class="font-data-mono text-xs text-on-surface-variant">{{ item.id }}</span>
                                 </div>
-                                <div class="flex items-center gap-1.5 mt-1.5">
-                                    <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
-                                    <span class="text-xs text-on-surface-variant">
-                                        Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
-                                    </span>
+                                <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                                    {% if item.transaction_date %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">calendar_today</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Date: <span class="text-on-surface font-medium">{{ item.transaction_date }}</span>
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex items-center gap-3 flex-shrink-0">
@@ -197,11 +207,21 @@ Expects context:
                                     <span class="font-data-mono text-sm font-bold text-on-surface">{{ item.remaining_balance }}</span>
                                     <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">balance</span>
                                 </div>
-                                <div class="flex items-center gap-1.5 mt-1.5">
-                                    <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
-                                    <span class="text-xs text-on-surface-variant">
-                                        Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
-                                    </span>
+                                <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                                    {% if item.transaction_date %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">calendar_today</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Date: <span class="text-on-surface font-medium">{{ item.transaction_date }}</span>
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
+                                        <span class="text-xs text-on-surface-variant">
+                                            Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex items-center gap-3 flex-shrink-0 flex-wrap">

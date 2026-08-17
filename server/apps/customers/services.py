@@ -19,9 +19,11 @@ from django.db.models.functions import Greatest
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.remittance.models import Remittance
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import User
 from apps.users.permissions import is_admin
+from apps.users.services import validate_user_pin
 
 from .models import BorrowedContainer, CreditPayment, Customer, CreditLine
 from .selectors import _parse_display_id
@@ -728,8 +730,6 @@ def reset_customer_status(
 # Ledger history edit services
 # ---------------------------------------------------------------------------
 
-from apps.remittance.models import Remittance
-
 
 def _record_lock_date(record) -> date:
     """Business date used to check finalized-remittance immutability."""
@@ -742,10 +742,6 @@ def _record_lock_date(record) -> date:
 
 def _verify_ledger_edit(*, record, pin: str, performed_by: "UserType") -> None:
     """Validates PIN and immutability rules before a ledger edit."""
-    raw = (pin or "").strip()
-    if not raw:
-        raise ValidationError("PIN is required to edit this record.")
-
     cache_key = f"ledger_pin_attempts:{performed_by.id}"
     attempts = cache.get(cache_key, 0)
     if attempts >= 5:
@@ -753,9 +749,15 @@ def _verify_ledger_edit(*, record, pin: str, performed_by: "UserType") -> None:
             "Too many failed PIN attempts. Try again in 15 minutes."
         )
 
-    if not performed_by.check_pin(raw):
+    try:
+        validate_user_pin(
+            user=performed_by,
+            pin=pin,
+            required_message="PIN is required to edit this record.",
+        )
+    except ValidationError:
         cache.set(cache_key, attempts + 1, timeout=900)
-        raise ValidationError("Incorrect PIN.")
+        raise
 
     cache.delete(cache_key)
 
@@ -1384,3 +1386,51 @@ def delete_borrowed_container(
             borrowed.customer_id,
             outstanding,
         )
+
+
+@transaction.atomic
+def bulk_update_credit_limit(
+    *,
+    credit_limit: Decimal | str,
+    performed_by: "UserType",
+) -> int:
+    """Updates the credit_limit for all active customers in the operator's company.
+
+    Returns the number of customer records updated.
+    """
+    if isinstance(credit_limit, str):
+        cleaned = credit_limit.replace(",", "").replace("₱", "").strip()
+        try:
+            dec = Decimal(cleaned)
+        except (InvalidOperation, ValueError):
+            raise ValidationError("Credit limit must be a valid number.")
+    elif isinstance(credit_limit, Decimal):
+        dec = credit_limit
+    else:
+        try:
+            dec = Decimal(str(credit_limit))
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValidationError("Credit limit must be a valid number.")
+
+    if dec < Decimal("0.00"):
+        raise ValidationError("Credit limit cannot be negative.")
+
+    dec = dec.quantize(Decimal("0.01"))
+    company = getattr(performed_by, "company", None)
+
+    qs = Customer.objects.filter(deleted_at__isnull=True)
+    if company is not None:
+        qs = qs.filter(company=company)
+    elif not performed_by.is_superuser:
+        qs = qs.filter(company__isnull=True)
+
+    count = qs.update(credit_limit=dec, updated_at=timezone.now())
+
+    logger.info(
+        "[%s] Bulk updated credit_limit=%s for %d customers company_id=%s",
+        performed_by.id,
+        dec,
+        count,
+        getattr(company, "id", None),
+    )
+    return count

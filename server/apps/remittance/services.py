@@ -20,6 +20,7 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.users.models import User, DriverCommission
+from apps.users.services import validate_user_pin
 
 from .models import (
     Expense,
@@ -824,8 +825,7 @@ def finalize_remittance(
     if not is_admin_user(user=performed_by):
         raise ValidationError("Only administrators can finalize remittances.")
 
-    if not performed_by.check_pin(pin or ""):
-        raise ValidationError("Incorrect PIN.")
+    validate_user_pin(user=performed_by, pin=pin)
 
     remittance = (
         Remittance.objects

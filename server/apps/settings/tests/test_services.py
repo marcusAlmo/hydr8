@@ -8,13 +8,18 @@ Covers the critical paths:
   - username change (current-password verified)
   - password change (current-password verified)
 """
+from decimal import Decimal
+
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.core.models import SystemConfig
+from apps.customers.models import Customer
 from apps.settings.models import Company
 from apps.settings.services import (
+    apply_credit_limit_to_all_customers,
     change_password,
     change_username,
     save_company,
@@ -279,3 +284,95 @@ class ChangePasswordTests(TestCase):
                         new_password="newsecurepass456")
         self.user.refresh_from_db()
         self.assertFalse(self.user.force_password_change)
+
+
+class ApplyCreditLimitToAllCustomersTests(TestCase):
+    """Tests for apply_credit_limit_to_all_customers service."""
+
+    def setUp(self):
+        cache.clear()
+        self.company = Company.objects.create(name="Water Co")
+        self.other_company = Company.objects.create(name="Other Co")
+        self.admin = User.objects.create_user(
+            username="admin_user",
+            password="securepassword123",
+            is_staff=True,
+            company=self.company,
+        )
+        self.admin.set_pin("1234")
+        self.admin.save()
+
+        self.c1 = Customer.objects.create(
+            name="Customer 1",
+            company=self.company,
+            credit_limit=Decimal("1000.00"),
+        )
+        self.c2 = Customer.objects.create(
+            name="Customer 2",
+            company=self.company,
+            credit_limit=Decimal("2000.00"),
+        )
+        self.c_deleted = Customer.objects.create(
+            name="Deleted Customer",
+            company=self.company,
+            credit_limit=Decimal("500.00"),
+            deleted_at=timezone.now(),
+        )
+        self.c_other = Customer.objects.create(
+            name="Other Customer",
+            company=self.other_company,
+            credit_limit=Decimal("1500.00"),
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_valid_pin_updates_config_and_all_tenant_customers(self):
+        config_obj, count = apply_credit_limit_to_all_customers(
+            display_value="₱5,000.00",
+            pin="1234",
+            performed_by=self.admin,
+        )
+        self.assertEqual(count, 2)
+        self.assertEqual(config_obj.value, "5000.00")
+
+        self.c1.refresh_from_db()
+        self.c2.refresh_from_db()
+        self.c_deleted.refresh_from_db()
+        self.c_other.refresh_from_db()
+
+        self.assertEqual(self.c1.credit_limit, Decimal("5000.00"))
+        self.assertEqual(self.c2.credit_limit, Decimal("5000.00"))
+        self.assertEqual(self.c_deleted.credit_limit, Decimal("500.00"))
+        self.assertEqual(self.c_other.credit_limit, Decimal("1500.00"))
+
+    def test_wrong_pin_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            apply_credit_limit_to_all_customers(
+                display_value="5000.00",
+                pin="9999",
+                performed_by=self.admin,
+            )
+        self.assertIn("Incorrect PIN", str(ctx.exception))
+        self.c1.refresh_from_db()
+        self.assertEqual(self.c1.credit_limit, Decimal("1000.00"))
+
+    def test_user_without_pin_rejected(self):
+        self.admin.pin = None
+        self.admin.save()
+        with self.assertRaises(ValidationError) as ctx:
+            apply_credit_limit_to_all_customers(
+                display_value="5000.00",
+                pin="1234",
+                performed_by=self.admin,
+            )
+        self.assertIn("No PIN is configured", str(ctx.exception))
+
+    def test_negative_credit_limit_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            apply_credit_limit_to_all_customers(
+                display_value="-500.00",
+                pin="1234",
+                performed_by=self.admin,
+            )
+        self.assertIn("Credit limit cannot be negative", str(ctx.exception))

@@ -197,6 +197,34 @@ def onboard_user(*, user: User, new_password: str, new_pin: str) -> None:
     logger.info("User onboarded. user_id=%s", user.id)
 
 
+def validate_user_pin(
+    *,
+    user: User,
+    pin: str | None,
+    required_message: str = "PIN is required.",
+) -> None:
+    """
+    Standardized, reusable PIN validator for sensitive operations.
+
+    Verifies that:
+      1. The user has an active, configured PIN.
+      2. The PIN input is non-empty.
+      3. The provided PIN matches the stored hash via user.check_pin.
+
+    Raises:
+        ValidationError: If PIN is unconfigured, missing, or incorrect.
+    """
+    raw_pin = (pin or "").strip()
+    if not getattr(user, "pin", None):
+        raise ValidationError(
+            "No PIN is configured for your account. Please set a PIN in your profile first."
+        )
+    if not raw_pin:
+        raise ValidationError(required_message)
+    if not user.check_pin(raw_pin):
+        raise ValidationError("Incorrect PIN.")
+
+
 # ---------------------------------------------------------------------------
 # Soft-delete — admin action on the edit user form.
 # ---------------------------------------------------------------------------

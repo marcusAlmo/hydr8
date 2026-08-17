@@ -52,6 +52,15 @@ Expects:
                     · <span class="font-bold">{{ item.outstanding }}</span> outstanding
                 </div>
                 {% endif %}
+
+                {% if item.care_of and item.care_of.name %}
+                <div class="flex items-center gap-1.5 mt-2">
+                    <span class="material-symbols-outlined text-outline-variant text-[14px]">person</span>
+                    <span class="text-xs text-on-surface-variant">
+                        Care of: <span class="text-on-surface font-bold">{{ item.care_of.name }}</span>
+                    </span>
+                </div>
+                {% endif %}
             </div>
 
             <div class="flex-shrink-0 flex items-center gap-1">
