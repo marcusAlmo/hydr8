@@ -6,6 +6,10 @@ ENV DJANGO_SETTINGS_MODULE=config.settings.production
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements/ /app/requirements/
 RUN pip install --no-cache-dir -r requirements/production.txt
 
