@@ -17,6 +17,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.settings.models import Company
 from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.users.models import User, DriverCommission
@@ -140,15 +141,19 @@ def _collect_repayments(
 
 
 def _unlink_credit_payments(remittance: Remittance) -> int:
-    """Unlinks all CreditPayments from a Remittance (sets ``remittance=None``).
+    """Unlink any CreditPayment records attached to a draft remittance.
 
-    Used before deleting a DRAFT remittance so the PROTECT FK does not
-    block the delete.  Returns the count of unlinked payments.
+    Draft remittances can be replaced or discarded; when that happens,
+    the customer repayments that were linked to the draft must be
+    returned to the unlinked pool (``remittance=NULL``) so they can be
+    included in future remittances or draft saves.
+
+    Returns the number of CreditPayment rows unlinked.
     """
     count = CreditPayment.objects.filter(remittance=remittance).update(remittance=None)
     if count:
         logger.info(
-            "Unlinked %s CreditPayments from Remittance id=%s",
+            "Unlinked %d CreditPayment(s) from draft Remittance id=%s",
             count,
             remittance.id,
         )
@@ -179,29 +184,33 @@ def create_remittance(
     date, a rider or product cannot be resolved, or any financial total
     is negative.
     """
-    company = getattr(performed_by, "company", None)
+    company = getattr(performed_by, "company", None) or Company.objects.filter(deleted_at__isnull=True).first()
     remittance_date = remittance_date or timezone.localdate()
 
-    existing = Remittance.objects.filter(company=company, date=remittance_date).first()
-    if existing is not None:
-        if existing.status == Remittance.StatusChoices.FINALIZED:
-            raise ValidationError(
-                f"A finalized remittance for {remittance_date} already exists."
-            )
+    existing_list = list(
+        Remittance.objects.filter(company=company, date=remittance_date).select_for_update()
+    )
+    if existing_list:
+        for existing in existing_list:
+            if existing.status == Remittance.StatusChoices.FINALIZED:
+                raise ValidationError(
+                    f"A finalized remittance for {remittance_date} already exists."
+                )
         if finalize:
             # A draft was prepared by staff; the admin is now finalizing.
-            # Replace the draft with a finalized remittance built from the
+            # Replace all existing drafts with a finalized remittance built from the
             # current (possibly edited) payload — same upsert pattern as
             # ``save_remittance_draft`` so the transition never errors with
             # "a draft already exists".
-            _unlink_credit_payments(existing)
-            existing.delete()
-            logger.info(
-                "[%s] Replaced DRAFT id=%s for date=%s prior to finalize",
-                performed_by.id,
-                existing.id,
-                remittance_date,
-            )
+            for existing in existing_list:
+                _unlink_credit_payments(existing)
+                existing.delete()
+                logger.info(
+                    "[%s] Replaced DRAFT id=%s for date=%s prior to finalize",
+                    performed_by.id,
+                    existing.id,
+                    remittance_date,
+                )
         else:
             raise ValidationError(
                 f"A draft for {remittance_date} already exists. "
@@ -240,34 +249,36 @@ def save_remittance_draft(
     the "Save as Draft" button so that a staff member can save, refresh,
     edit, and save again without hitting a "already exists" error.
 
-    If a DRAFT already exists for ``(company, date)``, it is deleted
-    (cascade to riders, product lines, expenses) and a fresh draft is
-    created from the current payload.  If a FINALIZED remittance exists,
-    a ``ValidationError`` is raised — finalized records are immutable.
+    If a DRAFT already exists for ``(company, date)``, all matching drafts
+    are deleted (cascade to riders, product lines, expenses) and a fresh
+    draft is created from the current payload. If a FINALIZED remittance
+    exists, a ``ValidationError`` is raised — finalized records are immutable.
 
     Returns the newly created :class:`Remittance` instance.
     """
-    company = getattr(performed_by, "company", None)
+    company = getattr(performed_by, "company", None) or Company.objects.filter(deleted_at__isnull=True).first()
     remittance_date = remittance_date or timezone.localdate()
 
-    existing = Remittance.objects.filter(company=company, date=remittance_date).first()
-    if existing is not None:
-        if existing.status == Remittance.StatusChoices.FINALIZED:
-            raise ValidationError(
-                f"A finalized remittance for {remittance_date} already exists "
-                "and cannot be overwritten."
+    existing_list = list(
+        Remittance.objects.filter(company=company, date=remittance_date).select_for_update()
+    )
+    if existing_list:
+        for existing in existing_list:
+            if existing.status == Remittance.StatusChoices.FINALIZED:
+                raise ValidationError(
+                    f"A finalized remittance for {remittance_date} already exists "
+                    "and cannot be overwritten."
+                )
+            # Unlink CreditPayments before deleting so the PROTECT FK does not
+            # block the cascade delete of the draft.
+            _unlink_credit_payments(existing)
+            existing.delete()
+            logger.info(
+                "[%s] Replaced existing DRAFT id=%s for date=%s",
+                performed_by.id,
+                existing.id,
+                remittance_date,
             )
-        # Unlink CreditPayments before deleting so the PROTECT FK does not
-        # block the cascade delete of the draft.
-        _unlink_credit_payments(existing)
-        # Delete the existing draft (cascade removes children) so we can
-        # create a fresh one with the latest form data.
-        existing.delete()
-        logger.info(
-            "[%s] Replaced existing DRAFT for date=%s",
-            performed_by.id,
-            remittance_date,
-        )
 
     return _build_remittance(
         performed_by=performed_by,
@@ -301,28 +312,31 @@ def delete_draft_remittance(
     Returns ``True`` if a draft was deleted, ``False`` if nothing was
     found.
     """
-    company = getattr(performed_by, "company", None)
+    company = getattr(performed_by, "company", None) or Company.objects.filter(deleted_at__isnull=True).first()
     remittance_date = remittance_date or timezone.localdate()
 
-    existing = Remittance.objects.filter(company=company, date=remittance_date).first()
-    if existing is None:
+    existing_list = list(
+        Remittance.objects.filter(company=company, date=remittance_date).select_for_update()
+    )
+    if not existing_list:
         return False
 
-    if existing.status == Remittance.StatusChoices.FINALIZED:
-        raise ValidationError(
-            "Cannot delete a finalized remittance. "
-            "Finalized records are immutable."
+    for existing in existing_list:
+        if existing.status == Remittance.StatusChoices.FINALIZED:
+            raise ValidationError(
+                "Cannot delete a finalized remittance. "
+                "Finalized records are immutable."
+            )
+        # Unlink CreditPayments before deleting so the PROTECT FK does not
+        # block the cascade delete of the draft.
+        _unlink_credit_payments(existing)
+        existing.delete()
+        logger.info(
+            "[%s] Cleared DRAFT remittance id=%s for date=%s",
+            performed_by.id,
+            existing.id,
+            remittance_date,
         )
-
-    # Unlink CreditPayments before deleting so the PROTECT FK does not
-    # block the cascade delete of the draft.
-    _unlink_credit_payments(existing)
-    existing.delete()
-    logger.info(
-        "[%s] Cleared DRAFT remittance for date=%s",
-        performed_by.id,
-        remittance_date,
-    )
     return True
 
 
@@ -831,6 +845,7 @@ def finalize_remittance(
         Remittance.objects
         .for_user(performed_by)
         .select_related("created_by")
+        .select_for_update()
         .filter(id=remittance_id)
         .first()
     )

@@ -126,6 +126,17 @@
         x-transition:leave-end="opacity-0">
         <td colspan="11" class="!p-0">
             <div class="border-t border-outline-variant/20 bg-surface-container-low/30 px-6 py-4">
+                <!-- Remittance ID & Info Bar for quick DB checking -->
+                <div class="flex items-center justify-between pb-3 mb-3 border-b border-outline-variant/15">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-outline text-[16px]">tag</span>
+                        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Remittance ID:</span>
+                        <span class="font-data-mono text-body-sm font-bold text-primary px-2 py-0.5 rounded bg-primary/10">#{{ rem.id }}</span>
+                    </div>
+                    <span class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase">
+                        {% if rem.is_draft %}Status: Draft{% else %}Status: Finalized{% endif %}
+                    </span>
+                </div>
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- Revenue -->
                     <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-3">

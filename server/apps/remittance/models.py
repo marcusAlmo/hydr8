@@ -49,7 +49,13 @@ class Remittance(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'date'],
+                condition=models.Q(company__isnull=False),
                 name='unique_remittance_company_date',
+            ),
+            models.UniqueConstraint(
+                fields=['date'],
+                condition=models.Q(company__isnull=True),
+                name='unique_remittance_null_company_date',
             ),
         ]
         indexes = [
