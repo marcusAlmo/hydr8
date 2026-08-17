@@ -44,10 +44,14 @@ def seed_jps2_company(apps, schema_editor):
     Product.objects.filter(company__isnull=True).update(company=company)
     SystemConfig.objects.filter(company__isnull=True).update(company=company)
 
-    # In PostgreSQL, use session_replication_role = 'replica' to bypass immutability triggers
+    # Temporarily drop application triggers so historical finalized rows can be backfilled
+    # with company_id without triggering immutability exceptions (works without superuser)
     is_postgres = schema_editor.connection.vendor == 'postgresql'
     if is_postgres:
-        schema_editor.execute("SET session_replication_role = 'replica';")
+        schema_editor.execute("DROP TRIGGER IF EXISTS trg_lock_finalized_remittance ON remittance_remittance;")
+        schema_editor.execute("DROP TRIGGER IF EXISTS trg_guard_finalized_rider ON remittance_remittance_rider;")
+        schema_editor.execute("DROP TRIGGER IF EXISTS trg_guard_finalized_product_line ON remittance_remittance_rider_productline;")
+        schema_editor.execute("DROP TRIGGER IF EXISTS trg_guard_finalized_expense ON remittance_expense;")
 
     try:
         # For remittances: assign company to 1 remittance per date (to satisfy UNIQUE (company, date))
@@ -71,7 +75,31 @@ def seed_jps2_company(apps, schema_editor):
             StaffDeduction.objects.filter(remittance_staff__remittance_id=rem_id, company__isnull=True).update(company=company)
     finally:
         if is_postgres:
-            schema_editor.execute("SET session_replication_role = 'origin';")
+            schema_editor.execute("""
+                DROP TRIGGER IF EXISTS trg_lock_finalized_remittance ON remittance_remittance;
+                CREATE TRIGGER trg_lock_finalized_remittance
+                BEFORE UPDATE OR DELETE ON remittance_remittance
+                FOR EACH ROW
+                EXECUTE FUNCTION fn_lock_finalized_remittance();
+
+                DROP TRIGGER IF EXISTS trg_guard_finalized_rider ON remittance_remittance_rider;
+                CREATE TRIGGER trg_guard_finalized_rider
+                BEFORE INSERT OR UPDATE OR DELETE ON remittance_remittance_rider
+                FOR EACH ROW
+                EXECUTE FUNCTION fn_guard_remittance_child();
+
+                DROP TRIGGER IF EXISTS trg_guard_finalized_product_line ON remittance_remittance_rider_productline;
+                CREATE TRIGGER trg_guard_finalized_product_line
+                BEFORE INSERT OR UPDATE OR DELETE ON remittance_remittance_rider_productline
+                FOR EACH ROW
+                EXECUTE FUNCTION fn_guard_remittance_child();
+
+                DROP TRIGGER IF EXISTS trg_guard_finalized_expense ON remittance_expense;
+                CREATE TRIGGER trg_guard_finalized_expense
+                BEFORE INSERT OR UPDATE OR DELETE ON remittance_expense
+                FOR EACH ROW
+                EXECUTE FUNCTION fn_guard_remittance_child();
+            """)
 
 
 def reverse_seed_jps2_company(apps, schema_editor):
