@@ -626,3 +626,45 @@ class DraftRoundTripTests(TestCase):
         self.assertEqual(staff_data["salary_override"], "650.00")
         # No staff deductions
         self.assertEqual(staff_data["deductions"], [])
+
+    def test_multiple_rapid_draft_saves_produce_exactly_one_row(self):
+        """Calling save_remittance_draft multiple times in rapid succession
+        replaces the previous draft and produces exactly 1 Remittance row."""
+        payload = self._full_payload()
+        for i in range(5):
+            save_remittance_draft(
+                performed_by=self.admin,
+                riders_data=payload["riders"],
+                expenses_data=payload["expenses"],
+                manual_offering=payload["manualOffering"],
+                tithe_rate=payload["titheRate"],
+                remittance_date=self.remittance_date,
+                other_sales=payload["otherSales"],
+                staff_data=payload["staff"],
+            )
+
+        drafts = Remittance.objects.filter(date=self.remittance_date)
+        self.assertEqual(drafts.count(), 1)
+        self.assertEqual(drafts.first().status, Remittance.StatusChoices.DRAFT)
+
+    def test_remittance_id_present_in_summary(self):
+        """get_remittance_summary_for_date includes the remittance id in the returned dict."""
+        from apps.remittance.selectors import get_remittance_summary_for_date
+
+        payload = self._full_payload()
+        draft = save_remittance_draft(
+            performed_by=self.admin,
+            riders_data=payload["riders"],
+            expenses_data=payload["expenses"],
+            manual_offering=payload["manualOffering"],
+            tithe_rate=payload["titheRate"],
+            remittance_date=self.remittance_date,
+            other_sales=payload["otherSales"],
+            staff_data=payload["staff"],
+        )
+
+        summary = get_remittance_summary_for_date(self.admin, self.remittance_date)
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary["id"], draft.id)
+        self.assertEqual(summary["status"], Remittance.StatusChoices.DRAFT)
+

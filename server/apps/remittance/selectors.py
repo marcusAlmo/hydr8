@@ -855,6 +855,7 @@ def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict
         finalized_at_str = timezone.localtime(rem.finalized_at).strftime("%b %d, %Y %I:%M %p")
 
     summary = {
+        "id": rem.id,
         "status": rem.status,
         "date": rem.date.isoformat(),
         "created_by": rem.created_by.full_name if rem.created_by else "—",

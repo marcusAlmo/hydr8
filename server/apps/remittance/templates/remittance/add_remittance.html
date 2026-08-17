@@ -91,9 +91,13 @@
                                           : 'text-tertiary'"
                                   x-text="existingRemittance && existingRemittance.status === 'FINALIZED' ? 'lock' : 'draft'"></span>
                             <div class="min-w-0">
-                                <h3 class="font-headline-sm text-body-md font-bold text-on-surface">
+                                <h3 class="font-headline-sm text-body-md font-bold text-on-surface flex items-center gap-2">
                                     <span x-text="existingRemittance && existingRemittance.status === 'FINALIZED'
                                                   ? 'Finalized Remittance on this date' : 'Draft Remittance on this date'"></span>
+                                    <template x-if="existingRemittance && existingRemittance.id">
+                                        <span class="font-data-mono text-body-sm font-bold text-primary px-2 py-0.5 rounded bg-primary/10"
+                                              x-text="'#' + existingRemittance.id"></span>
+                                    </template>
                                 </h3>
                                 <p class="text-body-sm text-on-surface-variant truncate">
                                     Created by <span x-text="existingRemittance ? existingRemittance.created_by : ''" class="font-medium"></span>
@@ -825,7 +829,8 @@
                                         <span class="font-body-sm font-bold text-on-surface flex items-center gap-1">
                                             Net Commission
                                         </span>
-                                        <span class="font-data-mono text-data-mono text-tertiary font-bold text-lg"
+                                        <span class="font-data-mono text-data-mono font-bold text-lg"
+                                              :class="riderNetCommission(selectedRiderId) < 0 ? 'text-error' : 'text-tertiary'"
                                               x-text="peso(riderNetCommission(selectedRiderId))"></span>
                                     </div>
                                 </div>
@@ -996,7 +1001,8 @@
                                         <!-- ===== NET PAY (underlined) ===== -->
                                         <tr class="border-t-2 border-on-surface/20">
                                             <td class="py-3.5 px-4 font-body-md font-bold text-on-surface">Net Pay</td>
-                                            <td class="py-3.5 px-4 text-right font-data-mono text-data-mono text-on-surface font-bold text-lg"
+                                            <td class="py-3.5 px-4 text-right font-data-mono text-data-mono font-bold text-lg"
+                                                :class="staffNetSalary(selectedStaffId) < 0 ? 'text-error' : 'text-on-surface'"
                                                 x-text="peso(staffNetSalary(selectedStaffId))"></td>
                                             <td class="py-3.5 px-2"></td>
                                         </tr>
@@ -1165,7 +1171,8 @@
                                                            class="w-full bg-surface-container-low border rounded pl-6 pr-2 py-1 font-data-mono text-data-mono text-right focus:ring-2 focus:ring-primary focus:border-transparent">
                                                 </div>
                                                 <div class="flex items-center gap-1.5">
-                                                    <p class="font-label-caps text-[9px] text-on-surface-variant/60 uppercase"
+                                                    <p class="font-label-caps text-[9px] uppercase"
+                                                       :class="riderNetCommission(emp.id) < 0 ? 'text-error font-medium' : 'text-on-surface-variant/60'"
                                                        x-text="hasCommissionOverride(emp.id) ? 'override · ' + peso(riderNetCommission(emp.id)) : 'net · ' + peso(riderNetCommission(emp.id))"></p>
                                                     <button type="button" x-show="!isFinalizedView && hasCommissionOverride(emp.id)"
                                                             @click="emp.commission_override = ''"
@@ -1189,7 +1196,8 @@
                                                            class="w-full bg-surface-container-low border rounded pl-6 pr-2 py-1 font-data-mono text-data-mono text-right focus:ring-2 focus:ring-primary focus:border-transparent">
                                                 </div>
                                                 <div class="flex items-center gap-1.5">
-                                                    <p class="font-label-caps text-[9px] text-on-surface-variant/60 uppercase"
+                                                    <p class="font-label-caps text-[9px] uppercase"
+                                                       :class="staffNetSalary(emp.id) < 0 ? 'text-error font-medium' : 'text-on-surface-variant/60'"
                                                        x-text="hasSalaryOverride(emp.id) ? 'override · ' + peso(staffNetSalary(emp.id)) : 'net · ' + peso(staffNetSalary(emp.id))"></p>
                                                     <button type="button" x-show="!isFinalizedView && hasSalaryOverride(emp.id)"
                                                             @click="emp.salary_override = ''"
@@ -1235,9 +1243,10 @@
 
                         <!-- Action buttons -->
                         <div class="px-5 py-4 border-t border-outline-variant/20 space-y-2.5">
-                            <button type="button" @click="saveDraft()" :disabled="dateExists || dateChecking"
-                                    class="w-full px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                                Save as Draft
+                            <button type="button" @click="saveDraft()" :disabled="savingDraft || dateExists || dateChecking"
+                                    class="w-full px-6 py-2.5 rounded-lg border border-outline text-on-surface font-medium hover:bg-surface-container-low transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                <span x-show="savingDraft" x-cloak class="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                                <span x-text="savingDraft ? 'Saving Draft…' : 'Save as Draft'">Save as Draft</span>
                             </button>
                             {% if is_admin %}
                             <button type="button" @click="openReview()" :disabled="dateExists || dateChecking"
@@ -1490,7 +1499,8 @@
                                     <div class="px-4 py-2.5 bg-surface-container-low/50 flex items-center gap-2">
                                         <span class="material-symbols-outlined text-primary text-[18px] shrink-0">electric_rickshaw</span>
                                         <span class="font-body-md font-bold text-on-surface truncate" x-text="r.name"></span>
-                                        <span class="ml-auto font-data-mono text-data-mono text-tertiary font-bold text-base shrink-0"
+                                        <span class="ml-auto font-data-mono text-data-mono font-bold text-base shrink-0"
+                                              :class="riderNetCommission(r.id) < 0 ? 'text-error' : 'text-tertiary'"
                                               x-text="peso(riderNetCommission(r.id))"></span>
                                         <span class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase shrink-0">net comm</span>
                                     </div>
@@ -1532,7 +1542,9 @@
                                         </div>
                                         <div class="bg-surface-container-lowest px-3 py-2 col-span-2 sm:col-span-1">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Net Commission</p>
-                                            <p class="font-data-mono text-data-mono text-sm text-tertiary font-bold" x-text="peso(riderNetCommission(r.id))"></p>
+                                            <p class="font-data-mono text-data-mono text-sm font-bold"
+                                               :class="riderNetCommission(r.id) < 0 ? 'text-error' : 'text-tertiary'"
+                                               x-text="peso(riderNetCommission(r.id))"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1555,7 +1567,8 @@
                                     <div class="px-4 py-2.5 bg-surface-container-low/50 flex items-center gap-2">
                                         <span class="material-symbols-outlined text-secondary text-[18px] shrink-0">work</span>
                                         <span class="font-body-md font-bold text-on-surface truncate" x-text="s.name"></span>
-                                        <span class="ml-auto font-data-mono text-data-mono text-secondary font-bold text-base shrink-0"
+                                        <span class="ml-auto font-data-mono text-data-mono font-bold text-base shrink-0"
+                                              :class="staffNetSalary(s.id) < 0 ? 'text-error' : 'text-secondary'"
                                               x-text="peso(staffNetSalary(s.id))"></span>
                                         <span class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase shrink-0">net pay</span>
                                     </div>
@@ -1570,7 +1583,9 @@
                                         </div>
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Net Pay</p>
-                                            <p class="font-data-mono text-data-mono text-sm text-secondary font-bold" x-text="peso(staffNetSalary(s.id))"></p>
+                                            <p class="font-data-mono text-data-mono text-sm font-bold"
+                                               :class="staffNetSalary(s.id) < 0 ? 'text-error' : 'text-secondary'"
+                                               x-text="peso(staffNetSalary(s.id))"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -1801,6 +1816,7 @@
 
                 // ---- draft cache state ----
                 hasCache: false,
+                savingDraft: false,
                 showClearConfirm: false,
                 _lastSnapshot: null,
                 _autoSaveTimer: null,
@@ -1817,6 +1833,9 @@
                 // ---- helpers ----
                 peso(n) {
                     const v = Number(n) || 0;
+                    if (v < 0) {
+                        return '-₱' + Math.abs(v).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                    }
                     return '₱' + v.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                 },
                 formatDate(iso) {
@@ -2182,9 +2201,9 @@
                 },
                 // Net Commission = gross commission − balance (lacking) − deductions
                 riderNetCommission(riderId) {
-                    return Math.max(0, this.riderCommission(riderId)
+                    return this.riderCommission(riderId)
                         - this.riderBalanceDeduction(riderId)
-                        - this.riderDeductionsTotal(riderId));
+                        - this.riderDeductionsTotal(riderId);
                 },
                 // Per-rider totals for the review modal
                 riderTotalSales(riderId) {
@@ -2334,7 +2353,7 @@
                         sum + (Number(rp.amount) || 0), 0);
                 },
                 totalCommission() {
-                    return this.riders.reduce((sum, r) => sum + this.riderNetCommission(r.id), 0);
+                    return this.riders.reduce((sum, r) => sum + Math.max(0, this.riderNetCommission(r.id)), 0);
                 },
                 // Total Gross Commission = sum of per-rider gross commissions
                 // (sold - credited + repaid) * rate, before balance & deductions.
@@ -2411,11 +2430,11 @@
                 },
                 // Net pay = base salary - total deductions (per staff)
                 staffNetSalary(staffId) {
-                    return Math.max(0, this.staffSalary(staffId) - this.staffDeductionsTotal(staffId));
+                    return this.staffSalary(staffId) - this.staffDeductionsTotal(staffId);
                 },
                 // Grand total = sum of all staff net salaries
                 totalSalary() {
-                    return this.staffs.reduce((sum, s) => sum + this.staffNetSalary(s.id), 0);
+                    return this.staffs.reduce((sum, s) => sum + Math.max(0, this.staffNetSalary(s.id)), 0);
                 },
 
                 // ---- employee list (riders + staff combined) ----
@@ -2737,10 +2756,12 @@
                 // ---- finalize review ----
                 openReview() { if (this.dateExists) return; this.reviewOpen = true; },
                 async saveDraft() {
+                    if (this.savingDraft) return;
                     if (this.dateExists) {
                         this.showToast(this.dateError || 'This date is not available for a new remittance.', 'error');
                         return;
                     }
+                    this.savingDraft = true;
                     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
                     const csrfToken = csrfInput ? csrfInput.value : '';
                     // General (unattributed) expenses are sent in the flat
@@ -2792,6 +2813,8 @@
                         }
                     } catch (err) {
                         this.showToast('Network error: ' + err, 'error');
+                    } finally {
+                        this.savingDraft = false;
                     }
                 },
                 async confirmFinalize() {
