@@ -1886,6 +1886,12 @@
                             if (data.status === 'DRAFT') {
                                 this.dateExists = false;
                                 this.dateError = '';
+                                // Reset the form to empty so quantities from
+                                // the previously selected date don't bleed
+                                // into this one.  The DB draft's form-facing
+                                // state is stashed below; the user clicks
+                                // "Load Draft" to apply it on confirm.
+                                this._resetFormFields();
                                 // Stash the draft's form-facing state so
                                 // the "Load draft" button can apply it on
                                 // confirm without a second round-trip.
