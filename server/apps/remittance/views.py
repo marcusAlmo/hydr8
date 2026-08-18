@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
@@ -42,6 +43,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 @login_required
+@never_cache
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def add_remittance_view(request):
@@ -265,6 +267,7 @@ def verify_pin_view(request):
 
 
 @login_required
+@never_cache
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def check_remittance_date_view(request):
@@ -309,6 +312,7 @@ def check_remittance_date_view(request):
 
 
 @login_required
+@never_cache
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
 def remittance_history_view(request):
