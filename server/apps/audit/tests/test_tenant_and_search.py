@@ -8,6 +8,7 @@ Covers:
 """
 import json
 
+from auditlog.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -19,7 +20,6 @@ from apps.audit.selectors import (
 )
 from apps.settings.models import Company
 from apps.users.models import User
-from auditlog.models import LogEntry
 
 
 def _make_log_entry(actor, object_repr="Test Object", action=LogEntry.Action.UPDATE):

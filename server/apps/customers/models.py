@@ -1,6 +1,6 @@
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.conf import settings
 from django.utils import timezone
 
 from apps.core.managers import TenantManager
@@ -187,6 +187,15 @@ class CreditLine(models.Model):
         indexes = [
             models.Index(fields=['customer', 'qty_remaining']),
             models.Index(fields=['company', 'transaction_date']),
+            # Supports the driver-detail drawer's "outstanding debts
+            # handled" query: ``for_user()`` filters by company, then
+            # ``filter(care_of=user, qty_remaining__gt=0)``.  Partial
+            # index keeps it small (only rows still owed).
+            models.Index(
+                fields=['company', 'care_of'],
+                condition=models.Q(qty_remaining__gt=0),
+                name='credit_line_open_by_care_of',
+            ),
         ]
         constraints = [
             # Prevents race conditions where concurrent payments could

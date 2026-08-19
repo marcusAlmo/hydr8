@@ -3,16 +3,16 @@ import logging
 from urllib.parse import quote
 
 from django import forms
-from django.forms.forms import NON_FIELD_ERRORS
-from django.forms.utils import ErrorList
-from django.shortcuts import redirect, render
-from django.contrib.auth import login as auth_login, logout as auth_logout
+from django.contrib.auth import login as auth_login
+from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.forms.forms import NON_FIELD_ERRORS
+from django.forms.utils import ErrorList
 from django.http import HttpResponse, JsonResponse
-
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -23,7 +23,6 @@ from django_ratelimit.exceptions import Ratelimited
 from apps.core.views import (
     error_message,
     toast_for_exception,
-    toast_success,
 )
 from apps.employees.selectors import get_user_detail_context
 from apps.users.models import Role, User
@@ -31,6 +30,7 @@ from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
 from apps.users.permissions import is_staff_role as user_is_staff_role
 from apps.users.signals import login_failed
+
 from .selectors import get_roles_for_user, get_user_by_id, username_exists
 from .services import (
     change_user_password,

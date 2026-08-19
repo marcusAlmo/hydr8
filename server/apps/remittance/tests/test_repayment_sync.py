@@ -14,10 +14,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.core.models import Product
-from apps.customers.models import CreditLine, CreditPayment, Customer
+from apps.customers.models import CreditPayment, Customer
 from apps.customers.services import record_customer_collection, record_customer_debt
-from apps.remittance.models import Remittance, RemittanceRider
-from apps.remittance.selectors import _repayments_for_date, list_riders_for_remittance
+from apps.remittance.models import RemittanceRider
+from apps.remittance.selectors import _repayments_for_date
 from apps.remittance.services import (
     create_remittance,
     delete_draft_remittance,
@@ -205,7 +205,7 @@ class RepaymentSyncTests(TestCase):
     def test_create_remittance_with_rider_not_in_payload(self):
         """A rider with repayments but no sales in the payload still gets
         a RemittanceRider row and their repayment commission is counted.
-        
+
         This tests the separate repayment commission code path (lines 552-587)
         for riders who collected repayments but are not in the payload."""
         self.credit_line = self._extend_credit(qty=5, care_of=self.rider)
@@ -293,7 +293,7 @@ class RepaymentSyncTests(TestCase):
 
     def test_repayment_commission_uses_driver_commission_rate(self):
         """Repayment commission = qty_paid * DriverCommission.rate_per_unit.
-        
+
         When repaid units are included in product_lines, they earn commission
         via the line commission calculation. When the rider is not in the
         payload, they earn commission via the separate repayment path."""
@@ -410,7 +410,7 @@ class RepaymentSyncTests(TestCase):
         )
 
     def test_balance_deduction_reduces_commission(self):
-        """When a rider remits less than their net remittable (payable −
+        """When a rider remits less than their net remittable (payable -
         expenses), the shortfall (balance deduction) reduces their commission,
         matching the frontend's riderNetCommission() logic."""
         # No credit line / repayments — isolate the balance deduction.

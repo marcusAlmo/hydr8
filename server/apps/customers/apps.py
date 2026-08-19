@@ -6,7 +6,8 @@ class CustomersConfig(AppConfig):
 
     def ready(self):
         from auditlog.registry import auditlog
-        from .models import BorrowedContainer, Customer, CreditLine, CreditPayment
+
+        from .models import BorrowedContainer, CreditLine, CreditPayment, Customer
         auditlog.register(Customer)
         auditlog.register(CreditLine)
         auditlog.register(CreditPayment)

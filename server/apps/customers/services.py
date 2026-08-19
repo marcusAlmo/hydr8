@@ -25,7 +25,7 @@ from apps.users.models import User
 from apps.users.permissions import is_admin
 from apps.users.services import validate_user_pin
 
-from .models import BorrowedContainer, CreditPayment, Customer, CreditLine
+from .models import BorrowedContainer, CreditLine, CreditPayment, Customer
 from .selectors import _parse_display_id
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ _CONTAINER_FIELDS = {
 }
 
 
-def _resolve_care_of(care_of_id: str, user: "UserType") -> "UserType | None":
+def _resolve_care_of(care_of_id: str, user: UserType) -> UserType | None:
     """Resolves an optional ``care_of`` user by primary key.
 
     Returns ``None`` when ``care_of_id`` is empty. Raises ``ValidationError``
@@ -69,7 +69,7 @@ def _to_decimal(value) -> Decimal:
         return Decimal("0.00")
 
 
-def _resolve_customer(customer_id: str, user: "UserType") -> Customer:
+def _resolve_customer(customer_id: str, user: UserType) -> Customer:
     """Parses a display id and returns the active customer, or raises."""
     pk = _parse_display_id(customer_id)
     if pk is None:
@@ -87,7 +87,7 @@ def _resolve_customer(customer_id: str, user: "UserType") -> Customer:
 def _resolve_or_create_customer(
     customer_id: str,
     customer_name: str,
-    user: "UserType",
+    user: UserType,
 ) -> Customer:
     """Resolves an existing customer by display id, or creates a new one by name.
 
@@ -129,12 +129,12 @@ def _resolve_or_create_customer(
     return customer
 
 
-def _resolve_product(product_key: str, user: "UserType") -> Product:
+def _resolve_product(product_key: str, user: UserType) -> Product:
     """Resolves an active product by primary key."""
     try:
         pk = int(product_key)
     except (ValueError, TypeError):
-        raise ValidationError("Please select a product.")
+        raise ValidationError("Please select a product.") from None
     product = (
         Product.objects.for_user(user)
         .filter(pk=pk, deleted_at__isnull=True, deactivated_at__isnull=True)
@@ -151,7 +151,7 @@ def create_customer(
     contact_number: str = "",
     address: str = "",
     credit_limit="",
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> Customer:
     """Creates a new customer record scoped to the operator's company."""
     name = (name or "").strip()
@@ -181,7 +181,7 @@ def update_customer(
     contact_number: str = "",
     address: str = "",
     credit_limit="",
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> Customer:
     """Updates an existing customer record."""
     name = (name or "").strip()
@@ -213,7 +213,7 @@ def record_customer_debt(
     care_of_id: str = "",
     customer_name: str = "",
     transaction_date: str = "",
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> CreditLine:
     """Creates a credit line for a customer and increases their debt balance.
 
@@ -237,7 +237,7 @@ def record_customer_debt(
     try:
         qty = int(qty_credited)
     except (ValueError, TypeError):
-        raise ValidationError("Quantity must be a whole number.")
+        raise ValidationError("Quantity must be a whole number.") from None
     if qty <= 0:
         raise ValidationError("Quantity must be greater than zero.")
 
@@ -311,7 +311,7 @@ def record_customer_borrowed(
     care_of_id: str = "",
     customer_name: str = "",
     transaction_date: str = "",
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> BorrowedContainer:
     """Records containers borrowed by a customer.
 
@@ -337,7 +337,7 @@ def record_customer_borrowed(
     try:
         qty = int(qty_borrowed)
     except (ValueError, TypeError):
-        raise ValidationError("Quantity must be a whole number.")
+        raise ValidationError("Quantity must be a whole number.") from None
     if qty <= 0:
         raise ValidationError("Quantity must be greater than zero.")
 
@@ -366,7 +366,7 @@ def record_customer_borrowed(
     return borrowed
 
 
-def delete_customer(*, customer: Customer, performed_by: "UserType") -> None:
+def delete_customer(*, customer: Customer, performed_by: UserType) -> None:
     """Soft-deletes a customer only if they have no debt or unreturned items."""
     if customer.debt_balance > 0:
         raise ValidationError(
@@ -393,7 +393,7 @@ def _parse_int(value, field_label: str) -> int:
     try:
         qty = int(value)
     except (ValueError, TypeError):
-        raise ValidationError(f"{field_label} must be a whole number.")
+        raise ValidationError(f"{field_label} must be a whole number.") from None
     if qty < 0:
         raise ValidationError(f"{field_label} cannot be negative.")
     return qty
@@ -407,7 +407,7 @@ def _parse_date(value, field_label: str) -> date:
     try:
         return date.fromisoformat(raw)
     except (ValueError, TypeError):
-        raise ValidationError(f"{field_label} must be a valid date.")
+        raise ValidationError(f"{field_label} must be a valid date.") from None
 
 
 def _parse_transaction_date(value: str) -> date:
@@ -425,7 +425,7 @@ def _parse_transaction_date(value: str) -> date:
     except ValueError:
         raise ValidationError(
             "Enter a valid date (YYYY-MM-DD)."
-        )
+        ) from None
     if parsed > timezone.localdate():
         raise ValidationError(
             "Transaction date cannot be in the future."
@@ -437,7 +437,7 @@ def _parse_transaction_date(value: str) -> date:
 def record_customer_collection(
     *,
     customer_id: str,
-    performed_by: "UserType",
+    performed_by: UserType,
     returns: list[dict],
     payments: list[dict],
 ) -> dict:
@@ -473,7 +473,7 @@ def record_customer_collection(
         try:
             borrowed_pk = int(raw_id)
         except (ValueError, TypeError):
-            raise ValidationError("Invalid borrowed container reference.")
+            raise ValidationError("Invalid borrowed container reference.") from None
 
         qty = _parse_int(entry.get("qty", 0), "Return quantity")
         if qty == 0:
@@ -506,7 +506,7 @@ def record_customer_collection(
         try:
             cl_pk = int(raw_id)
         except (ValueError, TypeError):
-            raise ValidationError("Invalid credit line reference.")
+            raise ValidationError("Invalid credit line reference.") from None
 
         qty_paid = _parse_int(entry.get("qty_paid", 0), "Quantity paid")
         amount = _to_decimal(entry.get("amount", 0))
@@ -533,7 +533,7 @@ def record_customer_collection(
             )
         # Auto-compute the money value when the client submitted units
         # without an amount.  The collect modal's Alpine @input handler
-        # is supposed to fill amount = qty × unit_price, but if that
+        # is supposed to fill amount = qty x unit_price, but if that
         # client-side auto-fill fails (JS disabled, manual edit, etc.)
         # we must not persist a CreditPayment with containers_paid > 0
         # and amount = 0 — that would decouple "Total Repayments" from
@@ -658,7 +658,7 @@ def _transition_status(
     customer: Customer,
     target: str,
     reason: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> Customer:
     """Internal helper that applies a status transition with validation."""
     reason = (reason or "").strip()
@@ -691,7 +691,7 @@ def _transition_status(
 
 
 def flag_customer(
-    *, customer: Customer, reason: str, performed_by: "UserType"
+    *, customer: Customer, reason: str, performed_by: UserType
 ) -> Customer:
     """Promotes a customer to FLAGGED status (anomaly detected)."""
     return _transition_status(
@@ -703,7 +703,7 @@ def flag_customer(
 
 
 def blacklist_customer(
-    *, customer: Customer, reason: str, performed_by: "UserType"
+    *, customer: Customer, reason: str, performed_by: UserType
 ) -> Customer:
     """Promotes a customer to BLACKLISTED status (manual ops)."""
     return _transition_status(
@@ -715,7 +715,7 @@ def blacklist_customer(
 
 
 def reset_customer_status(
-    *, customer: Customer, reason: str, performed_by: "UserType"
+    *, customer: Customer, reason: str, performed_by: UserType
 ) -> Customer:
     """Resets a customer to ACTIVE status (admin-only escape hatch)."""
     return _transition_status(
@@ -740,7 +740,7 @@ def _record_lock_date(record) -> date:
     return record.transaction_date
 
 
-def _verify_ledger_edit(*, record, pin: str, performed_by: "UserType") -> None:
+def _verify_ledger_edit(*, record, pin: str, performed_by: UserType) -> None:
     """Validates PIN and immutability rules before a ledger edit."""
     cache_key = f"ledger_pin_attempts:{performed_by.id}"
     attempts = cache.get(cache_key, 0)
@@ -778,7 +778,7 @@ def _verify_ledger_edit(*, record, pin: str, performed_by: "UserType") -> None:
         raise ValidationError("This record is locked by a finalized remittance.")
 
 
-def _log_ledger_edit(*, record, changes: dict, performed_by: "UserType") -> None:
+def _log_ledger_edit(*, record, changes: dict, performed_by: UserType) -> None:
     """Creates a manual LogEntry for a ledger edit."""
     content_type = ContentType.objects.get_for_model(record)
     LogEntry.objects.create(
@@ -796,7 +796,7 @@ def _log_ledger_edit(*, record, changes: dict, performed_by: "UserType") -> None
     )
 
 
-def _log_ledger_delete(*, record, performed_by: "UserType") -> None:
+def _log_ledger_delete(*, record, performed_by: UserType) -> None:
     """Creates a manual LogEntry for a ledger record deletion."""
     content_type = ContentType.objects.get_for_model(record)
     LogEntry.objects.create(
@@ -822,13 +822,13 @@ def _field_change(old, new):
 
 
 def _resolve_credit_line_for_edit(
-    *, credit_line_id: str, customer: Customer, user: "UserType"
+    *, credit_line_id: str, customer: Customer, user: UserType
 ) -> CreditLine:
     """Resolves a CreditLine for editing, scoped to the customer and tenant."""
     try:
         pk = int(credit_line_id)
     except (ValueError, TypeError):
-        raise ValidationError("Invalid credit line reference.")
+        raise ValidationError("Invalid credit line reference.") from None
     line = (
         CreditLine.objects
         .for_user(user)
@@ -842,13 +842,13 @@ def _resolve_credit_line_for_edit(
 
 
 def _resolve_credit_payment_for_edit(
-    *, payment_id: str, customer: Customer, user: "UserType"
+    *, payment_id: str, customer: Customer, user: UserType
 ) -> CreditPayment:
     """Resolves a CreditPayment for editing, scoped to the customer and tenant."""
     try:
         pk = int(payment_id)
     except (ValueError, TypeError):
-        raise ValidationError("Invalid credit payment reference.")
+        raise ValidationError("Invalid credit payment reference.") from None
     payment = (
         CreditPayment.objects
         .for_user(user)
@@ -862,13 +862,13 @@ def _resolve_credit_payment_for_edit(
 
 
 def _resolve_borrowed_for_edit(
-    *, borrowed_id: str, customer: Customer, user: "UserType"
+    *, borrowed_id: str, customer: Customer, user: UserType
 ) -> BorrowedContainer:
     """Resolves a BorrowedContainer for editing, scoped to the customer and tenant."""
     try:
         pk = int(borrowed_id)
     except (ValueError, TypeError):
-        raise ValidationError("Invalid borrowed container reference.")
+        raise ValidationError("Invalid borrowed container reference.") from None
     borrowed = (
         BorrowedContainer.objects
         .for_user(user)
@@ -889,7 +889,7 @@ def edit_credit_line(
     unit_price,
     transaction_date,
     pin: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> CreditLine:
     """Edits a CreditLine within the 24-hour editable window.
 
@@ -911,7 +911,6 @@ def edit_credit_line(
         _verify_ledger_edit(record=line, pin=pin, performed_by=performed_by)
 
         old_qty = line.qty_credited
-        old_price = line.unit_price_snapshot
         old_total = line.total_credit_amount
         new_total = Decimal(new_qty) * new_price
 
@@ -989,7 +988,7 @@ def edit_credit_payment(
     amount,
     transaction_date,
     pin: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> CreditPayment:
     """Edits a CreditPayment within the 24-hour editable window.
 
@@ -1088,7 +1087,7 @@ def edit_borrowed_container(
     qty_returned,
     transaction_date,
     pin: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> BorrowedContainer:
     """Edits a BorrowedContainer within the 24-hour editable window.
 
@@ -1182,7 +1181,7 @@ def edit_borrowed_container(
 # violate that constraint.
 
 
-def _verify_ledger_delete(*, record, pin: str, performed_by: "UserType") -> None:
+def _verify_ledger_delete(*, record, pin: str, performed_by: UserType) -> None:
     """Validates admin role and PIN before a ledger record deletion.
 
     Deletion is admin-only.  PIN is always required (even for admins) so
@@ -1201,7 +1200,7 @@ def delete_credit_line(
     credit_line_id: str,
     customer: Customer,
     pin: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> None:
     """Deletes a CreditLine and cascades its non-remittance payments.
 
@@ -1276,7 +1275,7 @@ def delete_credit_payment(
     payment_id: str,
     customer: Customer,
     pin: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> None:
     """Deletes a single CreditPayment and restores the debt balance.
 
@@ -1337,7 +1336,7 @@ def delete_borrowed_container(
     borrowed_id: str,
     customer: Customer,
     pin: str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> None:
     """Deletes a BorrowedContainer and restores the aggregate counter.
 
@@ -1392,7 +1391,7 @@ def delete_borrowed_container(
 def bulk_update_credit_limit(
     *,
     credit_limit: Decimal | str,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> int:
     """Updates the credit_limit for all active customers in the operator's company.
 
@@ -1403,14 +1402,14 @@ def bulk_update_credit_limit(
         try:
             dec = Decimal(cleaned)
         except (InvalidOperation, ValueError):
-            raise ValidationError("Credit limit must be a valid number.")
+            raise ValidationError("Credit limit must be a valid number.") from None
     elif isinstance(credit_limit, Decimal):
         dec = credit_limit
     else:
         try:
             dec = Decimal(str(credit_limit))
         except (InvalidOperation, ValueError, TypeError):
-            raise ValidationError("Credit limit must be a valid number.")
+            raise ValidationError("Credit limit must be a valid number.") from None
 
     if dec < Decimal("0.00"):
         raise ValidationError("Credit limit cannot be negative.")

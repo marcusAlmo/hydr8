@@ -1,8 +1,9 @@
-from django.db import models
 from django.conf import settings
+from django.db import models
 from django.db.models import Q
 
 from apps.core.managers import TenantManager
+
 
 class Product(models.Model):
     class CategoryChoices(models.TextChoices):

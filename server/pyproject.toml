@@ -3,7 +3,7 @@ name = "hydr8"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "django>=6.0.7",
+    "django==6.0.7",
     "django-auditlog>=3.4.1",
     "django-environ>=0.14.0",
     "django-htmx>=1.28.0",
@@ -18,4 +18,24 @@ dependencies = [
 dev = [
     "coverage>=7.15.2",
     "django-stubs>=6.0.7",
+    "ruff>=0.13.0",
 ]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E501",     # line length handled by formatter
+    "RUF012",   # mutable-class-default — false positive on Django Meta/model inner classes
+    "B008",     # function call in default argument — Django's idiom for model/form fields
+    "F403",     # undefined-local-with-import-star — Django settings split uses `from .base import *`
+    "F405",     # undefined-local-with-import-star-usage — same Django settings pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+"config/settings/*.py" = ["F403", "F405"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

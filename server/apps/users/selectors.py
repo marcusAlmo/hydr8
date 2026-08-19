@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from apps.users.models import User as UserType
 
 
-def get_user_by_id(request_user: "UserType", user_id: str) -> User | None:
+def get_user_by_id(request_user: UserType, user_id: str) -> User | None:
     """Returns an active user by UUID, scoped to the requester's tenant."""
     qs = User.objects.select_related('role', 'company').filter(
         deleted_at__isnull=True, pk=user_id
@@ -22,7 +22,7 @@ def get_user_by_id(request_user: "UserType", user_id: str) -> User | None:
     return qs.first()
 
 
-def get_roles_for_user(request_user: "UserType"):
+def get_roles_for_user(request_user: UserType):
     """Returns active roles for the current tenant, ordered by name."""
     return Role.objects.for_user(request_user).active().select_related('company').order_by("name")
 

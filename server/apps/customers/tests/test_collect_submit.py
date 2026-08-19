@@ -191,7 +191,7 @@ class RecordCollectionServiceTests(TestCase):
 
     def test_payment_with_zero_amount_auto_computes_from_unit_price(self):
         """When qty_paid > 0 but amount = 0, the amount is auto-computed
-        from qty_paid × credit_line.unit_price_snapshot.
+        from qty_paid x credit_line.unit_price_snapshot.
 
         This guards against the client-side auto-fill (Alpine @input)
         failing to populate the amount field, which would otherwise
@@ -441,7 +441,7 @@ class CollectSubmitViewTests(TestCase):
 
     def test_submit_auto_computes_amount_when_zero(self):
         """POST with qty_paid > 0 and amount = 0 auto-computes the amount
-        server-side from qty_paid × unit_price_snapshot.
+        server-side from qty_paid x unit_price_snapshot.
 
         Regression guard for the bug where a CreditPayment was persisted
         with containers_paid > 0 and amount = 0, decoupling "Total

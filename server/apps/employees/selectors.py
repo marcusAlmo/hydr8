@@ -17,8 +17,9 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.timezone import localtime
 
+from apps.customers.models import CreditLine
 from apps.customers.selectors import _display_id as _customer_display_id
-from apps.remittance.models import RemittanceRiderProductLine, RiderCredit
+from apps.remittance.models import RemittanceRiderProductLine
 from apps.users.models import Role, User
 from apps.users.presentation import avatar_classes, initials
 
@@ -103,7 +104,7 @@ def _days_ago(dt) -> str:
     return local.strftime("%b %d, %Y")
 
 
-def _user_qs(request_user: "UserType"):
+def _user_qs(request_user: UserType):
     """Tenant-scoped queryset of active (not soft-deleted) users."""
     qs = User.objects.filter(deleted_at__isnull=True)
     if not request_user.is_superuser and request_user.company_id is not None:
@@ -286,7 +287,7 @@ def _pagination(total: int) -> dict:
         "total": total,
         "total_display": f"{total:,}",
         "current_page": 1,
-        "total_pages": 1 if total else 1,
+        "total_pages": 1,
     }
 
 
@@ -319,7 +320,7 @@ def _permission_rows(role: Role) -> list[dict]:
     return rows
 
 
-def _role_card(request_user: "UserType", role: Role) -> dict:
+def _role_card(request_user: UserType, role: Role) -> dict:
     """Converts a ``Role`` into the roles-permissions card shape."""
     style = _ROLE_STYLE.get(role.name, _ROLE_STYLE["Staff"])
     return {
@@ -336,7 +337,7 @@ def _role_card(request_user: "UserType", role: Role) -> dict:
     }
 
 
-def _driver_detail_context(request_user: "UserType", user: User) -> dict:
+def _driver_detail_context(request_user: UserType, user: User) -> dict:
     """Builds the driver expanded report with real remittance + credit data.
 
     The trend seed covers a 90-day window so the client-side date-range
@@ -430,16 +431,24 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
     days_count = stat_days or 1
     avg_daily = round(stat_commission / days_count, 2)
 
-    unpaid_credits = (
-        RiderCredit.objects
+    # Outstanding credit lines (debts) attributed to this user via
+    # ``care_of``.  These are the records created by the "Record Debt"
+    # modal on the Customers page — the single source of truth for
+    # customer debt in the UI.  ``RiderCredit`` is a legacy remittance
+    # concept that is no longer populated through the UI, so querying it
+    # here would always return an empty list.
+    open_credit_lines = (
+        CreditLine.objects
         .for_user(request_user)
-        .filter(rider=user, is_repaid=False)
-        .select_related("customer")
+        .filter(care_of=user, qty_remaining__gt=0)
+        .select_related("customer", "product")
+        .order_by("-transaction_date", "-created_at")
     )
 
     debts_handled = []
-    for rc in unpaid_credits:
-        days_overdue = (today - rc.created_at.date()).days
+    for line in open_credit_lines:
+        outstanding = line.qty_remaining * line.unit_price_snapshot
+        days_overdue = (today - line.transaction_date).days
         status = "overdue" if days_overdue > 7 else "pending"
         status_label = "Overdue" if status == "overdue" else "Pending"
         status_class = (
@@ -450,16 +459,16 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
         row_border = (
             "border-l-error" if status == "overdue" else "border-l-[#D97706]"
         )
-        customer = rc.customer
+        customer = line.customer
         customer_id = _customer_display_id(customer) if customer else "N/A"
-        customer_name = customer.name if customer else rc.recipient_name
+        customer_name = customer.name if customer else "Unknown"
         debts_handled.append(
             {
                 "customer_name": customer_name,
                 "customer_id": customer_id,
-                "amount": _format_peso(rc.amount),
-                "amount_raw": float(rc.amount),
-                "date": rc.created_at.strftime("%b %d, %Y"),
+                "amount": _format_peso(outstanding),
+                "amount_raw": float(outstanding),
+                "date": line.transaction_date.strftime("%b %d, %Y"),
                 "status": status,
                 "status_label": status_label,
                 "status_class": status_class,
@@ -469,7 +478,12 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
         )
 
     debts_sum = round(sum(d["amount_raw"] for d in debts_handled), 2)
-    debts_outstanding = debts_sum
+    # Distinct customers with at least one open credit line attributed to
+    # this driver — avoids miscounting when one customer has multiple
+    # open lines (e.g. two products credited on different dates).
+    distinct_customers = (
+        open_credit_lines.values("customer_id").distinct().count()
+    )
 
     trends_seed = json.dumps(
         {
@@ -512,12 +526,18 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
             {
                 "key": "debts_outstanding",
                 "label": "Outstanding Debts Handled",
-                "value": _format_peso(debts_outstanding),
-                "raw_value": float(debts_outstanding),
+                "value": _format_peso(debts_sum),
+                "raw_value": float(debts_sum),
                 "value_prefix": "₱",
                 "value_decimals": 2,
                 "value_size": "2xl",
-                "subtitle": f"{len(debts_handled)} customers, {_format_peso(debts_sum)} total",
+                "subtitle": (
+                    f"{distinct_customers} customer"
+                    f"{'s' if distinct_customers != 1 else ''}, "
+                    f"{len(debts_handled)} open debt"
+                    f"{'s' if len(debts_handled) != 1 else ''}, "
+                    f"{_format_peso(debts_sum)} total"
+                ),
                 "icon": "dangerous",
                 "accent": "error",
                 "col_span": "md:col-span-4",
@@ -530,7 +550,7 @@ def _driver_detail_context(request_user: "UserType", user: User) -> dict:
         "trends_seed": trends_seed,
         "debts_handled": debts_handled,
         "debts_sum": _format_peso(debts_sum),
-        "debts_outstanding_amount": _format_peso(debts_outstanding),
+        "debts_outstanding_amount": _format_peso(debts_sum),
     }
 
 
@@ -570,7 +590,7 @@ def _user_profile(user: User) -> dict:
 
 
 def get_employee_directory_context(
-    request_user: "UserType",
+    request_user: UserType,
     query: str = "",
     page: int = 1,
 ) -> dict:
@@ -611,7 +631,7 @@ def get_employee_directory_context(
     }
 
 
-def get_roles_permissions_context(request_user: "UserType") -> dict:
+def get_roles_permissions_context(request_user: UserType) -> dict:
     """Returns the roles & permissions tab context."""
     roles = [
         _role_card(request_user, role)
@@ -625,7 +645,7 @@ def get_roles_permissions_context(request_user: "UserType") -> dict:
     }
 
 
-def get_user_detail_context(request_user: "UserType", user_id: str) -> dict | None:
+def get_user_detail_context(request_user: UserType, user_id: str) -> dict | None:
     """Returns the expanded report context for a single user, or ``None``."""
     target = _user_qs(request_user).filter(id=user_id).select_related('role').first()
     if target is None:

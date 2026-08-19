@@ -1,11 +1,9 @@
-import uuid
 import contextvars
 import logging
-
-from typing import Optional
+import uuid
 
 # Create a context variable to hold the correlation ID for the current thread/async task
-correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar('correlation_id', default=None)
+correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar('correlation_id', default=None)
 
 def get_correlation_id():
     """Retrieve the correlation ID for the current request context."""
@@ -87,9 +85,13 @@ class ScreenLockMiddleware:
 
     def __call__(self, request):
         user = getattr(request, 'user', None)
-        if user and user.is_authenticated and request.session.get('screen_locked'):
-            if not self._is_allowed(request):
-                return self._lock_redirect(request)
+        if (
+            user
+            and user.is_authenticated
+            and request.session.get('screen_locked')
+            and not self._is_allowed(request)
+        ):
+            return self._lock_redirect(request)
         return self.get_response(request)
 
     def _is_allowed(self, request) -> bool:
@@ -101,7 +103,7 @@ class ScreenLockMiddleware:
         # URL resolution hasn't happened yet at middleware stage
         # (resolver_match is populated inside get_response), so resolve
         # the path ourselves to discover the matched URL name.
-        from django.urls import resolve, Resolver404
+        from django.urls import Resolver404, resolve
         try:
             match = resolve(request.path_info)
         except Resolver404:
@@ -112,9 +114,7 @@ class ScreenLockMiddleware:
         if full_name in self._ALLOWED_NAMES:
             return True
         # Also allow bare names (e.g. 'logout' without namespace).
-        if name and name in {n.split(':')[-1] for n in self._ALLOWED_NAMES}:
-            return True
-        return False
+        return bool(name and name in {n.split(':')[-1] for n in self._ALLOWED_NAMES})
 
     def _lock_redirect(self, request):
         """Redirect to the full-page lock screen.

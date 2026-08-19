@@ -10,12 +10,6 @@ from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.core.models import Product
-from apps.customers.models import CreditLine, Customer
-from apps.customers.services import record_customer_borrowed, record_customer_debt
-from apps.remittance.models import Remittance
-from apps.users.models import User
-
 from apps.analytics.selectors import (
     _fmt_peso,
     _outstanding_debt,
@@ -26,6 +20,10 @@ from apps.analytics.selectors import (
     _today_remittance,
     _unreturned_containers,
 )
+from apps.core.models import Product
+from apps.customers.models import CreditLine, Customer
+from apps.remittance.models import Remittance
+from apps.users.models import User
 
 
 class FmtPesoTests(TestCase):
@@ -142,8 +140,8 @@ class OutstandingDebtTests(TestCase):
 
     def test_sums_debt_across_customers(self):
         """Sums debt_balance across all non-deleted customers."""
-        c1 = Customer.objects.create(name="C1", debt_balance=Decimal("100.00"))
-        c2 = Customer.objects.create(name="C2", debt_balance=Decimal("200.00"))
+        Customer.objects.create(name="C1", debt_balance=Decimal("100.00"))
+        Customer.objects.create(name="C2", debt_balance=Decimal("200.00"))
         result = _outstanding_debt(self.user)
         self.assertEqual(result, Decimal("300.00"))
 

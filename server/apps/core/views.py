@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse

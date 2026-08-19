@@ -22,7 +22,6 @@ from django.utils import timezone
 from apps.core.models import SystemConfig
 from apps.users.permissions import is_staff_role
 
-
 # ---------------------------------------------------------------------------
 # UI metadata for System Config keys.
 #

@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.models import Product
@@ -39,14 +38,14 @@ logger = logging.getLogger(__name__)
 # user from company A cannot mutate products/commissions in company B.
 # Superusers (or users without a company) bypass the filter.
 
-def _tenant_filter(user: "UserType") -> dict:
+def _tenant_filter(user: UserType) -> dict:
     """Returns a filter dict for company scoping, or {} for superusers."""
     if user.is_superuser or user.company_id is None:
         return {}
     return {"company_id": user.company_id}
 
 
-def _get_tenant_product(product_id: int, user: "UserType"):
+def _get_tenant_product(product_id: int, user: UserType):
     """Fetches a non-deleted product scoped to the user's tenant."""
     return (
         Product.objects
@@ -55,7 +54,7 @@ def _get_tenant_product(product_id: int, user: "UserType"):
     )
 
 
-def _get_tenant_driver(driver_id: uuid.UUID | str, user: "UserType"):
+def _get_tenant_driver(driver_id: uuid.UUID | str, user: UserType):
     """Fetches an active, non-deleted driver scoped to the user's tenant."""
     from apps.users.models import User
     return (
@@ -66,7 +65,7 @@ def _get_tenant_driver(driver_id: uuid.UUID | str, user: "UserType"):
     )
 
 
-def _tenant_drivers(user: "UserType") -> list:
+def _tenant_drivers(user: UserType) -> list:
     """Returns all active drivers in the user's tenant."""
     from apps.users.models import User
     return list(
@@ -85,7 +84,7 @@ def create_product(
     price: str | Decimal,
     category: str = "WATER",
     description: str | None = None,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> Product:
     """Creates a new tenant-scoped product in the catalogue.
 
@@ -98,10 +97,7 @@ def create_product(
 
     if variation is not None:
         variation = variation.strip()
-        if variation:
-            variation = variation.title()
-        else:
-            variation = None
+        variation = variation.title() if variation else None
 
     try:
         price_decimal = Decimal(str(price))
@@ -151,7 +147,7 @@ def create_product(
 def update_product(
     *,
     product_id: int,
-    performed_by: "UserType",
+    performed_by: UserType,
     name: str | None = None,
     variation: str | None = None,
     price: str | Decimal | None = None,
@@ -214,7 +210,7 @@ def update_product(
                 "A product with this name and variation already exists."
             )
 
-    product.save(update_fields=update_fields + ["updated_at"])
+    product.save(update_fields=[*update_fields, "updated_at"])
     logger.info(
         "[%s] Updated product id=%s fields=%s",
         performed_by.id, product.id, update_fields,
@@ -222,7 +218,7 @@ def update_product(
     return product
 
 
-def activate_product(*, product_id: int, performed_by: "UserType") -> Product:
+def activate_product(*, product_id: int, performed_by: UserType) -> Product:
     """Re-activates a deactivated product (clears ``deactivated_at``)."""
     product = _get_tenant_product(product_id, performed_by)
     if product is None:
@@ -235,7 +231,7 @@ def activate_product(*, product_id: int, performed_by: "UserType") -> Product:
     return product
 
 
-def deactivate_product(*, product_id: int, performed_by: "UserType") -> Product:
+def deactivate_product(*, product_id: int, performed_by: UserType) -> Product:
     """Deactivates a product (sets ``deactivated_at``).  Default products
     can be deactivated too — they just can't be edited or deleted."""
     product = _get_tenant_product(product_id, performed_by)
@@ -249,7 +245,7 @@ def deactivate_product(*, product_id: int, performed_by: "UserType") -> Product:
     return product
 
 
-def delete_product(*, product_id: int, performed_by: "UserType") -> Product:
+def delete_product(*, product_id: int, performed_by: UserType) -> Product:
     """Soft-deletes a non-default product (sets ``deleted_at``).
 
     Raises ``ValidationError`` for default products or products that are
@@ -290,9 +286,9 @@ def set_commission_rate(
     driver_id: uuid.UUID | str,
     product_id: int,
     rate: str | Decimal,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> DriverCommission:
-    """Sets a single driver×product commission rate (upsert).
+    """Sets a single driver x product commission rate (upsert).
 
     Creates the ``DriverCommission`` row if it does not exist, or
     updates ``rate_per_unit`` if it does.  Tenant scope is inferred
@@ -305,7 +301,6 @@ def set_commission_rate(
     if rate_decimal < 0:
         raise ValidationError("Commission rate cannot be negative.")
 
-    from apps.users.models import User
     driver = _get_tenant_driver(driver_id, performed_by)
     if driver is None:
         raise ValidationError("Driver not found.")
@@ -337,7 +332,7 @@ def bulk_set_commission_rates(
     *,
     product_id: int,
     rate: str | Decimal,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> int:
     """Sets the same commission rate for ALL active drivers on a product.
 
@@ -352,7 +347,6 @@ def bulk_set_commission_rates(
     if rate_decimal < 0:
         raise ValidationError("Commission rate cannot be negative.")
 
-    from apps.users.models import User
     product = _get_tenant_product(product_id, performed_by)
     if product is None:
         raise ValidationError("Product not found.")
@@ -384,7 +378,7 @@ def bulk_set_commission_rates(
 def save_commission_matrix(
     *,
     changes: dict,
-    performed_by: "UserType",
+    performed_by: UserType,
 ) -> int:
     """Applies a batch of commission rate changes from the matrix editor.
 

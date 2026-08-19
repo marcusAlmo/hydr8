@@ -32,6 +32,8 @@ Expects context:
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
                 <input
                     type="text"
+                    id="usersSearch"
+                    data-htmx-search
                     name="q"
                     value="{{ search_query|default:'' }}"
                     placeholder="Search by name, username, or role..."
