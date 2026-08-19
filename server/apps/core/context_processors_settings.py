@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from .selectors import get_lockscreen_timeout_minutes
+from apps.core.selectors_settings import get_lockscreen_timeout_minutes
 
 logger = logging.getLogger(__name__)
 

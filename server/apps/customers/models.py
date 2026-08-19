@@ -43,7 +43,7 @@ class Customer(models.Model):
     )
     last_credit_at = models.DateTimeField(null=True, blank=True)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -162,7 +162,7 @@ class CreditLine(models.Model):
         help_text='User responsible for extending this credit (admin/staff/driver).',
     )
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -261,7 +261,7 @@ class BorrowedContainer(models.Model):
         help_text='User who recorded this borrowing entry.',
     )
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -342,7 +342,7 @@ class CreditPayment(models.Model):
         validators=[MinValueValidator(0)],
     )
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,

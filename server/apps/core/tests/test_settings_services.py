@@ -1,4 +1,4 @@
-"""Tests for apps.settings.services.
+"""Tests for apps.core.services_settings.
 
 Covers the critical paths:
   - tithe_rate display→raw conversion (financial integrity)
@@ -17,8 +17,8 @@ from django.utils import timezone
 
 from apps.core.models import SystemConfig
 from apps.customers.models import Customer
-from apps.settings.models import Company
-from apps.settings.services import (
+from apps.core.models import Company
+from apps.core.services_settings import (
     apply_credit_limit_to_all_customers,
     change_password,
     change_username,

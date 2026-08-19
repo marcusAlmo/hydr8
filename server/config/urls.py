@@ -30,7 +30,7 @@ urlpatterns = [
     path('customers/', include('apps.customers.urls')),
     path('products/', include('apps.core.urls_products')),
     path('employees/', include('apps.users.urls_employees')),
-    path('settings/', include('apps.settings.urls')),
+    path('settings/', include('apps.core.urls_settings')),
     path('audit/', include('apps.core.urls_audit')),
 ]
 

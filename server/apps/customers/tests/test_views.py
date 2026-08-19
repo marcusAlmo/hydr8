@@ -27,7 +27,7 @@ from apps.customers.services import (
     record_customer_borrowed,
     record_customer_debt,
 )
-from apps.settings.models import Company
+from apps.core.models import Company
 from apps.users.models import Role, User
 from apps.users.presentation import driver_code as user_driver_code
 

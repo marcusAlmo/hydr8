@@ -31,7 +31,7 @@ from apps.customers.services import (
     record_customer_debt,
     reset_customer_status,
 )
-from apps.settings.models import Company
+from apps.core.models import Company
 from apps.users.models import Role, User
 
 

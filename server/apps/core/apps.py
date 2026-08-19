@@ -6,7 +6,8 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         from auditlog.registry import auditlog
-        from .models import Product, SystemConfig
+        from .models import Company, Product, SystemConfig
+        auditlog.register(Company)
         auditlog.register(Product)
         auditlog.register(SystemConfig)
         # Import audit signal handlers so they connect to Django's signal bus.

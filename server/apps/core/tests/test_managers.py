@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from apps.core.models import Product
-from apps.settings.models import Company
+from apps.core.models import Company
 from apps.users.models import User
 
 

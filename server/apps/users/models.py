@@ -32,7 +32,7 @@ class Role(models.Model):
     description = models.CharField(max_length=255, default='', blank=True)
     is_default = models.BooleanField(default=False)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -95,7 +95,7 @@ class User(AbstractUser):
     pin = models.CharField(max_length=128, null=True, blank=True)
     role = models.ForeignKey(Role, on_delete=models.RESTRICT, null=True, blank=True)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -205,7 +205,7 @@ class DriverCommission(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     rate_per_unit = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,

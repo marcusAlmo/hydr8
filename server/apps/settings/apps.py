@@ -6,6 +6,6 @@ class SettingsConfig(AppConfig):
     verbose_name = 'Settings'
 
     def ready(self):
-        from auditlog.registry import auditlog
-        from .models import Company
-        auditlog.register(Company)
+        # Company has been moved to apps.core. The auditlog registration
+        # for Company is now handled in apps.core.apps.CoreConfig.ready().
+        pass

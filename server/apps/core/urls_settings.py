@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views_settings as views
 
 app_name = "settings"
 

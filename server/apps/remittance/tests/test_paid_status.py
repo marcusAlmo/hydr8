@@ -115,7 +115,7 @@ class UpdatePaidStatusServiceTests(TestCase):
         creation time, because the DB immutability trigger (migration
         0005) blocks reassigning ``company`` on an already-FINALIZED row.
         """
-        from apps.settings.models import Company
+        from apps.core.models import Company
         company_a = Company.objects.create(name="Company A")
         company_b = Company.objects.create(name="Company B")
 

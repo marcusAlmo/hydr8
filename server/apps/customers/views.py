@@ -10,7 +10,7 @@ from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
-from apps.settings.selectors import get_default_credit_limit
+from apps.core.selectors_settings import get_default_credit_limit
 from apps.users.permissions import is_admin, is_back_office
 
 from .selectors import (

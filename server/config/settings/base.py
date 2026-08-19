@@ -74,7 +74,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'apps.settings.context_processors.lockscreen_timeout',
+                'apps.core.context_processors_settings.lockscreen_timeout',
                 'apps.users.context_processors.user_role_flags',
             ],
         },

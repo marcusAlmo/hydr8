@@ -17,7 +17,7 @@ from apps.core.selectors_audit import (
     get_log_entry,
     list_log_entries,
 )
-from apps.settings.models import Company
+from apps.core.models import Company
 from apps.users.models import User
 from auditlog.models import LogEntry
 

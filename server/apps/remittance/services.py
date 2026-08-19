@@ -17,7 +17,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.settings.models import Company
+from apps.core.models import Company
 from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.users.models import User, DriverCommission

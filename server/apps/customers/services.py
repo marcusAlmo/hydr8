@@ -20,7 +20,7 @@ from django.utils import timezone
 
 from apps.core.models import Product
 from apps.remittance.models import Remittance
-from apps.settings.selectors import get_default_credit_limit
+from apps.core.selectors_settings import get_default_credit_limit
 from apps.users.models import User
 from apps.users.permissions import is_admin
 from apps.users.services import validate_user_pin

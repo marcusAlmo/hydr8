@@ -1,4 +1,4 @@
-"""Tests for apps.settings.views.
+"""Tests for apps.core.views_settings.
 
 Covers the GET page render and all 5 POST endpoints — including the
 admin-only restriction on system config / company writes, and the
@@ -11,8 +11,8 @@ from django.test import TestCase
 
 from apps.core.models import SystemConfig
 from apps.customers.models import Customer
-from apps.settings.models import Company
-from apps.settings.selectors import get_default_credit_limit
+from apps.core.models import Company
+from apps.core.selectors_settings import get_default_credit_limit
 from apps.users.models import Role, User
 
 

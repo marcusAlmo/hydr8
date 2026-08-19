@@ -303,7 +303,7 @@ class TenantIsolationTests(TestCase):
     commissions within their own company (tenant)."""
 
     def setUp(self):
-        from apps.settings.models import Company
+        from apps.core.models import Company
         self.company_a = Company.objects.create(name="Company A")
         self.company_b = Company.objects.create(name="Company B")
 

@@ -23,8 +23,8 @@ from django.db import transaction
 
 from apps.core.models import SystemConfig
 from apps.customers.services import bulk_update_credit_limit
-from apps.settings.models import Company
-from apps.settings.selectors import _LOCKSCREEN_DISPLAY_TO_RAW
+from apps.core.models import Company
+from apps.core.selectors_settings import _LOCKSCREEN_DISPLAY_TO_RAW
 from apps.users.services import validate_user_pin
 
 logger = logging.getLogger(__name__)

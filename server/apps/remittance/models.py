@@ -30,7 +30,7 @@ class Remittance(models.Model):
     tithes_paid = models.BooleanField(default=False)
     offering_paid = models.BooleanField(default=False)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -76,7 +76,7 @@ class RemittanceRider(models.Model):
     commission_override = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     remitted = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -118,7 +118,7 @@ class RemittanceRiderProductLine(models.Model):
     subtotal_credit = models.DecimalField(max_digits=12, decimal_places=2)
     subtotal_commission = models.DecimalField(max_digits=12, decimal_places=2)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -161,7 +161,7 @@ class Expense(models.Model):
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -194,7 +194,7 @@ class RiderCredit(models.Model):
     total_repaid = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     is_repaid = models.BooleanField(default=False)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -226,7 +226,7 @@ class RiderCreditRepayment(models.Model):
     amount_repaid = models.DecimalField(max_digits=12, decimal_places=2)
     commission_applied = models.DecimalField(max_digits=12, decimal_places=2)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -264,7 +264,7 @@ class RiderDeduction(models.Model):
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -307,7 +307,7 @@ class RemittanceStaff(models.Model):
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     net_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -357,7 +357,7 @@ class StaffDeduction(models.Model):
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     company = models.ForeignKey(
-        'settings.Company',
+        'core.Company',
         on_delete=models.CASCADE,
         null=True,
         blank=True,

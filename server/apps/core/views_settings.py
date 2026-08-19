@@ -18,14 +18,14 @@ from apps.core.views import (
 from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_staff_role as user_is_staff_role
 
-from .forms import (
+from apps.core.forms_settings import (
     CompanyForm,
     PasswordChangeForm,
     ProfileForm,
     UsernameChangeForm,
 )
-from .selectors import get_settings_context
-from .services import (
+from apps.core.selectors_settings import get_settings_context
+from apps.core.services_settings import (
     apply_credit_limit_to_all_customers,
     change_password,
     change_username,

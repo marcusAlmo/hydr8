@@ -1,4 +1,4 @@
-"""Tests for apps.settings.selectors.
+"""Tests for apps.core.selectors_settings.
 
 Verifies the read-side enrichment and formatting that the templates
 consume — especially the tithe_rate display conversion (the inverse of
@@ -10,8 +10,8 @@ from django.core.cache import cache
 from django.test import TestCase
 
 from apps.core.models import SystemConfig
-from apps.settings.models import Company
-from apps.settings.selectors import get_default_credit_limit, get_settings_context
+from apps.core.models import Company
+from apps.core.selectors_settings import get_default_credit_limit, get_settings_context
 from apps.users.models import User
 
 
