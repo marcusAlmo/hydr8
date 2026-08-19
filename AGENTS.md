@@ -103,3 +103,63 @@ no `company` / `role` row). It is never assigned through the UI.
 Defined in `apps/users/migrations/0008_default_roles_and_permissions.py`:
 **Admin**, **Staff**, **Driver**. If a new role is added, update
 `_BACK_OFFICE_ROLE_NAMES` in `apps/users/permissions.py`.
+
+## App Architecture
+
+The project has 5 Django apps under `server/apps/`:
+
+| App          | Responsibility                                              |
+|--------------|-------------------------------------------------------------|
+| `users`      | IAM: Roles, Permissions, Users, Driver Commissions, Employees |
+| `core`       | Shared Kernel: Products, System Config, Company, Audit Log  |
+| `customers`  | Customer Accounts: Debts, Borrowed Items, Credit Lines      |
+| `remittance` | Core Domain: Daily Remittance, Rider Lines, Expenses        |
+| `analytics`  | Dashboard: KPI cards, recent remittances (read-only)        |
+
+### Layered architecture (per app)
+
+Each app follows a strict separation of concerns:
+
+| Layer              | File pattern              | Responsibility                                    |
+|--------------------|---------------------------|---------------------------------------------------|
+| Selectors          | `selectors*.py`           | Read-side ORM queries, raw data, aggregates       |
+| Presentation       | `presentation*.py`        | Template-shaped formatting, CSS classes, labels   |
+| Services           | `services*.py`            | Write-side business logic, mutations, validations |
+| Views              | `views*.py`               | Composition: selectors → presentation → template  |
+| Models             | `models.py`               | Domain models and managers                        |
+
+**Selectors** return raw data (Decimals, model instances, querysets).
+**Presentation modules** shape raw data into template-ready dicts.
+**Views** compose the two. Never put template formatting in selectors.
+
+## Multi-Tenancy
+
+Application-level tenant scoping via `TenantManager.for_user()`. No
+PostgreSQL RLS policies. The scoping logic lives in
+`apps/core/managers.py`:
+
+```python
+# Tenant-scoped query (filters by company_id for regular users)
+Model.objects.for_user(request.user)
+
+# Unfiltered query (superusers, management commands, migrations)
+Model.objects.all()
+```
+
+Superusers and users without `company_id` see all tenants. Never bypass
+`for_user()` in request-scoped code.
+
+## CI/CD
+
+GitHub Actions workflows enforce the `develop → staging → main` release
+pipeline:
+
+- **`ci.yml`**: Runs tests (PostgreSQL service container) and lint (ruff)
+  on PRs to develop, staging, and main.
+- **`branch-flow.yml`**: Enforces that PRs to main must come from staging,
+  and PRs to staging must come from develop.
+
+Branch protection rules (configured via GitHub API):
+- **main**: 1 approval + Tests + Branch Flow checks, enforced for admins
+- **staging**: 1 approval + Tests + Branch Flow checks, enforced for admins
+- **develop**: Tests check required

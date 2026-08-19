@@ -3,6 +3,7 @@
 > **Status:** Active Development
 > **Target Subsystem:** Django Backend (`server/apps/`) + PWA Frontend (`server/static/` + `server/templates/`)
 > **Architecture:** Django + HTMX + Alpine.js + Tailwind CSS
+> **Refactor:** Architecture cleanup complete — see `docs/REFACTOR_SUMMARY.md`
 
 ---
 
@@ -40,11 +41,42 @@ The business runs a **single daily remittance**: staff enter the afternoon's tot
 ```
 server/apps/
 ├── users/       ← IAM: Roles, Permissions, Users, Driver Commissions
-├── core/        ← Shared Kernel: Products, System Config
+│                  (absorbed employees view surface)
+├── core/        ← Shared Kernel: Products, System Config, Company, Audit Log
+│                  (absorbed settings, audit, and products apps)
 ├── customers/   ← Customer Accounts: Debts, Borrowed Items, Credit Lines
 ├── remittance/  ← Core Domain: Daily Remittance, Rider Lines, Expenses
 └── analytics/   ← Dashboard: KPI cards, recent remittances, outstanding debts (read-only)
 ```
+
+### Layered Architecture (per app)
+
+Each app follows a strict separation of concerns:
+
+```
+selectors.py        ← Read-side queries (ORM, aggregates, raw data)
+presentation.py     ← Template-shaped formatting (CSS classes, labels, dicts)
+services.py         ← Write-side business logic (mutations, validations)
+views.py            ← Composition: selectors → presentation → template
+models.py           ← Domain models and managers
+```
+
+**Selectors** return raw data — Decimals, model instances, querysets,
+aggregates. **Presentation modules** take raw data and shape it into
+template-ready dicts (currency strings, CSS classes, labels, card
+structures, table rows). **Views** compose the two.
+
+### Multi-Tenancy
+
+Application-level tenant scoping via `TenantManager.for_user()`. No
+PostgreSQL RLS policies. See `apps/core/managers.py` for the scoping
+implementation and `AGENTS.md` for conventions.
+
+### CI/CD
+
+GitHub Actions workflows enforce the `develop → staging → main` release
+pipeline. Branch protection rules require passing tests and correct
+branch flow on all PRs. See `.github/workflows/`.
 
 **Frontend:**
 ```
@@ -138,8 +170,10 @@ server/templates/
 
 - **No secrets in source:** All credentials via `django-environ` / `.env`. Never committed.
 - **CSRF:** All HTMX POSTs include `hx-headers` with `X-CSRFToken`. Django `CsrfViewMiddleware` active.
-- **RBAC:** All views use `PermissionRequiredMixin`. Sidebar items rendered conditionally per permissions.
+- **RBAC:** `Role` model is the single source of truth. `is_back_office()` and `is_admin()` helpers used for authorization — `is_staff` is never used as a guard.
+- **Tenant isolation:** Application-level scoping via `TenantManager.for_user()` filters all queries by `company_id`. Superusers and platform-level users (no company) see all tenants.
 - **PIN hashing:** Stored via `django.contrib.auth.hashers.make_password()` — same pipeline as password hashing.
 - **Snapshot immutability:** `unit_price_snapshot` and `commission_rate_snapshot` are immutable after save. No retroactive financial mutation.
 - **Soft deletes:** Customers and Users use `deleted_at` for right-to-erasure support. Hard delete available for NPC "right to be forgotten" requests.
 - **Audit fields:** All mutations include `recorded_by_id` or `created_by_id` FKs for traceability.
+- **Rate limiting:** Every user-input or expensive endpoint uses `django-ratelimit` with `block=True`. See `AGENTS.md` for the full limit table.
