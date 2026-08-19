@@ -1,5 +1,5 @@
 # Hydr8 — Stitch Design Prompt (v4 — Rider Credit & Repayment)
-> Manual remittance-first. Rider-issued credits. Repayment tracking with commission. Edge AI insights. Light + Dark mode. One week delivery.
+> Manual remittance-first. Rider-issued credits. Repayment tracking with commission. Light + Dark mode. One week delivery.
 
 ---
 
@@ -7,7 +7,7 @@
 
 **Hydr8** is an internal daily operations tool for a water refilling and delivery business. The core daily loop is simple:
 
-1. Admin opens the day → 2. Create a daily remittance → 3. Add riders with their sold/credited products → 4. Log expenses → 5. Finalize remittance (PIN-protected) → 6. Monitor outstanding customer debts and borrowed containers → 7. Ask AI for insights on demand.
+1. Admin opens the day → 2. Create a daily remittance → 3. Add riders with their sold/credited products → 4. Log expenses → 5. Finalize remittance (PIN-protected) → 6. Monitor outstanding customer debts and borrowed containers → 7. Review dashboard KPIs.
 
 **Users and their real contexts:**
 - **Admin** — Needs to enter remittance data fast, see net profit, tithes due, and commission breakdown at a glance. Manages products, employees, and system config.
@@ -25,7 +25,6 @@
 - **Charts:** Chart.js (deferred to post-MVP).
 - **Theme:** Light + Dark mode via CSS custom properties. Alpine.js controls `data-theme` on `<html>`, persisted in `localStorage`.
 - **Auth/RBAC:** Role FK on User model. Permission matrix is Admin-assignable at runtime. Enforced via Django `PermissionRequiredMixin` and sidebar visibility.
-- **AI:** Gemma 2B (`gemma-2-2b-it-q4f16_1-MLC`) via `@mlc-ai/web-llm` WebGPU. Client-side only. Read-only tool calling. Background download with progress written to server config via PATCH API.
 
 ---
 
@@ -54,7 +53,6 @@ Sidebar (always dark — brand consistency)
 | Products & Pricing | Full | Read-only | — |
 | Employees & Users | Full | — | — |
 | Settings | Full | Profile only | — |
-| AI Chatbot | Full | Full | — |
 
 > These defaults are seeded but the Admin can adjust per-role permissions at any time via the Employees & Users screen.
 
@@ -76,7 +74,7 @@ Sidebar (always dark — brand consistency)
 ---
 
 ## Screen 2: Dashboard
-**Goal:** Operational heartbeat. Readable in under 3 seconds. Shows today's financial state and AI insights.
+**Goal:** Operational heartbeat. Readable in under 3 seconds. Shows today's financial state at a glance.
 
 **Layout:** Sidebar (always dark) + main content area (themed).
 
@@ -100,26 +98,8 @@ Cards are NOT 3 equal columns. Use a weighted layout:
 
 ---
 
-### Dashboard — AI Insights Panel
-This section appears below the stats row. It has a subtle animated gradient header bar (slow horizontal shimmer, `Hydr8 Blue` → `Emerald` gradient).
-
-**Header:** "AI Insights" with a small Gemma badge (version label). Right side: model status chip — `Ready`, `Initializing...`, or `Downloading XX%`.
-
-**Insight Cards (3–4 auto-generated chips, horizontal scroll on mobile):**
-- Each chip is a compact card with an icon, one-line insight text, and a subtle category label.
-- Examples:
-  - "Rider Dela Cruz contributed 38% of this week's net sales."
-  - "3 customers overdue 7+ days — ₱4,800 in unpaid credits."
-  - "Tithes for last Monday are still unpaid."
-- Chips are **read-only display** — clicking one opens the AI chatbot pre-filled with a follow-up question.
-- If AI model is not ready: chips show skeleton loaders with label "AI insights will appear once model is ready."
-
-**"Ask Hydr8 AI" button** — right-aligned, opens the global AI chatbot bubble.
-
----
-
 ### Dashboard — Recent Remittances (Table, Last 5)
-Compact table below AI Insights:
+Compact table below stats row:
 - Columns: `Date`, `Total Sales`, `Net Profit`, `Commission`, `Tithes`, `☑ Paid`, `Actions`
 - Row amber left border if tithes or offering is unpaid
 - `View` button links to the Remittance History detail
@@ -449,46 +429,6 @@ Per-employee commission editor (only for users with `Driver` role):
 
 ---
 
-### Tab 4: AI Model
-
-**Shows:**
-- Model Name: `Gemma 2B (gemma-2-2b-it-q4f16_1-MLC)`
-- Download Status: `Ready` / `Downloading (XX%)` / `Not Started`
-- Progress bar (if downloading)
-- Model size: ~1.2 GB (stored in browser IndexedDB — device-local)
-- "The AI model downloads once per device. It never leaves your browser."
-- [Trigger Download] button — starts background download if not started
-
-**Behavior:** Model download happens in the background. The main system operates normally. Only the AI Insights panel and chatbot show "AI initializing..." while downloading. This tab shows live progress (HTMX polling or SSE).
-
----
-
-## Global: AI Chatbot Bubble
-
-**Trigger:** Fixed bottom-right floating action button (chat icon). Visible on all screens.
-
-**Bubble states:**
-- **Model not ready:** FAB shows an amber pulsing ring. Clicking shows: "AI model is downloading in the background (XX%). Insights will be available shortly."
-- **Model ready:** FAB is static `Hydr8 Blue`. Clicking opens the chat drawer.
-
-**Chat Drawer (slide-in from right, 400px wide):**
-- Header: "Hydr8 AI" + Gemma badge + Close button
-- Message thread (scrollable)
-- Input box + Send button
-- "Ask me about today's sales, commissions, customer debts, or unpaid tithes."
-
-**Available tools (read-only, JSON mode):**
-- `fetch_remittance_summary(start_date, end_date)` — Sales, commission, net, tithes across date range
-- `fetch_rider_performance(rider_id, start_date, end_date)` — Per-rider breakdown
-- `fetch_customer_debts(filter)` — Customers with outstanding balances
-- `fetch_tithe_status()` — Unpaid tithes/offering list
-
-**On close:** `engine.unload()` called — 100% VRAM freed.
-
-**Fallback:** If `navigator.gpu` is unavailable → graceful message: "AI chatbot requires WebGPU. Please use Chrome 113+ or Edge 113+. Your other data is unaffected."
-
----
-
 ## Design System — Light + Dark Mode
 
 ### Mode Architecture
@@ -544,8 +484,6 @@ Per-employee commission editor (only for users with `Driver` role):
 | Remittance summary card | `var(--bg-surface)`, `2px top border var(--accent-blue)`, sticky on scroll |
 | Rider section | `var(--bg-elevated)`, `1px border var(--border)`, `0.5rem radius` |
 | Expense row | Alternating `var(--bg-surface)` / `var(--bg-elevated)`, no border |
-| AI Insights panel | Animated shimmer header (`Hydr8 Blue` → Emerald gradient, 3s loop), `var(--bg-surface)` body |
-| Chatbot drawer | `var(--bg-surface)` bg, `1px var(--border)` left border, slide-in `0.25s ease` |
 | Progress bars | `var(--accent-blue)` fill, `var(--bg-elevated)` track, `4px` height, smooth transition |
 | Skeleton loaders | `var(--bg-elevated)` base, shimmer animation — NO circular spinners |
 
@@ -553,7 +491,7 @@ Per-employee commission editor (only for users with `Driver` role):
 
 - **Density:** 7/10 — data tables, real numbers, compact rows. Not a dashboard wallpaper.
 - **Variance:** 4/10 — consistent layouts. Stressed operators need familiarity.
-- **Motion:** 4/10 — HTMX swap fades (`150ms opacity`), pinned card live updates, AI shimmer header. No decorative animations.
+- **Motion:** 4/10 — HTMX swap fades (`150ms opacity`), pinned card live updates. No decorative animations.
 
 ### Anti-Patterns (BANNED)
 
@@ -580,6 +518,5 @@ Per-employee commission editor (only for users with `Driver` role):
 | Customer creation as a separate full-page flow | MVP: inline modal |
 | Forgot password / email reset | No email service configured |
 | SMS / push notifications | Out of scope |
-| AI write tools (create remittance via voice) | Requires stronger guardrails and validation |
 | Branch / multi-tenant support | Single-branch MVP first |
 | Offline-first IndexedDB sync | Phase 2 when connectivity SLA is confirmed |

@@ -1,5 +1,5 @@
 # Hydr8 — Domain-Driven Database Schema (v4 — Rider Credit & Repayment)
-> Pivot from dispatch-centric to remittance-centric. Manual daily remittance entry. Rider-issued credits with repayment tracking. Gemma 2B edge AI. Light/Dark mode PWA.
+> Pivot from dispatch-centric to remittance-centric. Manual daily remittance entry. Rider-issued credits with repayment tracking. Light/Dark mode PWA.
 
 ---
 
@@ -11,7 +11,7 @@ server/apps/
 ├── core/        ← Domain: Catalog & Configuration (shared kernel)
 ├── customers/   ← Domain: Customer Accounts (debts, borrowed items)
 ├── remittance/  ← Domain: Daily Remittance (primary operational domain)
-└── analytics/   ← Domain: AI Insights & Reporting (read-only, Gemma 2B)
+└── analytics/   ← Domain: Dashboard & Reporting (read-only KPI cards)
 ```
 
 Unidirectional dependency flow (no circular imports):
@@ -31,8 +31,6 @@ users → core → customers → remittance → analytics
 | Offering is a manual entry per remittance | Entered at finalize time |
 | Expenses are editable until finalized | Linked to the remittance, not a session |
 | RBAC is admin-assignable | Not hardcoded — `users_permission` rows drive sidebar visibility |
-| Gemma 2B downloads in background | System operates normally; settings page shows download status |
-| AI chatbot is read-only | No write tools in this iteration |
 | Light/Dark mode via CSS custom properties | Alpine.js toggles `data-theme` on `<html>`, persisted in `localStorage` |
 | PIN stored on user model | Used for lockscreen timeout feature |
 | Rider Credits are **session-independent** | Credits are standalone records; only linked to a session when repaid |
@@ -180,13 +178,6 @@ users → core → customers → remittance → analytics
 | `contact_number` | `` | Shown in settings company tab |
 | `email_address` | `` | Shown in settings company tab |
 | `session_close_pin` | `[hashed]` | PIN for finalizing remittance |
-| `ai_model_id` | `gemma-2-2b-it-q4f16_1-MLC` | Currently loaded AI model identifier |
-| `ai_model_version` | `2b-q4f16` | Display label for settings |
-| `ai_download_status` | `not_started` | `not_started`, `downloading`, `ready` — updated by PWA |
-| `ai_download_percent` | `0` | 0–100 integer, updated by PWA on progress |
-
-> [!NOTE]
-> `ai_download_status` and `ai_download_percent` are **client-driven** — the PWA writes to these via a dedicated authenticated PATCH endpoint when the Gemma download progresses. They allow the Settings page to show the AI status even across devices/sessions.
 
 ---
 
@@ -468,24 +459,22 @@ Offering (manual)        ₱[offering_amount] ☐ Offering Paid
 
 ---
 
-## Domain 5: Analytics & AI Insights (Read-Only)
+## Domain 5: Dashboard & Reporting (Read-Only)
 **App:** `apps.analytics` | **DB prefix:** `analytics_`
 
 > [!NOTE]
-> This domain provides lightweight Django REST API endpoints consumed by the PWA's Gemma 2B edge model via tool-calling (JSON Mode). No GPU inference runs server-side. The server only returns structured data; Gemma synthesizes the natural-language response on the client device.
+> This domain renders the operational dashboard: KPI cards (today's sales, outstanding debt, unreturned containers), a today's-remittance status panel, a recent remittances table, and a long-running debts table. All data is computed on-the-fly via selectors over the `remittance` and `customers` domains — no persistent models are required for the current dashboard.
 
-### API Endpoints (Django REST Framework, read-only)
+### Dashboard Sections (HTMX lazy-load partials)
 
-| Tool Name | Endpoint | Returns |
+| Section | Selector | Source |
 |---|---|---|
-| `fetch_remittance_summary` | `GET /api/analytics/remittance-summary/?start=&end=` | Aggregated totals per day range |
-| `fetch_rider_performance` | `GET /api/analytics/rider-performance/?rider_id=&start=&end=` | Per-rider sales, commission, product breakdown |
-| `fetch_customer_debts` | `GET /api/analytics/customer-debts/?filter=` | Customer list with `debt_balance`, `days_overdue` |
-| `fetch_tithe_status` | `GET /api/analytics/tithe-status/` | List of remittances with unpaid tithes/offerings |
-| `fetch_ai_model_status` | `GET /api/analytics/ai-status/` | Returns `ai_download_status`, `ai_download_percent` from config |
-| `PATCH /api/analytics/ai-status/` | Updates `ai_download_status` and `ai_download_percent` | PWA progress callback writes here |
+| Stats row (3 KPI cards) | `get_stats(user)` | `Remittance.total_sales` (today vs yesterday), `Σ Customer.debt_balance`, `Σ Customer.borrowed_*` |
+| Today's remittance panel | `get_today_remittance(user)` | `Remittance` for today (none / draft / finalized) |
+| Recent remittances table | `get_recent_remittances(user)` | Last 8 `Remittance` rows ordered by date desc |
+| Long-running debts table | `get_outstanding_debts(user)` | `CreditLine` rows with `qty_remaining > 0`, ordered by age |
 
-All endpoints require `IsAuthenticated`. All responses use minimal field selection (no `SELECT *`).
+All views require `is_admin(request.user)`. Staff users do not see the dashboard.
 
 ### Table: `analytics_dailysnapshot` *(pg_cron — write once, read many)*
 | Column | Type | Notes |
