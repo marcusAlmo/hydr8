@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hydr8 — Architecture Visualization</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1c2230;
+    --text: #e6e9ef;
+    --muted: #8b93a7;
+    --accent: #4cc9f0;
+    --accent-2: #f72585;
+    --accent-3: #80ed99;
+    --border: #232a37;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+    line-height: 1.55;
+  }
+  header {
+    padding: 40px 32px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #131722 0%, var(--bg) 100%);
+  }
+  header h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.02em; }
+  header h1 .accent { color: var(--accent); }
+  header p { margin: 0; color: var(--muted); max-width: 720px; }
+  main { max-width: 1280px; margin: 0 auto; padding: 32px; }
+  .tabs {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 24px; padding: 8px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; position: sticky; top: 12px; z-index: 10;
+  }
+  .tab-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; font-size: 14px; font-weight: 500;
+    transition: all .15s;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--panel-2); }
+  .tab-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(76,201,240,.08); }
+  .panel {
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .panel.active { display: block; }
+  .panel h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.01em; }
+  .panel h2 .num { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  .panel .lede { color: var(--muted); margin: 0 0 24px; max-width: 760px; }
+  .mermaid {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 24px;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .legend { margin-top: 18px; color: var(--muted); font-size: 13px; }
+  .legend ul { margin: 6px 0 0; padding-left: 20px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px; margin-top: 18px;
+  }
+  .card {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 14px; color: var(--accent); }
+  .card p { margin: 0; font-size: 13px; color: var(--muted); }
+  footer { padding: 24px 32px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+  code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; color: var(--accent-3); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hydr8 <span class="accent">— Architecture Visualization</span></h1>
+  <p>Water Refilling Station Operations &amp; AI Management System. Django + HTMX + Alpine.js + Tailwind + PostgreSQL + Redis, with edge-local Gemma 2B AI via WebGPU. Multi-tenant (Company-scoped) back-office for Admin / Staff / Driver roles.</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="topology">1. Deployment Topology</button>
+    <button class="tab-btn" data-tab="request">2. Request Flow</button>
+    <button class="tab-btn" data-tab="apps">3. App Modules</button>
+    <button class="tab-btn" data-tab="domain">4. Domain Model (ERD)</button>
+    <button class="tab-btn" data-tab="flow">5. Daily Operations Flow</button>
+    <button class="tab-btn" data-tab="tenant">6. Multi-Tenant &amp; Auth</button>
+  </div>
+
+  <!-- 1. TOPOLOGY -->
+  <section class="panel active" id="topology">
+    <h2><span class="num">01</span>Deployment Topology</h2>
+    <p class="lede">Production stack on a single VPS. Cloudflare fronts Traefik, which routes to Gunicorn workers. PostgreSQL, Redis, and the Django app all run on the same host. AI inference runs entirely in the user's browser.</p>
+    <div class="mermaid">
+flowchart TB
+    subgraph Client["Client Browser"]
+        UI["HTMX Partials<br/>Alpine.js<br/>Tailwind + MD3 Tokens"]
+        AI["Gemma 2B via Web-LLM<br/>(WebGPU, ~1.2GB download)<br/>Read-only tool calls"]
+    end
+
+    subgraph Edge["Edge / Network"]
+        CF["Cloudflare<br/>(DNS, TLS, WAF, cache)"]
+        TR["Traefik<br/>(reverse proxy, TLS term)"]
+    end
+
+    subgraph VPS["VPS — Single Host"]
+        GU["Gunicorn (N workers)<br/>Django 6.0 + HTMX"]
+        subgraph MW["Middleware Stack"]
+            M1["CorrelationId"]
+            M2["Security / WhiteNoise"]
+            M3["Session / CSRF"]
+            M4["Auth"]
+            M5["ScreenLock"]
+            M6["Tenant"]
+            M7["Auditlog"]
+            M8["HTMX"]
+        end
+        PG[("PostgreSQL<br/>financial data, pg_cron")]
+        RD[("Redis<br/>cache: rate-limit, lockout, sessions")]
+        SEN["Sentry SDK<br/>(opt-in)"]
+    end
+
+    UI --> CF --> TR --> GU
+    GU --> MW --> PG
+    MW --> RD
+    GU -. traces .-> SEN
+    AI -. reads JSON .-> UI
+
+    classDef cloud fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef vps fill:#ecfccb,stroke:#65a30d,color:#365314
+    classDef store fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef ai fill:#fae8ff,stroke:#a21caf,color:#701a75
+    class CF,TR,UI cloud
+    class GU,MW vps
+    class PG,RD store
+    class AI ai
+    </div>
+    <div class="legend">
+      <strong>Stack:</strong>
+      <ul>
+        <li><code>Cloudflare → Traefik → Gunicorn</code> — trusts <code>X-Forwarded-Proto</code>/<code>X-Forwarded-For</code>.</li>
+        <li><code>PostgreSQL</code> — relational integrity for financial data; <code>pg_cron</code> for nightly snapshots.</li>
+        <li><code>Redis</code> — shared atomic counters for <code>django-ratelimit</code> + login lockout across all workers; session cache.</li>
+        <li><code>Gemma 2B</code> — prompts never leave the device; system operates normally while model initializes.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2. REQUEST FLOW -->
+  <section class="panel" id="request">
+    <h2><span class="num">02</span>Request &amp; Middleware Flow</h2>
+    <p class="lede">Every HTTP request traverses the middleware chain in order, then routes through <code>config/urls.py</code> to a tenant-scoped app view. Views are decorated with <code>@ratelimit</code> and gated by <code>apps.users.permissions</code> helpers.</p>
+    <div class="mermaid">
+flowchart LR
+    Req["HTTP Request"] --> M1["CorrelationIdMiddleware<br/>set cid contextvar"]
+    M1 --> M2["SecurityMiddleware"]
+    M2 --> M3["WhiteNoise<br/>(static)"]
+    M3 --> M4["SessionMiddleware"]
+    M4 --> M5["CommonMiddleware"]
+    M5 --> M6["CsrfViewMiddleware"]
+    M6 --> M7["AuthenticationMiddleware"]
+    M7 --> M8["ScreenLockMiddleware"]
+    M8 --> M9["AuditlogMiddleware<br/>(uses cid)"]
+    M9 --> M10["MessageMiddleware"]
+    M11 --> M12["XFrameOptionsMiddleware"]
+    M12 --> M13["HtmxMiddleware"]
+    M13 --> Router["config/urls.py"]
+    Router --> Apps["App View<br/>@ratelimit + permission gate"]
+    Apps --> Svc["services.py"]
+    Svc --> Sel["selectors.py"]
+    Sel --> DB[("PostgreSQL")]
+    Apps --> Tpl["Template partial<br/>(HTMX fragment)"]
+    Tpl --> Resp["HTTP Response<br/>+ HX-Trigger / HX-Redirect"]
+
+    classDef mw fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef app fill:#ecfccb,stroke:#65a30d,color:#365314
+    classDef store fill:#fef3c7,stroke:#d97706,color:#78350f
+    class M1,M2,M3,M4,M5,M6,M7,M8,M9,M10,M11,M12,M13 mw
+    class Router,Apps,Svc,Sel,Tpl,Resp app
+    class DB store
+    </div>
+    <div class="grid">
+      <div class="card"><h3>Correlation ID</h3><p>Every request gets a <code>cid</code> that propagates into <code>auditlog.LogEntry.cid</code> and structured logs.</p></div>
+      <div class="card"><h3>Screen Lock</h3><p>Auto-locks the back-office after idle timeout; PIN re-verification required.</p></div>
+      <div class="card"><h3>Tenant Scope</h3><p>Attaches <code>request.company</code>; <code>TenantManager</code> filters all queries by <code>company_id</code>.</p></div>
+      <div class="card"><h3>Rate Limit</h3><p><code>@ratelimit</code> → <code>Ratelimited</code> (403) → <code>handler403</code> renders friendly HTMX fragment.</p></div>
+    </div>
+  </section>
+
+  <!-- 3. APP MODULES -->
+  <section class="panel" id="apps">
+    <h2><span class="num">03</span>Django App Modules</h2>
+    <p class="lede">Nine local apps layered on a shared <code>apps.core</code> + <code>apps.settings</code> (Company tenant root). Each domain app follows the same internal layout: <code>models → selectors → services → views → templates</code>.</p>
+    <div class="mermaid">
+flowchart TB
+    subgraph Foundation["Foundation Layer"]
+        CORE["apps.core<br/>Product, SystemConfig<br/>middleware, managers"]
+        SET["apps.settings<br/>Company (tenant root)<br/>SystemConfig UI"]
+        USR["apps.users<br/>User, Role, Permission<br/>DriverCommission<br/>auth, lockout, permissions"]
+    end
+
+    subgraph Domain["Domain Layer"]
+        CUST["apps.customers<br/>Customer, CreditLine<br/>BorrowedContainer, CreditPayment"]
+        REM["apps.remittance<br/>Remittance, RemittanceRider<br/>ProductLine, Expense<br/>RiderCredit, Repayment<br/>Deductions, Staff"]
+        EMP["apps.employees<br/>Employee directory<br/>(uses User/Role)"]
+        PROD["apps.products<br/>Product CRUD UI<br/>(uses core.Product)"]
+    end
+
+    subgraph Cross["Cross-Cutting"]
+        AUD["apps.audit<br/>read-only auditlog viewer"]
+        ANA["apps.analytics<br/>read-only dashboards<br/>(no persistent models)"]
+    end
+
+    USR --> CORE
+    SET --> CORE
+    CUST --> CORE
+    CUST --> SET
+    REM --> CORE
+    REM --> SET
+    REM --> USR
+    REM --> CUST
+    EMP --> USR
+    EMP --> SET
+    PROD --> CORE
+    PROD --> SET
+    AUD --> USR
+    ANA --> REM
+    ANA --> CUST
+    ANA --> USR
+
+    classDef found fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    classDef dom fill:#ecfccb,stroke:#65a30d,color:#365314
+    classDef cross fill:#fae8ff,stroke:#a21caf,color:#701a75
+    class CORE,SET,USR found
+    class CUST,REM,EMP,PROD dom
+    class AUD,ANA cross
+    </div>
+    <div class="legend"><strong>Internal layout per app:</strong> <code>models.py</code> · <code>selectors.py</code> (read) · <code>services.py</code> (write/transactional) · <code>views.py</code> (HTMX endpoints) · <code>urls.py</code> · <code>templates/</code> · <code>tests/</code>. <code>signals.py</code> where cross-model side effects are needed.</div>
+  </section>
+
+  <!-- 4. DOMAIN MODEL -->
+  <section class="panel" id="domain">
+    <h2><span class="num">04</span>Domain Model — Entity Relationships</h2>
+    <p class="lede">Tenant root is <code>Company</code>. Every domain record carries a nullable <code>company_id</code> (NULL = platform-default / superuser scope). The financial core is the <code>Remittance → RemittanceRider → RemittanceRiderProductLine</code> aggregate; customer debt is tracked via <code>CreditLine</code> + <code>CreditPayment</code>.</p>
+    <div class="mermaid">
+erDiagram
+    Company ||--o{ User : "employs"
+    Company ||--o{ Role : "scopes"
+    Company ||--o{ Product : "sells"
+    Company ||--o{ Customer : "serves"
+    Company ||--o{ Remittance : "records"
+
+    Role ||--o{ Permission : "has"
+    Role ||--o{ User : "assigns"
+    User ||--o{ DriverCommission : "earns"
+    Product ||--o{ DriverCommission : "rate per driver"
+
+    Customer ||--o{ CreditLine : "owes"
+    Customer ||--o{ BorrowedContainer : "borrows"
+    Customer ||--o{ CreditPayment : "pays"
+    Customer ||--o{ RiderCredit : "recipient of"
+
+    Remittance ||--o{ RemittanceRider : "has riders"
+    Remittance ||--o{ Expense : "has expenses"
+    Remittance ||--o{ RiderCreditRepayment : "receives repayments"
+    Remittance ||--o{ RemittanceStaff : "has staff"
+    Remittance ||--o{ CreditPayment : "settles"
+
+    RemittanceRider ||--o{ RemittanceRiderProductLine : "sells"
+    RemittanceRider ||--o{ RiderDeduction : "deducted"
+    RemittanceRiderProductLine ||--o{ CreditLine : "creates debt"
+
+    RiderCredit ||--o{ RiderCreditRepayment : "repaid by"
+    RemittanceStaff ||--o{ StaffDeduction : "deducted"
+
+    Remittance {
+        date Date PK
+        status Enum DRAFT_FINALIZED
+        total_sales Decimal
+        total_credit_sales Decimal
+        total_commission Decimal
+        net_profit Decimal
+        tithe_amount Decimal
+        tithes_paid Bool
+        offering_paid Bool
+        finalized_at DateTime
+    }
+    Customer {
+        name Char
+        debt_balance Decimal
+        credit_limit Decimal
+        status Enum ACTIVE_FLAGGED_BLACKLISTED
+    }
+    User {
+        role FK
+        company FK
+        pin_hash Char
+    }
+    CreditLine {
+        qty_credited Int
+        qty_remaining Int
+        unit_price Decimal
+        care_of Char
+    }
+    </div>
+  </section>
+
+  <!-- 5. DAILY FLOW -->
+  <section class="panel" id="flow">
+    <h2><span class="num">05</span>Daily Operations Flow</h2>
+    <p class="lede">The core daily loop replaces a dispatcher's notebook. Finalize is PIN-protected and atomically creates customer credit lines, snapshots commission rates, and computes tithes (10% of net profit).</p>
+    <div class="mermaid">
+flowchart TD
+    Start([Admin/Staff opens Dashboard]) --> Check{Remittance<br/>exists today?}
+    Check -->|No| Create["Create today's Remittance<br/>(unique per company+date)"]
+    Check -->|Yes| Open["Open existing draft"]
+    Create --> Riders
+    Open --> Riders
+
+    Riders["Add Rider Sections<br/>(Driver role)"] --> Lines["Add Product Lines<br/>qty_sold · qty_credited · borrowed"]
+    Lines --> Credits["Credits Extended by Riders<br/>(NOT in sales/profit)"]
+    Credits --> Repay["Repayments Received<br/>(adds to sales + commission<br/>at snapshotted rate)"]
+    Repay --> Exp["Log Expenses"]
+    Exp --> Summary["Pinned Summary Card<br/>live-updates via HTMX"]
+    Summary --> Finalize{Finalize?<br/>PIN-protected}
+    Finalize -->|No| Edit["Continue editing<br/>(draft state)"]
+    Edit --> Summary
+    Finalize -->|Yes| Lock["Atomic transaction:<br/>1. Lock all records<br/>2. tithe = net_profit × 10%<br/>3. Create Customer CreditLines<br/>4. Snapshot commission rates"]
+    Lock --> Debt["Customer debt_balance<br/>updated via F() expressions"]
+    Lock --> Audit["Auditlog entries<br/>with correlation id"]
+    Debt --> AI["AI Insights Panel<br/>(Gemma 2B, edge)"]
+    Audit --> AI
+    AI --> Done([End of day])
+
+    classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef critical fill:#fae8ff,stroke:#a21caf,color:#701a75
+    classDef ai fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    class Check,Finalize decision
+    class Lock critical
+    class AI ai
+    </div>
+  </section>
+
+  <!-- 6. TENANT & AUTH -->
+  <section class="panel" id="tenant">
+    <h2><span class="num">06</span>Multi-Tenant Scoping &amp; Authorization</h2>
+    <p class="lede"><code>Role</code> is the single source of truth for authorization (never <code>is_staff</code>). <code>TenantManager</code> filters every query by <code>request.user.company_id</code>. Superusers (platform-level) have <code>company=NULL</code> and bypass tenant scoping.</p>
+    <div class="mermaid">
+flowchart LR
+    Req["Incoming request"] --> Auth{Authenticated?}
+    Auth -->|No| Login["Login view<br/>@ratelimit ip 10/m<br/>+ 5-fail → 60s lockout"]
+    Auth -->|Yes| Screen["ScreenLockMiddleware<br/>check session flag"]
+    Login --> LockCheck{Locked?}
+    LockCheck -->|Yes| Lock403["403 fragment"]
+    LockCheck -->|No| Auth2["Authenticate"]
+    Auth2 --> Tenant
+    Tenant --> Perm{Permission check}
+    Perm -->|is_back_office| BO["Admin + Staff<br/>products, employees, remittance"]
+    Perm -->|is_admin| ADM["Admin only<br/>settings, user mgmt"]
+    Perm -->|Driver| DRV["Driver<br/>own remittance lines"]
+    Perm -->|Fail| F403["403 Forbidden"]
+    BO --> Q["TenantManager.filter<br/>company_id = user.company_id"]
+    ADM --> Q
+    DRV --> Q
+    Q --> DB[("PostgreSQL")]
+
+    classDef gate fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef ok fill:#ecfccb,stroke:#65a30d,color:#365314
+    classDef deny fill:#fee2e2,stroke:#dc2626,color:#991b1b
+    class Auth,LockCheck,Perm gate
+    class Login,Auth2,Tenant,BO,ADM,DRV,Q ok
+    class Lock403,F403 deny
+    </div>
+    <div class="grid">
+      <div class="card"><h3>Canonical Roles</h3><p><strong>Admin</strong>, <strong>Staff</strong>, <strong>Driver</strong> — seeded by migration <code>0008_default_roles_and_permissions</code>.</p></div>
+      <div class="card"><h3>Permission Helpers</h3><p><code>is_back_office(user)</code> → Admin|Staff|superuser. <code>is_admin(user)</code> → Admin|superuser.</p></div>
+      <div class="card"><h3>Login Lockout</h3><p>5 failures per <code>(ip, username)</code> → 60s lock. Lives in <code>apps.users.services</code>.</p></div>
+      <div class="card"><h3>Rate Limit Tiers</h3><p>Login 10/m · PIN 5/15m · Write 30/m · Read 120/m · Search 60/m — all per user (or ip if unauth).</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Hydr8 — Architecture Visualization · Generated from live codebase inspection ·
+  <code>config/settings/</code>, <code>config/urls.py</code>, <code>apps/*/models.py</code>, <code>apps/users/permissions.py</code>, <code>apps/users/services.py</code>
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    securityLevel: 'loose',
+    themeVariables: {
+      primaryColor: '#e0f2fe',
+      primaryTextColor: '#0c4a6e',
+      primaryBorderColor: '#0284c7',
+      lineColor: '#475569',
+      secondaryColor: '#ecfccb',
+      tertiaryColor: '#fae8ff',
+      fontFamily: 'Inter, -apple-system, sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: { htmlLabels: true, useMaxWidth: true },
+    // ER diagram: useMaxWidth=false avoids the "translate(undefined, NaN)"
+    // layout bug in mermaid 10 when combined with htmlLabels.
+    er: { useMaxWidth: false, entityPadding: 15 },
+    sequence: { useMaxWidth: false },
+    gantt: { useMaxWidth: false }
+  });
+
+  const tabs = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.panel');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

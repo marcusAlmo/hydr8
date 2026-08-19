@@ -152,14 +152,14 @@ server/apps/
 ## Multi-Tenancy Before vs After
 
 ### Before (Dual Mechanism)
-- **RLS:** `TenantMiddleware` sets `app.current_tenant` (Postgres session variable)
-- **App-level:** `TenantManager.for_user()` (opt-in, easy to forget)
-- **Problem:** Two parallel mechanisms, false confidence, RLS untested in dev
+- **RLS:** `TenantMiddleware` set `app.current_tenant` (Postgres session variable), but no RLS policies ever existed — dead code
+- **App-level:** `TenantManager.for_user()` (explicit, the actual scoping mechanism)
+- **Problem:** Two parallel mechanisms, false confidence from the unused RLS path
 
 ### After (App-Level Only)
-- **Single mechanism:** `TenantManager.get_queryset()` auto-scopes by current user
-- **Escape hatch:** `.all_tenants()` for superuser/admin views
-- **Benefit:** One source of truth, tested in dev/test, no opt-in footgun
+- **Single mechanism:** `TenantManager.for_user()` explicitly scopes by `company_id`
+- **Escape hatch:** superusers and users without `company_id` see all rows
+- **Benefit:** One source of truth, no dead middleware, no false confidence
 
 ---
 

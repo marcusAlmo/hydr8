@@ -19,6 +19,6 @@ CACHES = {
     }
 }
 
-# NOTE: Migrations are NOT disabled — with Postgres + RLS policies the test
-# DB must run the real migration chain (including RLS-enabling migrations) so
-# that row-level isolation is exercised under test.
+# NOTE: Migrations are NOT disabled — the test DB must run the real
+# migration chain (including Postgres triggers such as the finalized-
+# remittance immutability guard) so behaviour is exercised under test.

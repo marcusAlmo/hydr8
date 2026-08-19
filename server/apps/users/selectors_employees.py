@@ -4,7 +4,8 @@ Selectors return *raw* query data — no template-shaped formatting.  The
 presentation layer (``presentation_employees.py``) converts this raw data
 into the context shapes consumed by the templates.
 
-All querysets enforce row-level tenant scoping (RLS) via ``_user_qs``.
+All querysets enforce application-level tenant scoping via ``_user_qs``,
+which filters by ``company_id`` for non-superusers.
 """
 from __future__ import annotations
 

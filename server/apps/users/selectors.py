@@ -1,6 +1,7 @@
 """Read-side selectors for the Users app.
 
-Selectors keep views free of ORM calls and enforce tenant/RLS scoping.
+Selectors keep views free of ORM calls and enforce application-level
+tenant scoping via ``TenantManager.for_user()``.
 """
 from __future__ import annotations
 

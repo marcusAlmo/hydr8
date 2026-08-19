@@ -78,17 +78,16 @@ Execute in strict order (dependencies enforced):
 ---
 
 ### Phase 4: Simplify Multi-Tenancy (3-4 hours)
-**Goal:** Remove RLS middleware, make TenantManager auto-scope by default
+**Goal:** Remove dead RLS middleware, keep explicit `for_user()` as sole mechanism
 
 **Commands:**
 ```bash
 # See REFACTOR_PLAN.md Phase 3 for detailed steps
 # Key actions:
 # - Remove TenantMiddleware from MIDDLEWARE
-# - Add CurrentUserMiddleware
-# - Update TenantManager.get_queryset() to auto-scope
-# - Replace .for_user() calls with .all()
-# - Add .all_tenants() escape hatch for superuser views
+# - Delete TenantMiddleware class from middleware.py
+# - Update misleading RLS comments in code
+# - Keep TenantManager.for_user() as the explicit scoping entry point
 ```
 
 **Commit:** `refactor: Simplify multi-tenancy to app-level only`
@@ -137,7 +136,7 @@ Execute in strict order (dependencies enforced):
 # See REFACTOR_PLAN.md Phase 7 for detailed steps
 # Key actions:
 # - Update docs/PROJECT_PLAN.md (4-app structure)
-# - Update server/hydr8_schema.md (remove analytics, RLS)
+# - Update server/hydr8_schema.md (remove analytics)
 # - Update AGENTS.md (new conventions)
 # - Create docs/MIGRATION_GUIDE.md
 # - Clean up repo root (remove learning_guide/, to-do-list.md, etc.)

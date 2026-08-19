@@ -149,28 +149,26 @@
 ## Phase 4: Simplify Multi-Tenancy (3-4 hours)
 
 ### 4.1 Remove RLS Middleware
-- [ ] Remove `TenantMiddleware` from `MIDDLEWARE` list (base.py)
-- [ ] Delete `TenantMiddleware` class from `apps/core/middleware.py`
-- [ ] Remove RLS references from schema documentation
+- [x] Remove `TenantMiddleware` from `MIDDLEWARE` list (base.py)
+- [x] Delete `TenantMiddleware` class from `apps/core/middleware.py`
+- [x] Remove RLS references from schema documentation
 
-### 4.2 Add CurrentUserMiddleware
-- [ ] Create `current_user_var` context variable in middleware.py
-- [ ] Create `CurrentUserMiddleware` class
-- [ ] Add `CurrentUserMiddleware` to `MIDDLEWARE` list (after AuthenticationMiddleware)
+### 4.2 Decision: Keep explicit `for_user()` (no CurrentUserMiddleware)
+The original plan proposed a `CurrentUserMiddleware` that would auto-scope
+querysets via `get_queryset()`. That was rejected because overriding
+`get_queryset()` breaks management commands, migrations, and admin views
+that need cross-tenant access. The explicit `for_user()` pattern is
+retained as the single tenant-scoping entry point.
 
-### 4.3 Update TenantManager
-- [ ] Override `get_queryset()` to auto-scope by current user
-- [ ] Add `all_tenants()` method for escape hatch
-- [ ] Update all `.for_user(request.user)` calls to `.all()`
-- [ ] Update superuser/admin views to use `.all_tenants()` explicitly
+- [x] No `CurrentUserMiddleware` added — `for_user()` stays explicit
+- [x] `TenantManager.for_user()` remains the sole scoping mechanism
+- [x] Misleading RLS comments in code updated to reference app-level scoping
 
-### 4.4 Test
+### 4.3 Test
 - [ ] Test: `python manage.py test`
-- [ ] Manual test: Login as regular user (should see only their tenant's data)
-- [ ] Manual test: Login as superuser (should see all tenants via .all_tenants())
 
-### 4.5 Commit
-- [ ] Commit: `git commit -m "refactor: Simplify multi-tenancy to app-level only"`
+### 4.4 Commit
+- [ ] Commit: `git commit -m "refactor: Remove dead RLS middleware, app-level tenancy only"`
 
 ---
 
@@ -229,7 +227,7 @@
 
 ### 7.1 Update Architecture Docs
 - [ ] Update `docs/PROJECT_PLAN.md` (4-app structure)
-- [ ] Update `server/hydr8_schema.md` (remove analytics, RLS)
+- [ ] Update `server/hydr8_schema.md` (remove analytics)
 - [ ] Update dependency flow diagram
 - [ ] Update app descriptions
 

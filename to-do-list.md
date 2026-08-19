@@ -143,7 +143,7 @@
   - Would use Django cache framework with `default` backend (Redis in prod)
 
 - [ ] **4.2.5 Custom LogEntry model with company FK**
-  - Only if RLS on audit logs becomes a hard requirement
+  - Only if tenant scoping on audit logs becomes a hard requirement
   - Current `actor__company` filter is sufficient for tenant scoping
   - Would use `AUDITLOG_LOGENTRY_MODEL` swappable model setting
 

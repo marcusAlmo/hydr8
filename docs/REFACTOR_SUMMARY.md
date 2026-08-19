@@ -80,12 +80,12 @@ users → core → customers → remittance
 ### Multi-Tenancy: Dual → Single
 
 **Before:**
-- RLS (Postgres session variable, untested in dev)
-- App-level (opt-in `.for_user()`, easy to forget)
+- RLS middleware (set `app.current_tenant` Postgres session variable, but no policies existed — dead code)
+- App-level (explicit `.for_user()`, the actual scoping mechanism)
 
 **After:**
-- App-level only (auto-scope by default, `.all_tenants()` escape hatch)
-- Tested in dev/test, single source of truth
+- App-level only (explicit `.for_user()` via `TenantManager`)
+- Dead RLS middleware removed; single source of truth
 
 ### Presentation: Scattered → Layered
 

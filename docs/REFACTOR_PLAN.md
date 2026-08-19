@@ -217,89 +217,46 @@ users → core → customers → remittance
 ## Phase 3: Simplify Multi-Tenancy (App-Level Only)
 
 ### 3.1 Remove RLS Middleware
-**Rationale:** Two parallel tenant mechanisms (RLS + `for_user()`) create false confidence. RLS is untested in dev/test. Pick one: app-level.
+**Rationale:** Two parallel tenant mechanisms (RLS + `for_user()`) create false confidence. The RLS middleware set `app.current_tenant` but no PostgreSQL policies ever existed — it was dead code. Pick one: app-level.
 
 **Actions:**
-- [ ] Remove `TenantMiddleware` from `MIDDLEWARE` list (base.py)
-- [ ] Delete `TenantMiddleware` class from `apps/core/middleware.py`
-- [ ] Remove all `SET app.current_tenant` SQL logic
-- [ ] Remove RLS policy references from schema documentation
+- [x] Remove `TenantMiddleware` from `MIDDLEWARE` list (base.py)
+- [x] Delete `TenantMiddleware` class from `apps/core/middleware.py`
+- [x] Remove all `SET app.current_tenant` SQL logic
+- [x] Remove RLS references from schema documentation
 
-**Files to modify:**
+**Files modified:**
 ```
 server/config/settings/base.py
 server/apps/core/middleware.py
-server/hydr8_schema.md
 ```
 
-### 3.2 Make `TenantManager` the Default Manager
-**Rationale:** `Model.objects.all()` should be tenant-scoped by default. Explicit `.all_tenants()` escape hatch for superuser/admin views.
+### 3.2 Decision: Keep explicit `for_user()` (no auto-scoping)
+**Rationale:** The original plan proposed overriding `get_queryset()` to auto-scope by a `CurrentUserMiddleware`. That was rejected because:
 
-**Actions:**
-- [ ] Update `TenantManager` to override `get_queryset()` to auto-scope by current user
-- [ ] Add `all_tenants()` method to `TenantQuerySet` that returns unfiltered queryset
-- [ ] Store current user in thread-local or context variable (set by middleware)
-- [ ] Update all `Model.objects.for_user(request.user)` calls to `Model.objects.all()`
-- [ ] Update superuser/admin views to use `Model.objects.all_tenants()` explicitly
+1. Overriding `get_queryset()` breaks management commands, migrations,
+   and admin views that need cross-tenant access.
+2. A thread-local current user introduces hidden coupling — querysets
+   behave differently depending on request context, which is fragile.
+3. The explicit `for_user()` pattern is already used consistently across
+   the codebase and is clear at the call site.
 
-**Files to modify:**
-```
-server/apps/core/managers.py
-server/apps/core/middleware.py (add CurrentUserMiddleware)
-All selectors/views using .for_user()
-```
+**Decision:** `TenantManager.for_user()` remains the single, explicit
+tenant-scoping entry point. No `CurrentUserMiddleware`, no `get_queryset()`
+override, no `all_tenants()` escape hatch.
 
-**New pattern:**
-```python
-# apps/core/middleware.py
-from contextvars import ContextVar
-current_user_var: ContextVar = ContextVar('current_user', default=None)
-
-class CurrentUserMiddleware:
-    """Stores the current authenticated user in a context variable for tenant scoping."""
-    def __init__(self, get_response):
-        self.get_response = get_response
-    
-    def __call__(self, request):
-        user = getattr(request, 'user', None)
-        token = current_user_var.set(user)
-        try:
-            response = self.get_response(request)
-        finally:
-            current_user_var.reset(token)
-        return response
-
-# apps/core/managers.py
-class TenantQuerySet(models.QuerySet):
-    def get_queryset(self):
-        """Auto-scope by current user's company. Superusers see all tenants."""
-        from apps.core.middleware import current_user_var
-        user = current_user_var.get()
-        if not user or not user.is_authenticated:
-            return self.none()
-        if user.is_superuser or not hasattr(user, 'company_id') or user.company_id is None:
-            return super().get_queryset()
-        return super().get_queryset().filter(company_id=user.company_id)
-    
-    def all_tenants(self):
-        """Escape hatch: return unfiltered queryset (for superuser/admin views)."""
-        return super().get_queryset()
-```
-
-### 3.3 Remove `null=True, blank=True` from `company` ForeignKey
+### 3.3 Remove `null=True, blank=True` from `company` ForeignKey (DEFERRED)
 **Rationale:** Null-tenant rows complicate unique constraints and create dual code paths. All rows should belong to a tenant.
 
-**Actions:**
+**Status:** Deferred — this is a schema-level change that requires careful
+data migration and would break superuser/platform-level rows that
+intentionally have no tenant. Not part of the current refactor phase.
+
+**Actions (future):**
 - [ ] Create migration to set `company_id` to a default tenant for all null rows
 - [ ] Create migration to alter `company` ForeignKey: remove `null=True, blank=True`
 - [ ] Remove duplicate unique constraints (`unique_*_company_*` + `unique_*_null_company_*`)
 - [ ] Update model definitions to make `company` required
-
-**Files to modify:**
-```
-All models with company ForeignKey
-All migrations with split unique constraints
-```
 
 ---
 
@@ -687,7 +644,7 @@ Focus on services.py, views.py, models.py
 - [ ] Update `server/hydr8_schema.md` to remove analytics domain
 - [ ] Update dependency flow diagram: `users → core → customers → remittance`
 - [ ] Remove RLS references from schema doc
-- [ ] Document new tenant-scoping pattern (CurrentUserMiddleware + TenantManager)
+- [ ] Document tenant-scoping pattern (explicit `TenantManager.for_user()`)
 - [ ] Update app descriptions to reflect consolidation
 
 **Files to modify:**
@@ -748,7 +705,7 @@ Execute phases in strict order to avoid breaking dependencies:
 1. **Phase 1:** Remove AI integration (analytics app, DRF)
 2. **Phase 2:** Consolidate apps (employees → users, settings+audit → core, products → core)
 3. **Phase 4:** Extract presentation logic (create presentation.py modules)
-4. **Phase 3:** Simplify multi-tenancy (remove RLS, make TenantManager default)
+4. **Phase 3:** Simplify multi-tenancy (remove dead RLS middleware, keep explicit `for_user()`)
 5. **Phase 5:** Establish CI/CD (GitHub Actions, branch protection)
 6. **Phase 6:** Remove AI-style comments, add professional documentation
 7. **Phase 7:** Update all documentation
