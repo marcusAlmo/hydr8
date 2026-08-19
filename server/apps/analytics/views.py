@@ -4,40 +4,24 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.users.permissions import is_admin as user_is_admin
 
-from .selectors import (
-    get_outstanding_debts,
-    get_recent_remittances,
-    get_stats,
-    get_today_remittance,
+from . import selectors
+from .presentation import (
+    apply_accent_classes,
+    build_container_breakdown,
+    build_outstanding_debt_row,
+    build_recent_remittance_row,
+    build_stats_cards,
+    build_today_remittance_status,
+    format_sales_trend,
 )
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Accent colour mapping for summary cards.
-# Maps the `accent` key in a stat dict to the Tailwind classes used in the
-# template (border-top colour + icon colour).
-# ---------------------------------------------------------------------------
-_ACCENT_CLASSES = {
-    "primary": {"border": "border-t-primary", "icon": "text-primary"},
-    "warning": {"border": "border-t-[#D97706]", "icon": "text-[#D97706]"},
-    "error": {"border": "border-t-error", "icon": "text-error"},
-    "tertiary": {"border": "border-t-tertiary", "icon": "text-tertiary"},
-}
-
-
-def _apply_accent_classes(stats: list[dict]) -> None:
-    """Pre-compute border_class / icon_class on each stat dict in-place."""
-    for stat in stats:
-        accent = _ACCENT_CLASSES.get(stat["accent"], _ACCENT_CLASSES["primary"])
-        stat["border_class"] = accent["border"]
-        stat["icon_class"] = accent["icon"]
 
 
 @require_http_methods(["GET"])
@@ -57,11 +41,10 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
     if not user_is_admin(request.user):
         raise PermissionDenied
 
-    from django.utils import timezone
-
+    rem = selectors.get_today_remittance(request.user)
     context = {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
-        "today_remittance": get_today_remittance(request.user),
+        "today_remittance": build_today_remittance_status(rem),
     }
     return render(request, "analytics/dashboard.html", context)
 
@@ -79,8 +62,24 @@ def dashboard_stats_partial(request: HttpRequest) -> HttpResponse:
     """Returns the stats row (3 KPI cards) as an HTMX partial."""
     if not user_is_admin(request.user):
         raise PermissionDenied
-    stats = get_stats(request.user)
-    _apply_accent_classes(stats)
+
+    today_sales = selectors.get_today_sales(request.user)
+    yesterday_sales = selectors.get_yesterday_sales(request.user)
+    trend, direction = format_sales_trend(today_sales, yesterday_sales)
+    outstanding = selectors.get_outstanding_debt(request.user)
+    counts = selectors.get_unreturned_container_counts(request.user)
+    containers = build_container_breakdown(
+        counts["round"], counts["slim"], counts["other"]
+    )
+
+    stats = build_stats_cards(
+        today_sales=today_sales,
+        sales_trend=trend,
+        sales_direction=direction,
+        outstanding_debt=outstanding,
+        containers=containers,
+    )
+    apply_accent_classes(stats)
     return render(request, "analytics/partials/stats_row.html", {"stats": stats})
 
 
@@ -91,7 +90,8 @@ def dashboard_recent_remittances_partial(request: HttpRequest) -> HttpResponse:
     """Returns the recent remittances table as an HTMX partial."""
     if not user_is_admin(request.user):
         raise PermissionDenied
-    recent = get_recent_remittances(request.user)
+    raw_rows = selectors.get_recent_remittances(request.user)
+    recent = [build_recent_remittance_row(r) for r in raw_rows]
     return render(
         request,
         "analytics/partials/recent_remittances.html",
@@ -106,7 +106,9 @@ def dashboard_outstanding_debts_partial(request: HttpRequest) -> HttpResponse:
     """Returns the outstanding debts table as an HTMX partial."""
     if not user_is_admin(request.user):
         raise PermissionDenied
-    debts = get_outstanding_debts(request.user)
+    credits = selectors.get_outstanding_debt_credits(request.user)
+    today = timezone.localdate()
+    debts = [build_outstanding_debt_row(c, today) for c in credits]
     return render(
         request,
         "analytics/partials/long_running_debts.html",
