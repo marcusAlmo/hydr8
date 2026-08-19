@@ -1888,15 +1888,23 @@
                                 this.dateError = '';
                                 // Reset the form to empty so quantities from
                                 // the previously selected date don't bleed
-                                // into this one.  The DB draft's form-facing
-                                // state is stashed below; the user clicks
-                                // "Load Draft" to apply it on confirm.
+                                // into this one.
                                 this._resetFormFields();
-                                // Stash the draft's form-facing state so
-                                // the "Load draft" button can apply it on
-                                // confirm without a second round-trip.
-                                this.pendingDraftState = data.summary && data.summary.draft_state ? data.summary.draft_state : null;
+                                // Auto-apply the draft's form-facing state
+                                // immediately so the form shows the saved
+                                // values and the KPIs match the DB.  The
+                                // live credit_repaid_counts update below
+                                // will overwrite credited/repaid with the
+                                // current date's live data (correct
+                                // precedence — credit data is read-only and
+                                // should reflect the current state, not the
+                                // draft's snapshot).
+                                const draftState = data.summary && data.summary.draft_state ? data.summary.draft_state : null;
+                                this.pendingDraftState = draftState;
                                 this.hasDraft = true;
+                                if (draftState) {
+                                    this.applyDraftState(draftState);
+                                }
                                 // The DB draft is the source of truth for
                                 // this date — clear any stale localStorage
                                 // so auto-save doesn't overwrite it with
@@ -2715,6 +2723,15 @@
                     // Reset all editable form fields to their empty/zero
                     // state.  Used by clearDraft() and checkDate() (when
                     // no record exists for the selected date).
+                    //
+                    // credited/repaid MUST be reset here too — they are
+                    // repopulated from credit_repaid_counts in checkDate()
+                    // or from the draft state in applyDraftState().  If
+                    // they are left at their previous value, KPIs computed
+                    // from the form (payable, commission, balance) would
+                    // mix the previous date's credit data with the current
+                    // date's empty sold/remitted values, producing
+                    // nonsensical negative balances and wrong totals.
                     this.manualOffering = '';
                     this.otherSales = '';
                     for (const r of this.riders) {
@@ -2724,6 +2741,8 @@
                         r.deductions = [];
                         for (const line of r.product_lines) {
                             line.sold = 0;
+                            line.credited = 0;
+                            line.repaid = 0;
                         }
                     }
                     for (const s of this.staffs) {
@@ -2758,6 +2777,11 @@
                     this._clearCache();
                     // Reset the form to its initial seed state
                     this._resetFormFields();
+                    // Re-fetch the date's credit data so the live
+                    // credited/repaid counts and repayments reflect the
+                    // current state (the draft's linked CreditPayments
+                    // were just unlinked and should reappear as available).
+                    await this.checkDate();
                     this.showToast('Draft cleared. Form reset to empty.', 'success');
                 },
 

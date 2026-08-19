@@ -1,7 +1,9 @@
 from decimal import Decimal
+
 from django.test import SimpleTestCase
-from apps.customers.models import Customer, CreditLine, CreditPayment
+
 from apps.core.models import Product
+from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.tests.fakes import FakeCustomerRepository
 
 

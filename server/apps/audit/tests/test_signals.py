@@ -1,7 +1,7 @@
 """Tests for the audit log ACCESS event signal handlers."""
+from auditlog.models import LogEntry
 from django.test import TestCase
 
-from auditlog.models import LogEntry
 from apps.users.models import User
 
 

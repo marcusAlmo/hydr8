@@ -11,7 +11,8 @@ class UsersConfig(AppConfig):
 
     def ready(self):
         from auditlog.registry import auditlog
-        from .models import User, Role, Permission, DriverCommission
+
+        from .models import DriverCommission, Permission, Role, User
         auditlog.register(User)
         auditlog.register(Role)
         auditlog.register(Permission)

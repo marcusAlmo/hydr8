@@ -104,7 +104,7 @@ def _days_ago(dt) -> str:
     return local.strftime("%b %d, %Y")
 
 
-def _user_qs(request_user: "UserType"):
+def _user_qs(request_user: UserType):
     """Tenant-scoped queryset of active (not soft-deleted) users."""
     qs = User.objects.filter(deleted_at__isnull=True)
     if not request_user.is_superuser and request_user.company_id is not None:
@@ -287,7 +287,7 @@ def _pagination(total: int) -> dict:
         "total": total,
         "total_display": f"{total:,}",
         "current_page": 1,
-        "total_pages": 1 if total else 1,
+        "total_pages": 1,
     }
 
 
@@ -320,7 +320,7 @@ def _permission_rows(role: Role) -> list[dict]:
     return rows
 
 
-def _role_card(request_user: "UserType", role: Role) -> dict:
+def _role_card(request_user: UserType, role: Role) -> dict:
     """Converts a ``Role`` into the roles-permissions card shape."""
     style = _ROLE_STYLE.get(role.name, _ROLE_STYLE["Staff"])
     return {
@@ -337,7 +337,7 @@ def _role_card(request_user: "UserType", role: Role) -> dict:
     }
 
 
-def _driver_detail_context(request_user: "UserType", user: User) -> dict:
+def _driver_detail_context(request_user: UserType, user: User) -> dict:
     """Builds the driver expanded report with real remittance + credit data.
 
     The trend seed covers a 90-day window so the client-side date-range
@@ -590,7 +590,7 @@ def _user_profile(user: User) -> dict:
 
 
 def get_employee_directory_context(
-    request_user: "UserType",
+    request_user: UserType,
     query: str = "",
     page: int = 1,
 ) -> dict:
@@ -631,7 +631,7 @@ def get_employee_directory_context(
     }
 
 
-def get_roles_permissions_context(request_user: "UserType") -> dict:
+def get_roles_permissions_context(request_user: UserType) -> dict:
     """Returns the roles & permissions tab context."""
     roles = [
         _role_card(request_user, role)
@@ -645,7 +645,7 @@ def get_roles_permissions_context(request_user: "UserType") -> dict:
     }
 
 
-def get_user_detail_context(request_user: "UserType", user_id: str) -> dict | None:
+def get_user_detail_context(request_user: UserType, user_id: str) -> dict | None:
     """Returns the expanded report context for a single user, or ``None``."""
     target = _user_qs(request_user).filter(id=user_id).select_related('role').first()
     if target is None:

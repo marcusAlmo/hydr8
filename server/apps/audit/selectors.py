@@ -6,10 +6,9 @@ This keeps N+1 prevention (select_related) and tenant scoping in one place.
 import json
 import logging
 
+from auditlog.models import LogEntry
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-
-from auditlog.models import LogEntry
 
 logger = logging.getLogger(__name__)
 

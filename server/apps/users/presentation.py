@@ -33,7 +33,7 @@ _AVATAR_PALETTE: tuple[tuple[str, str], ...] = (
 )
 
 
-def initials(user: "User") -> str:
+def initials(user: User) -> str:
     """Returns a 2-character initials string for avatar display.
 
     Preference order:
@@ -53,7 +53,7 @@ def initials(user: "User") -> str:
     return "U"
 
 
-def avatar_classes(user: "User") -> tuple[str, str]:
+def avatar_classes(user: User) -> tuple[str, str]:
     """Returns a deterministic ``(bg_class, text_class)`` pair for the user.
 
     The pair is selected by hashing the user's pk and indexing into the
@@ -66,7 +66,7 @@ def avatar_classes(user: "User") -> tuple[str, str]:
     return _AVATAR_PALETTE[idx]
 
 
-def driver_code(user: "User") -> str:
+def driver_code(user: User) -> str:
     """Returns a human-friendly driver code derived from the user's pk.
 
     Format: ``DRV-<pk zero-padded to 3 digits>`` (e.g. pk=1 → "DRV-001",

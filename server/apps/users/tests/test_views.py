@@ -1,5 +1,5 @@
-from django.test import TestCase
 from django.core.cache import cache
+from django.test import TestCase
 
 from apps.users.models import Role, User
 from apps.users.services import (
@@ -69,7 +69,7 @@ class UserLandingAndLoginViewTests(TestCase):
 
     def test_login_lockout_after_five_failures(self):
         """Test that 5 failed attempts locks the (ip, username) bucket for 1 minute."""
-        for i in range(LOGIN_MAX_ATTEMPTS):
+        for _ in range(LOGIN_MAX_ATTEMPTS):
             response = self.client.post('/login/', {
                 'username': 'hydr8user',
                 'password': 'wrongpassword'

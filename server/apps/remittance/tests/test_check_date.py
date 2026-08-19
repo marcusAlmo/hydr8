@@ -14,7 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import Product
-from apps.customers.models import CreditLine, CreditPayment, Customer
+from apps.customers.models import Customer
 from apps.customers.services import record_customer_collection, record_customer_debt
 from apps.remittance.selectors import (
     get_remittance_date_data,

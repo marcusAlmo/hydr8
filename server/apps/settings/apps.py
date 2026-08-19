@@ -7,5 +7,6 @@ class SettingsConfig(AppConfig):
 
     def ready(self):
         from auditlog.registry import auditlog
+
         from .models import Company
         auditlog.register(Company)

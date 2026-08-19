@@ -23,4 +23,3 @@ class TenantQuerySet(models.QuerySet):
 
 class TenantManager(models.Manager.from_queryset(TenantQuerySet)):
     """Manager that exposes :class:`TenantQuerySet` methods."""
-    pass

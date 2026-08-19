@@ -5,7 +5,6 @@ Covers:
   - finalize_remittance() service — happy path, role/PIN validation,
     tenant isolation, and already-finalized guard.
 """
-from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -14,7 +13,6 @@ from django.utils import timezone
 
 from apps.remittance.models import Remittance
 from apps.remittance.services import (
-    create_remittance,
     finalize_remittance,
     is_admin_user,
     save_remittance_draft,

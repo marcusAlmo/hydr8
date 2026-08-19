@@ -25,8 +25,9 @@ from django.utils import timezone
 
 from apps.core.models import Product, SystemConfig
 from apps.customers.models import CreditLine, CreditPayment, Customer
-from apps.users.models import User, DriverCommission
+from apps.users.models import DriverCommission, User
 from apps.users.presentation import avatar_classes, driver_code, initials
+
 from .models import (
     Expense,
     Remittance,
@@ -56,7 +57,7 @@ def _tithe_rate(company_id: int | None) -> float:
         return 0.10
 
 
-def list_products_for_remittance(user: "UserType") -> list[dict]:
+def list_products_for_remittance(user: UserType) -> list[dict]:
     """Returns the active product catalogue in the shape the remittance
     form consumes.
     """
@@ -80,7 +81,7 @@ def list_products_for_remittance(user: "UserType") -> list[dict]:
     return products
 
 
-def _active_riders_qs(user: "UserType"):
+def _active_riders_qs(user: UserType):
     """Tenant-scoped active driver users."""
     qs = User.objects.filter(
         role__name__iexact="driver",
@@ -94,7 +95,7 @@ def _active_riders_qs(user: "UserType"):
 
 
 def _credit_sales_for_date(
-    user: "UserType",
+    user: UserType,
     remittance_date: date,
 ) -> float:
     """Returns the total credit sales (CreditLine.total_credit_amount)
@@ -117,7 +118,7 @@ def _credit_sales_for_date(
 
 
 def _credit_and_repaid_counts(
-    user: "UserType",
+    user: UserType,
     riders_qs,
     remittance_date: date,
 ) -> dict[str, dict[str, dict]]:
@@ -194,7 +195,7 @@ def _credit_and_repaid_counts(
 
 
 def _repayments_for_date(
-    user: "UserType",
+    user: UserType,
     riders_qs,
     remittance_date: date,
 ) -> list[dict]:
@@ -265,7 +266,7 @@ def _repayments_for_date(
 
 
 def list_riders_for_remittance(
-    user: "UserType",
+    user: UserType,
     remittance_date: date | None = None,
 ) -> list[dict]:
     """Returns active riders with per-product commission rates and empty
@@ -319,7 +320,7 @@ def list_riders_for_remittance(
     return riders
 
 
-def _active_staff_qs(user: "UserType"):
+def _active_staff_qs(user: UserType):
     """Tenant-scoped active staff users (Role == 'Staff')."""
     qs = User.objects.filter(
         role__name__iexact="Staff",
@@ -332,7 +333,7 @@ def _active_staff_qs(user: "UserType"):
     return qs.order_by("first_name", "last_name", "username")
 
 
-def list_staff_for_remittance(user: "UserType") -> list[dict]:
+def list_staff_for_remittance(user: UserType) -> list[dict]:
     """Returns active staff with their daily rate, ready for Alpine.js
     to hydrate the staff payment tab.
 
@@ -348,7 +349,7 @@ def list_staff_for_remittance(user: "UserType") -> list[dict]:
     """
     staff_qs = _active_staff_qs(user)
     staff: list[dict] = []
-    for idx, member in enumerate(staff_qs):
+    for _, member in enumerate(staff_qs):
         staff.append({
             "id": str(member.pk),
             "name": member.full_name,
@@ -360,9 +361,9 @@ def list_staff_for_remittance(user: "UserType") -> list[dict]:
 
 
 def _load_draft_state(
-    user: "UserType",
+    user: UserType,
     remittance_date: date,
-    status: "Remittance.StatusChoices | None" = Remittance.StatusChoices.DRAFT,
+    status: Remittance.StatusChoices | None = Remittance.StatusChoices.DRAFT,
 ) -> dict | None:
     """Loads an existing remittance for ``remittance_date`` and returns its
     form-facing state, or ``None`` if no matching record exists.
@@ -516,7 +517,7 @@ def _load_draft_state(
 
 
 def get_add_remittance_context(
-    user: "UserType",
+    user: UserType,
     remittance_date: date | None = None,
 ) -> dict:
     """Builds the full context for the Add Remittance page.
@@ -625,12 +626,12 @@ def get_add_remittance_context(
     }
 
 
-def remittance_exists_for_date(user: "UserType", target_date: date) -> bool:
+def remittance_exists_for_date(user: UserType, target_date: date) -> bool:
     """Returns True if a remittance already exists for the given date."""
     return Remittance.objects.for_user(user).filter(date=target_date).exists()
 
 
-def remittance_status_for_date(user: "UserType", target_date: date) -> str | None:
+def remittance_status_for_date(user: UserType, target_date: date) -> str | None:
     """Returns the status ('DRAFT' or 'FINALIZED') of a remittance for the
     given date, or ``None`` if no remittance exists.
 
@@ -648,7 +649,7 @@ def remittance_status_for_date(user: "UserType", target_date: date) -> str | Non
     return rem.status if rem else None
 
 
-def get_remittance_date_data(user: "UserType", target_date: date) -> dict:
+def get_remittance_date_data(user: UserType, target_date: date) -> dict:
     """Returns the date-dependent credit data for the Add Remittance form.
 
     When the user changes the remittance date at the top of the form, the
@@ -686,7 +687,7 @@ def _peso_float(value) -> float:
         return 0.0
 
 
-def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict | None:
+def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict | None:
     """Returns a full read-only summary of the remittance (draft or
     finalized) for ``target_date``, or ``None`` if no remittance exists.
 
@@ -777,7 +778,7 @@ def get_remittance_summary_for_date(user: "UserType", target_date: date) -> dict
         )
         .order_by("rider__first_name", "rider__last_name")
     )
-    rider_id_to_row: dict[int, RemittanceRider] = {rr.rider_id: rr for rr in rider_rows}
+    {rr.rider_id: rr for rr in rider_rows}
 
     lines = (
         RemittanceRiderProductLine.objects
@@ -1005,7 +1006,7 @@ def _remittance_row(rem: Remittance) -> dict:
     }
 
 
-def get_recent_remittances(user: "UserType", limit: int = 25) -> dict:
+def get_recent_remittances(user: UserType, limit: int = 25) -> dict:
     """Returns recent remittance rows and the total count for pagination."""
     qs = _apply_kpi_annotations(
         Remittance.objects
@@ -1018,7 +1019,7 @@ def get_recent_remittances(user: "UserType", limit: int = 25) -> dict:
     return {"remittances": rows, "total": qs.count()}
 
 
-def get_remittance_row(user: "UserType", remittance_id: int) -> dict | None:
+def get_remittance_row(user: UserType, remittance_id: int) -> dict | None:
     """Returns the template-facing dict for a single remittance, or
     ``None`` if it does not exist or is outside the user's tenant."""
     rem = (
@@ -1064,7 +1065,7 @@ def _rider_trend_color(index: int) -> str:
     return _RIDER_TREND_COLORS[index % len(_RIDER_TREND_COLORS)]
 
 
-def get_remittance_history_context(user: "UserType", days: int = 30) -> dict:
+def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
     """Build the full page context for the Remittance History page from live DB data."""
     today = timezone.localdate()
     start = today - timedelta(days=days - 1)

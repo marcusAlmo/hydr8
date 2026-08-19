@@ -8,7 +8,6 @@ forms keep their look.
 from django import forms
 from django.core.exceptions import ValidationError
 
-
 # Shared input class — matches the templates' Tailwind input styling.
 _INPUT_CLASS = (
     'w-full bg-surface-container-low border border-outline-variant/50 '

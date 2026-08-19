@@ -11,15 +11,14 @@ logic lives here — only projection and formatting.
 """
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.models import Product
-from apps.users.models import User, DriverCommission
-from apps.users.presentation import initials as _initials, avatar_classes, driver_code
+from apps.users.models import DriverCommission, User
+from apps.users.presentation import avatar_classes, driver_code
+from apps.users.presentation import initials as _initials
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -54,7 +53,7 @@ def _short_label(name: str, variation: str | None) -> str:
     return f"{base} ({first_token})" if first_token else base
 
 
-def list_products(user: "UserType") -> list[dict]:
+def list_products(user: UserType) -> list[dict]:
     """Returns the product catalogue rows for the Products tab.
 
     Each row matches the shape consumed by ``product_table.html``:
@@ -91,7 +90,7 @@ def list_products(user: "UserType") -> list[dict]:
     return rows
 
 
-def list_product_columns(user: "UserType") -> list[dict]:
+def list_product_columns(user: UserType) -> list[dict]:
     """Returns the product column headers for the commission matrix.
 
     Only active (non-deactivated, non-deleted) products are shown as
@@ -115,7 +114,7 @@ def list_product_columns(user: "UserType") -> list[dict]:
     return columns
 
 
-def list_riders_with_rates(user: "UserType") -> list[dict]:
+def list_riders_with_rates(user: UserType) -> list[dict]:
     """Returns the rider rows for the commission matrix, pre-aligned to
     the active product columns.
 
@@ -177,7 +176,7 @@ def list_riders_with_rates(user: "UserType") -> list[dict]:
     return rows
 
 
-def get_products_pricing_context(user: "UserType") -> dict:
+def get_products_pricing_context(user: UserType) -> dict:
     """Builds the full context dict for the ``products_pricing_view``.
 
     Centralises the assembly so the view stays thin.

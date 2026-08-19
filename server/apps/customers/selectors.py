@@ -22,7 +22,7 @@ from apps.users.permissions import is_admin
 from apps.users.presentation import driver_code as user_driver_code
 from apps.users.presentation import initials as user_initials
 
-from .models import BorrowedContainer, Customer, CreditLine, CreditPayment
+from .models import BorrowedContainer, CreditLine, CreditPayment, Customer
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -235,11 +235,11 @@ def _pagination(current_page: int, total: int) -> dict:
         "total": total,
         "total_display": f"{total:,}",
         "current_page": current_page,
-        "total_pages": 1 if total else 1,
+        "total_pages": 1,
     }
 
 
-def _customer_filters(user: "UserType") -> list[dict]:
+def _customer_filters(user: UserType) -> list[dict]:
     base = Customer.objects.for_user(user).filter(deleted_at__isnull=True)
     return [
         {
@@ -271,7 +271,7 @@ def _customer_filters(user: "UserType") -> list[dict]:
     ]
 
 
-def _customer_stats(user: "UserType") -> list[dict]:
+def _customer_stats(user: UserType) -> list[dict]:
     """Summary stat cards for the Summary tab.
 
     Includes both customer-directory metrics (total customers, unreturned
@@ -400,7 +400,7 @@ def _customer_stats(user: "UserType") -> list[dict]:
     ]
 
 
-def _ranking_context(user: "UserType") -> dict:
+def _ranking_context(user: UserType) -> dict:
     top_payers_qs = (
         Customer.objects.for_user(user)
         .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
@@ -486,7 +486,7 @@ def _ranking_context(user: "UserType") -> dict:
     }
 
 
-def get_customer_by_display_id(user: "UserType", customer_id: str) -> Customer | None:
+def get_customer_by_display_id(user: UserType, customer_id: str) -> Customer | None:
     """Resolves a customer from a display id such as ``HY-0001``."""
     pk = _parse_display_id(customer_id)
     if pk is None:
@@ -499,7 +499,7 @@ def get_customer_by_display_id(user: "UserType", customer_id: str) -> Customer |
 
 
 def get_customer_table_context(
-    user: "UserType",
+    user: UserType,
     sort_field: str = DEFAULT_SORT,
     direction: str = DEFAULT_DIR,
     query: str = "",
@@ -556,7 +556,7 @@ def get_customer_table_context(
     }
 
 
-def get_customer_list_context(user: "UserType") -> dict:
+def get_customer_list_context(user: UserType) -> dict:
     """Returns the full Customers page context for the Summary and Ranking tabs.
 
     The Debt Management tab has been retired — its KPIs (total outstanding,
@@ -579,7 +579,7 @@ def get_customer_list_context(user: "UserType") -> dict:
     }
 
 
-def get_customer_detail_context(customer: Customer, user: "UserType | None" = None) -> dict:
+def get_customer_detail_context(customer: Customer, user: UserType | None = None) -> dict:
     """Returns the detail modal context for a single customer.
 
     When ``user`` is provided, the configurable overdue threshold is read
@@ -754,7 +754,7 @@ def get_customer_collect_context(customer: Customer) -> dict:
     }
 
 
-def _care_of_users(user: "UserType") -> list[dict]:
+def _care_of_users(user: UserType) -> list[dict]:
     """Active users in the operator's tenant, for the ``care of`` dropdown.
 
     Includes admins, staff, and drivers — anyone who could be responsible
@@ -775,7 +775,7 @@ def _care_of_users(user: "UserType") -> list[dict]:
     return users
 
 
-def get_record_debt_context(user: "UserType") -> dict:
+def get_record_debt_context(user: UserType) -> dict:
     """Context for the record-debt modal: customer and product dropdowns."""
     customers = (
         Customer.objects.for_user(user)
@@ -805,7 +805,7 @@ def get_record_debt_context(user: "UserType") -> dict:
     }
 
 
-def get_record_borrowed_context(user: "UserType") -> dict:
+def get_record_borrowed_context(user: UserType) -> dict:
     """Context for the record-borrowed modal."""
     customers = (
         Customer.objects.for_user(user)
@@ -908,7 +908,7 @@ def _history_sort_key(dt: datetime | None) -> datetime:
     return dt or timezone.now()
 
 
-def _history_credit_line(line: CreditLine, user: "UserType") -> dict:
+def _history_credit_line(line: CreditLine, user: UserType) -> dict:
     product_name = line.product.name
     if line.product.variation:
         product_name = f"{product_name} — {line.product.variation}"
@@ -937,7 +937,7 @@ def _history_credit_line(line: CreditLine, user: "UserType") -> dict:
     }
 
 
-def _history_credit_payment(payment: CreditPayment, user: "UserType") -> dict:
+def _history_credit_payment(payment: CreditPayment, user: UserType) -> dict:
     is_editable, reason = _history_entry_editable(payment, user)
     is_deletable, del_reason = _history_entry_deletable(payment, user)
     product = payment.credit_line.product.name
@@ -971,7 +971,7 @@ def _history_credit_payment(payment: CreditPayment, user: "UserType") -> dict:
     }
 
 
-def _history_borrowed(borrowed: BorrowedContainer, user: "UserType") -> dict:
+def _history_borrowed(borrowed: BorrowedContainer, user: UserType) -> dict:
     is_editable, reason = _history_entry_editable(borrowed, user)
     is_deletable, del_reason = _history_entry_deletable(borrowed, user)
     return {
@@ -996,7 +996,7 @@ def _history_borrowed(borrowed: BorrowedContainer, user: "UserType") -> dict:
     }
 
 
-def _history_container_return(borrowed: BorrowedContainer, user: "UserType") -> dict | None:
+def _history_container_return(borrowed: BorrowedContainer, user: UserType) -> dict | None:
     """Returns a synthetic return entry for a borrowed container with returns."""
     if borrowed.qty_returned <= 0 or not borrowed.returned_at:
         return None
@@ -1023,7 +1023,7 @@ def _history_container_return(borrowed: BorrowedContainer, user: "UserType") -> 
     }
 
 
-def get_customer_history_context(customer: Customer, user: "UserType") -> dict:
+def get_customer_history_context(customer: Customer, user: UserType) -> dict:
     """Returns a unified, chronological ledger history for the customer."""
     credit_lines = (
         CreditLine.objects.filter(customer=customer)

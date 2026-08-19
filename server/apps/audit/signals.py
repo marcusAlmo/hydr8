@@ -9,12 +9,11 @@ All handlers swallow exceptions -- audit logging must never break the login flow
 """
 import logging
 
+from auditlog.cid import get_cid
+from auditlog.models import LogEntry
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
-
-from auditlog.cid import get_cid
-from auditlog.models import LogEntry
 
 from apps.users.models import User
 from apps.users.signals import login_failed

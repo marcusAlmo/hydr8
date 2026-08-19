@@ -17,10 +17,10 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from apps.settings.models import Company
 from apps.core.models import Product
 from apps.customers.models import CreditPayment
-from apps.users.models import User, DriverCommission
+from apps.settings.models import Company
+from apps.users.models import DriverCommission, User
 from apps.users.services import validate_user_pin
 
 from .models import (
@@ -49,7 +49,7 @@ def _to_decimal(value) -> Decimal:
         return Decimal("0.00")
 
 
-def _active_riders_qs(user: "UserType"):
+def _active_riders_qs(user: UserType):
     """Tenant-scoped active driver users."""
     qs = User.objects.filter(
         role__name__iexact="driver",
@@ -62,7 +62,7 @@ def _active_riders_qs(user: "UserType"):
     return qs
 
 
-def _active_staff_qs(user: "UserType"):
+def _active_staff_qs(user: UserType):
     """Tenant-scoped active staff users."""
     qs = User.objects.filter(
         role__name__iexact="Staff",
@@ -76,10 +76,10 @@ def _active_staff_qs(user: "UserType"):
 
 
 def _collect_repayments(
-    performed_by: "UserType",
+    performed_by: UserType,
     active_riders,
     remittance_date: date,
-) -> dict[int | None, list[tuple[CreditPayment, "Product", Decimal]]]:
+) -> dict[int | None, list[tuple[CreditPayment, Product, Decimal]]]:
     """Returns a mapping of ``care_of_id -> [(credit_payment, product, commission_rate), ...]``
     for ALL CreditPayments collected on ``remittance_date`` that are not
     yet linked to a Remittance — regardless of whether ``care_of`` is a
@@ -163,7 +163,7 @@ def _unlink_credit_payments(remittance: Remittance) -> int:
 @transaction.atomic
 def create_remittance(
     *,
-    performed_by: "UserType",
+    performed_by: UserType,
     riders_data: list[dict],
     expenses_data: list[dict],
     manual_offering,
@@ -234,7 +234,7 @@ def create_remittance(
 @transaction.atomic
 def save_remittance_draft(
     *,
-    performed_by: "UserType",
+    performed_by: UserType,
     riders_data: list[dict],
     expenses_data: list[dict],
     manual_offering,
@@ -297,7 +297,7 @@ def save_remittance_draft(
 @transaction.atomic
 def delete_draft_remittance(
     *,
-    performed_by: "UserType",
+    performed_by: UserType,
     remittance_date=None,
 ) -> bool:
     """Deletes a DRAFT remittance for the given date.
@@ -342,7 +342,7 @@ def delete_draft_remittance(
 
 def _build_remittance(
     *,
-    performed_by: "UserType",
+    performed_by: UserType,
     company,
     remittance_date,
     riders_data: list[dict],
@@ -487,7 +487,7 @@ def _build_remittance(
         # Repayment commission is already included in line_commission above
         # because the form populates line.repaid from _credit_and_repaid_counts,
         # and paid = sold - credited + repaid (line 431), so repaid units
-        # earn commission via line_commission = paid × rate (line 443).
+        # earn commission via line_commission = paid x rate (line 443).
         # The separate repayment commission loop (lines 552-587 below) handles
         # riders NOT in the payload who have repayments but no product lines.
 
@@ -558,7 +558,7 @@ def _build_remittance(
 
         # Compute balance deduction (lacking amount) to match the
         # frontend's riderBalanceDeduction().  When a rider remits
-        # less than their net remittable (payable − expenses), the
+        # less than their net remittable (payable - expenses), the
         # shortfall reduces their commission.
         rider_remitted = remittance_rider.remitted or Decimal("0.00")
         net_remittable = rider_payable - rider_expenses_total
@@ -639,7 +639,7 @@ def _build_remittance(
         )
         total_expenses += amount
 
-    # Total sales = gross cash sales (sold × price, before credits) +
+    # Total sales = gross cash sales (sold x price, before credits) +
     # other_sales.  Credits and repayments are tracked separately as
     # deductions / additional revenue in the reconciliation panel.
     total_sales = gross_sales + other_sales_dec
@@ -769,7 +769,7 @@ def _build_remittance(
 @transaction.atomic
 def update_remittance_paid_status(
     *,
-    performed_by: "UserType",
+    performed_by: UserType,
     remittance_id: int,
     tithes_paid: bool,
     offering_paid: bool,
@@ -819,7 +819,7 @@ def update_remittance_paid_status(
     return remittance
 
 
-def is_admin_user(*, user: "UserType") -> bool:
+def is_admin_user(*, user: UserType) -> bool:
     """Returns True if the user has the Admin role (or is a superuser)."""
     return bool(
         user.is_superuser
@@ -830,7 +830,7 @@ def is_admin_user(*, user: "UserType") -> bool:
 @transaction.atomic
 def finalize_remittance(
     *,
-    performed_by: "UserType",
+    performed_by: UserType,
     remittance_id: int,
     pin: str,
 ) -> Remittance:

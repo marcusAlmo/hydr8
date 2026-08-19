@@ -185,41 +185,37 @@ class FinalizedLockTriggerTests(TestCase):
 
     def test_financial_field_update_is_blocked(self):
         """Updating total_sales on a FINALIZED row raises a DB error."""
-        with self.assertRaises(InternalError):
-            with transaction.atomic():
-                Remittance.objects.filter(id=self.remittance.id).update(
-                    total_sales=Decimal("9999.00")
-                )
+        with self.assertRaises(InternalError), transaction.atomic():
+            Remittance.objects.filter(id=self.remittance.id).update(
+                total_sales=Decimal("9999.00")
+            )
         # Value unchanged.
         self.remittance.refresh_from_db()
         self.assertEqual(self.remittance.total_sales, Decimal("1000.00"))
 
     def test_status_revert_is_blocked(self):
         """Reverting FINALIZED -> DRAFT is blocked by the trigger."""
-        with self.assertRaises(InternalError):
-            with transaction.atomic():
-                Remittance.objects.filter(id=self.remittance.id).update(
-                    status=Remittance.StatusChoices.DRAFT
-                )
+        with self.assertRaises(InternalError), transaction.atomic():
+            Remittance.objects.filter(id=self.remittance.id).update(
+                status=Remittance.StatusChoices.DRAFT
+            )
 
     def test_delete_finalized_is_blocked(self):
         """DELETE on a FINALIZED row raises."""
-        with self.assertRaises(InternalError):
-            with transaction.atomic():
-                self.remittance.delete()
+        with self.assertRaises(InternalError), transaction.atomic():
+            self.remittance.delete()
         # Row still present.
         self.assertTrue(Remittance.objects.filter(id=self.remittance.id).exists())
 
     def test_child_insert_is_blocked(self):
         """Adding an expense to a FINALIZED remittance is blocked."""
-        with self.assertRaises(InternalError):
-            with transaction.atomic():
-                Expense.objects.create(
-                    remittance=self.remittance,
-                    description="late addition",
-                    amount=Decimal("50.00"),
-                    recorded_by=self.user,
-                )
+        with self.assertRaises(InternalError), transaction.atomic():
+            Expense.objects.create(
+                remittance=self.remittance,
+                description="late addition",
+                amount=Decimal("50.00"),
+                recorded_by=self.user,
+            )
 
     def test_draft_can_still_be_finalized(self):
         """The DRAFT -> FINALIZED transition (OLD.status = DRAFT) is allowed."""

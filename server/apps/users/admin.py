@@ -1,8 +1,10 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import Role, Permission, User, DriverCommission
+
+from .models import DriverCommission, Permission, Role, User
+
 
 @admin.register(Role)
 class RoleAdmin(ModelAdmin):

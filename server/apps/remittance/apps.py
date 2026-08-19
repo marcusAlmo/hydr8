@@ -6,7 +6,15 @@ class RemittanceConfig(AppConfig):
 
     def ready(self):
         from auditlog.registry import auditlog
-        from .models import Remittance, RemittanceRider, RemittanceRiderProductLine, Expense, RiderCredit, RiderCreditRepayment
+
+        from .models import (
+            Expense,
+            Remittance,
+            RemittanceRider,
+            RemittanceRiderProductLine,
+            RiderCredit,
+            RiderCreditRepayment,
+        )
         auditlog.register(Remittance)
         auditlog.register(RemittanceRider)
         auditlog.register(RemittanceRiderProductLine)

@@ -5,7 +5,6 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.core.models import Product
-from apps.users.models import User, Role, DriverCommission
 from apps.products.services import (
     activate_product,
     bulk_set_commission_rates,
@@ -15,6 +14,7 @@ from apps.products.services import (
     set_commission_rate,
     update_product,
 )
+from apps.users.models import DriverCommission, Role, User
 
 
 class UpdateProductTests(TestCase):
@@ -157,7 +157,7 @@ class DeleteProductTests(TestCase):
 
 
 class SetCommissionRateTests(TestCase):
-    """Tests for set_commission_rate — single driver×product upsert."""
+    """Tests for set_commission_rate — single driver x product upsert."""
 
     def setUp(self):
         self.admin = User.objects.create_superuser(

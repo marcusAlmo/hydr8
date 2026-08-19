@@ -1,8 +1,14 @@
-from django.test import SimpleTestCase
 from unittest.mock import patch
-from apps.users.models import User, Role, Permission, DriverCommission
+
+from django.test import SimpleTestCase
+
 from apps.core.models import Product
-from apps.tests.fakes import FakeUserRepository, FakeRoleRepository, FakePermissionRepository
+from apps.tests.fakes import (
+    FakePermissionRepository,
+    FakeRoleRepository,
+    FakeUserRepository,
+)
+from apps.users.models import DriverCommission, Permission, Role, User
 
 
 class UserModelTests(SimpleTestCase):
@@ -90,14 +96,14 @@ class UserModelTests(SimpleTestCase):
         """Test repository pattern with FakeUserRepository without spinning up DB."""
         repo = FakeUserRepository()
         user_data = repo.create_user(username="fakeuser", email="fake@example.com")
-        
+
         self.assertEqual(user_data['username'], "fakeuser")
         retrieved = repo.get_by_username("fakeuser")
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved['email'], "fake@example.com")
 
         self.assertIsNone(repo.get_by_username("nonexistent"))
-        
+
         # Test update and delete in repo
         updated = repo.update(user_data['id'], email="updated@example.com")
         self.assertEqual(updated['email'], "updated@example.com")
