@@ -8,10 +8,15 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.users.permissions import is_admin as user_is_admin
 
+from .presentation_employees import (
+    build_employee_directory_context,
+    build_roles_permissions_context,
+    build_user_detail_context,
+)
 from .selectors_employees import (
-    get_employee_directory_context,
-    get_roles_permissions_context,
-    get_user_detail_context,
+    get_employee_directory_data,
+    get_roles_permissions_data,
+    get_user_detail_data,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,8 +39,12 @@ def employees_directory_view(request):
     if not _can_view_employees(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    directory_ctx = get_employee_directory_context(request.user)
-    roles_ctx = get_roles_permissions_context(request.user)
+    directory_ctx = build_employee_directory_context(
+        get_employee_directory_data(request.user)
+    )
+    roles_ctx = build_roles_permissions_context(
+        get_roles_permissions_data(request.user)
+    )
     context = {**directory_ctx, **roles_ctx}
     return render(request, "employees/employees_directory.html", context)
 
@@ -48,10 +57,11 @@ def user_detail_view(request, user_id: str):
     if not _can_view_employees(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    context = get_user_detail_context(request.user, user_id)
-    if context is None:
+    data = get_user_detail_data(request.user, user_id)
+    if data is None:
         return HttpResponse("User not found.", status=404)
 
+    context = build_user_detail_context(data)
     return render(request, "employees/partials/user_detail.html", context)
 
 
@@ -69,5 +79,7 @@ def employees_search_view(request):
     except (TypeError, ValueError):
         page = 1
 
-    context = get_employee_directory_context(request.user, query, page)
+    context = build_employee_directory_context(
+        get_employee_directory_data(request.user, query, page)
+    )
     return render(request, "employees/partials/users_table.html", context)

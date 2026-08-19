@@ -14,7 +14,19 @@ from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
 from apps.users.services import validate_user_pin
 
-from apps.core.selectors_products import get_products_pricing_context
+from apps.core.selectors_products import (
+    get_commission_rates,
+    list_active_products,
+    list_products,
+    list_riders,
+)
+from apps.core.presentation_products import (
+    build_products_pricing_context,
+    build_rate_map,
+    product_column,
+    product_row,
+    rider_row,
+)
 from apps.core.services_products import (
     activate_product,
     bulk_set_commission_rates,
@@ -102,14 +114,32 @@ def products_pricing_view(request):
     Restricted to Admin (and platform superusers). Staff users do not
     access Products & Pricing.
 
-    Pulls real data from ``get_products_pricing_context`` which reads
-    from ``Product`` and ``DriverCommission`` via tenant-scoped
-    selectors.
+    Composes tenant-scoped selectors (raw Product/rider querysets) with
+    presentation functions (template-ready dict shaping) to build the
+    page context.
     """
     if not user_is_admin(request.user):
         return _forbidden()
-    context = _serialize_for_alpine(get_products_pricing_context(request.user))
-    return render(request, "products/products_pricing.html", context)
+
+    # Selectors: raw data
+    products_qs = list_products(request.user)
+    active_products = list_active_products(request.user)
+    riders = list_riders(request.user)
+    product_ids = [p.id for p in active_products]
+    rates = get_commission_rates(riders, product_ids)
+
+    # Presentation: shape into template-ready dicts
+    products = [product_row(p) for p in products_qs]
+    columns = [product_column(p, idx) for idx, p in enumerate(active_products)]
+    rate_map = build_rate_map(rates)
+    rider_rows = [rider_row(r, product_ids, rate_map) for r in riders]
+
+    context = build_products_pricing_context(
+        products=products,
+        columns=columns,
+        riders=rider_rows,
+    )
+    return render(request, "products/products_pricing.html", _serialize_for_alpine(context))
 
 
 # ---------------------------------------------------------------------------

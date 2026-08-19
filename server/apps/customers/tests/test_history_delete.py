@@ -547,7 +547,7 @@ class HistoryDeleteFlagTests(TestCase):
 
     def test_admin_sees_deletable_flag_true(self):
         """Admin history context marks credit lines as deletable."""
-        from apps.customers.selectors import get_customer_history_context
+        from apps.customers.presentation import get_customer_history_context
 
         self._credit(qty=2)
         ctx = get_customer_history_context(self.customer, self.admin)
@@ -557,7 +557,7 @@ class HistoryDeleteFlagTests(TestCase):
 
     def test_staff_sees_deletable_flag_false(self):
         """Staff history context marks credit lines as non-deletable."""
-        from apps.customers.selectors import get_customer_history_context
+        from apps.customers.presentation import get_customer_history_context
 
         self._credit(qty=2)
         ctx = get_customer_history_context(self.customer, self.staff)

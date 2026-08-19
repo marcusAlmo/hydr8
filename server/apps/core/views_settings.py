@@ -24,7 +24,8 @@ from apps.core.forms_settings import (
     ProfileForm,
     UsernameChangeForm,
 )
-from apps.core.selectors_settings import get_settings_context
+from apps.core.selectors_settings import get_all_config_values
+from apps.core.presentation_settings import build_settings_context
 from apps.core.services_settings import (
     apply_credit_limit_to_all_customers,
     change_password,
@@ -60,7 +61,9 @@ def settings_view(request):
     The sidebar's Profile link uses this to deep-link into the My Profile
     tab (``/settings/?tab=profile``).
     """
-    context = get_settings_context(request.user)
+    company_id = getattr(getattr(request.user, 'company', None), 'id', None)
+    config_values = get_all_config_values(company_id)
+    context = build_settings_context(user=request.user, config_values=config_values)
     context["is_staff_role_user"] = user_is_staff_role(request.user)
 
     # Validate the requested tab against the known tab IDs so an invalid

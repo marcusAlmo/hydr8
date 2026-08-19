@@ -18,6 +18,8 @@ from .selectors import (
     DEFAULT_SORT,
     SORT_FIELD_MAP,
     get_customer_by_display_id,
+)
+from .presentation import (
     get_customer_collect_context,
     get_customer_detail_context,
     get_customer_edit_context,

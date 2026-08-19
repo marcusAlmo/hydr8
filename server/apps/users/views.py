@@ -25,7 +25,8 @@ from apps.core.views import (
     toast_for_exception,
     toast_success,
 )
-from apps.users.selectors_employees import get_user_detail_context
+from apps.users.presentation_employees import build_user_detail_context
+from apps.users.selectors_employees import get_user_detail_data
 from apps.users.models import Role, User
 from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
@@ -324,9 +325,10 @@ def generate_temp_password_view(request, user_id):
         validate_user_pin(user=request.user, pin=pin)
     except ValidationError as exc:
         logger.info("[%s] generate_temp_password PIN verification failed: %s", request.user.id, exc)
-        context = get_user_detail_context(request.user, target_user.id)
-        if context is None:
+        data = get_user_detail_data(request.user, target_user.id)
+        if data is None:
             return HttpResponse("User not found.", status=404)
+        context = build_user_detail_context(data)
         context['pin_error'] = error_message(exc)
         return render(request, 'employees/partials/user_detail.html', context, status=403)
 
@@ -469,9 +471,10 @@ def edit_user_submit_view(request, user_id):
         # drawer reflects the saved state. No toast — the updated values in
         # the drawer are the feedback. The drawer's built-in close button
         # handles dismissal.
-        context = get_user_detail_context(request.user, target_user.id)
-        if context is None:
+        data = get_user_detail_data(request.user, target_user.id)
+        if data is None:
             return HttpResponse("User not found.", status=404)
+        context = build_user_detail_context(data)
         return render(request, 'employees/partials/user_detail.html', context)
     # Re-render the form with errors — preserve the delete challenge so the
     # delete panel stays functional after a failed save.

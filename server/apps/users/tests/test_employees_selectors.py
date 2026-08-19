@@ -1,16 +1,48 @@
-"""Tests for apps.users.selectors_employees — read-side query logic."""
+"""Tests for apps.users selectors_employees + presentation_employees.
+
+Tests that assert on formatted/template-shaped values compose the selector
+(raw data) with the presentation layer (shaping).  Tests that assert on raw
+query data import directly from selectors.
+"""
 from django.test import TestCase
 
-from apps.users.selectors_employees import (
-    get_employee_directory_context,
-    get_roles_permissions_context,
-    get_user_detail_context,
-)
 from apps.users.models import Role, User
+from apps.users.presentation_employees import (
+    build_employee_directory_context,
+    build_roles_permissions_context,
+    build_user_detail_context,
+)
+from apps.users.selectors_employees import (
+    get_employee_directory_data,
+    get_roles_permissions_data,
+    get_user_detail_data,
+)
+
+
+def _directory_context(request_user, query="", page=1):
+    """Compose selector + presentation for the directory context."""
+    return build_employee_directory_context(
+        get_employee_directory_data(request_user, query, page)
+    )
+
+
+def _roles_context(request_user):
+    """Compose selector + presentation for the roles & permissions context."""
+    return build_roles_permissions_context(
+        get_roles_permissions_data(request_user)
+    )
+
+
+def _user_detail_context(request_user, user_id):
+    """Compose selector + presentation for a single user detail context."""
+    data = get_user_detail_data(request_user, user_id)
+    if data is None:
+        return None
+    return build_user_detail_context(data)
 
 
 class GetEmployeeDirectoryContextTests(TestCase):
-    """Tests for get_employee_directory_context."""
+    """Tests for _directory_context."""
 
     def setUp(self):
         self.admin_role, _ = Role.objects.get_or_create(name="Admin")
@@ -32,31 +64,31 @@ class GetEmployeeDirectoryContextTests(TestCase):
         self.driver.save()
 
     def test_returns_context_with_users(self):
-        ctx = get_employee_directory_context(self.admin)
+        ctx = _directory_context(self.admin)
         self.assertIn("users", ctx)
         self.assertIn("stats", ctx)
         self.assertIn("filters", ctx)
         self.assertIn("pagination", ctx)
 
     def test_includes_all_active_users(self):
-        ctx = get_employee_directory_context(self.admin)
+        ctx = _directory_context(self.admin)
         usernames = [u["username"] for u in ctx["users"]]
         self.assertIn("@admin", usernames)
         self.assertIn("@driver1", usernames)
 
     def test_search_filters_by_first_name(self):
-        ctx = get_employee_directory_context(self.admin, query="Dave")
+        ctx = _directory_context(self.admin, query="Dave")
         usernames = [u["username"] for u in ctx["users"]]
         self.assertIn("@driver1", usernames)
         self.assertNotIn("@admin", usernames)
 
     def test_search_is_case_insensitive(self):
-        ctx = get_employee_directory_context(self.admin, query="alice")
+        ctx = _directory_context(self.admin, query="alice")
         usernames = [u["username"] for u in ctx["users"]]
         self.assertIn("@admin", usernames)
 
     def test_stats_count_active_users(self):
-        ctx = get_employee_directory_context(self.admin)
+        ctx = _directory_context(self.admin)
         stat_keys = {s["key"]: s["raw_value"] for s in ctx["stats"]}
         # admin + driver are both active
         self.assertEqual(stat_keys["active_users"], 2)
@@ -65,12 +97,12 @@ class GetEmployeeDirectoryContextTests(TestCase):
     def test_excludes_soft_deleted_users(self):
         self.driver.deleted_at = "2026-01-01T00:00:00Z"
         self.driver.save()
-        ctx = get_employee_directory_context(self.admin)
+        ctx = _directory_context(self.admin)
         usernames = [u["username"] for u in ctx["users"]]
         self.assertNotIn("@driver1", usernames)
 
     def test_pagination_returns_valid_dict(self):
-        ctx = get_employee_directory_context(self.admin, page=1)
+        ctx = _directory_context(self.admin, page=1)
         pag = ctx["pagination"]
         self.assertIn("total", pag)
         self.assertIn("current_page", pag)
@@ -78,7 +110,7 @@ class GetEmployeeDirectoryContextTests(TestCase):
 
 
 class GetRolesPermissionsContextTests(TestCase):
-    """Tests for get_roles_permissions_context."""
+    """Tests for _roles_context."""
 
     def setUp(self):
         self.admin_role, _ = Role.objects.get_or_create(name="Admin")
@@ -89,28 +121,28 @@ class GetRolesPermissionsContextTests(TestCase):
         self.admin.save()
 
     def test_returns_modules_and_roles(self):
-        ctx = get_roles_permissions_context(self.admin)
+        ctx = _roles_context(self.admin)
         self.assertIn("modules", ctx)
         self.assertIn("roles", ctx)
         self.assertIsInstance(ctx["modules"], list)
         self.assertIsInstance(ctx["roles"], list)
 
     def test_includes_three_default_roles(self):
-        ctx = get_roles_permissions_context(self.admin)
+        ctx = _roles_context(self.admin)
         role_names = [r["name"] for r in ctx["roles"]]
         self.assertIn("Admin", role_names)
         self.assertIn("Staff", role_names)
         self.assertIn("Driver", role_names)
 
     def test_role_has_permission_rows(self):
-        ctx = get_roles_permissions_context(self.admin)
+        ctx = _roles_context(self.admin)
         for role in ctx["roles"]:
             self.assertIn("permissions", role)
             self.assertEqual(len(role["permissions"]), len(ctx["modules"]))
 
 
 class GetUserDetailContextTests(TestCase):
-    """Tests for get_user_detail_context."""
+    """Tests for _user_detail_context."""
 
     def setUp(self):
         self.admin_role, _ = Role.objects.get_or_create(name="Admin")
@@ -136,28 +168,28 @@ class GetUserDetailContextTests(TestCase):
         self.staff_user.save()
 
     def test_returns_none_for_missing_user(self):
-        ctx = get_user_detail_context(self.admin, "00000000-0000-0000-0000-000000000000")
+        ctx = _user_detail_context(self.admin, "00000000-0000-0000-0000-000000000000")
         self.assertIsNone(ctx)
 
     def test_driver_context_has_driver_stats(self):
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         self.assertIsNotNone(ctx)
         self.assertTrue(ctx.get("is_driver"))
         self.assertIn("driver_stats", ctx)
 
     def test_staff_context_has_staff_stats(self):
-        ctx = get_user_detail_context(self.admin, str(self.staff_user.id))
+        ctx = _user_detail_context(self.admin, str(self.staff_user.id))
         self.assertIsNotNone(ctx)
         self.assertTrue(ctx.get("is_staff"))
         self.assertIn("staff_stats", ctx)
 
     def test_admin_context_is_admin(self):
-        ctx = get_user_detail_context(self.admin, str(self.admin.id))
+        ctx = _user_detail_context(self.admin, str(self.admin.id))
         self.assertIsNotNone(ctx)
         self.assertTrue(ctx.get("is_admin"))
 
     def test_profile_has_user_uuid(self):
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         self.assertEqual(ctx["profile"]["user_uuid"], str(self.driver.id))
 
     def test_driver_debts_handled_pulls_from_credit_lines(self):
@@ -183,7 +215,7 @@ class GetUserDetailContextTests(TestCase):
             care_of=self.driver,
         )
 
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         debts = ctx["debts_handled"]
         self.assertEqual(len(debts), 1)
         self.assertEqual(debts[0]["customer_name"], "Debt Test Store")
@@ -234,7 +266,7 @@ class GetUserDetailContextTests(TestCase):
             care_of=self.driver, qty_remaining=0,
         )
 
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         self.assertEqual(ctx["debts_handled"], [])
         debts_stat = next(
             s for s in ctx["driver_stats"] if s["key"] == "debts_outstanding"
@@ -266,7 +298,7 @@ class GetUserDetailContextTests(TestCase):
             care_of=other, qty_remaining=2,
         )
 
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         self.assertEqual(ctx["debts_handled"], [])
 
     def test_driver_debts_overdue_boundary_at_eight_days(self):
@@ -291,7 +323,7 @@ class GetUserDetailContextTests(TestCase):
             care_of=self.driver, qty_remaining=1, days_ago=7,
         )
 
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         debts = sorted(ctx["debts_handled"], key=lambda d: d["days_overdue"])
         self.assertEqual(len(debts), 2)
         self.assertEqual(debts[0]["status"], "pending")
@@ -320,7 +352,7 @@ class GetUserDetailContextTests(TestCase):
             care_of=self.driver, qty_remaining=1,
         )
 
-        ctx = get_user_detail_context(self.admin, str(self.driver.id))
+        ctx = _user_detail_context(self.admin, str(self.driver.id))
         self.assertEqual(len(ctx["debts_handled"]), 2)
         debts_stat = next(
             s for s in ctx["driver_stats"] if s["key"] == "debts_outstanding"

@@ -490,8 +490,10 @@ class StaffDetailDailyRateDisplayTests(TestCase):
 
     def test_staff_detail_shows_daily_rate_stat_card(self):
         """The staff user detail view shows the daily rate as a stat card."""
-        from apps.users.selectors_employees import get_user_detail_context
-        context = get_user_detail_context(self.admin, self.staff.id)
+        from apps.users.presentation_employees import build_user_detail_context
+        from apps.users.selectors_employees import get_user_detail_data
+        data = get_user_detail_data(self.admin, self.staff.id)
+        context = build_user_detail_context(data)
         self.assertIsNotNone(context)
         self.assertTrue(context.get("is_staff"))
         staff_stats = context.get("staff_stats", [])

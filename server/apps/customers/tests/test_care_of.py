@@ -13,7 +13,7 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.customers.models import BorrowedContainer, CreditLine, CreditPayment, Customer
 from apps.customers.services import record_customer_borrowed, record_customer_debt
-from apps.customers.selectors import (
+from apps.customers.presentation import (
     get_customer_collect_context,
     get_customer_history_context,
     get_record_borrowed_context,

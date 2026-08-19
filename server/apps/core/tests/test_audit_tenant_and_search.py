@@ -13,10 +13,10 @@ from django.test import TestCase
 
 from apps.core.selectors_audit import (
     _tenant_filter,
-    build_logs_json,
     get_log_entry,
     list_log_entries,
 )
+from apps.core.presentation_audit import build_logs_json, enrich_entry
 from apps.core.models import Company
 from apps.users.models import User
 from auditlog.models import LogEntry
@@ -157,9 +157,11 @@ class GetLogEntryTenantTests(TestCase):
         result = get_log_entry(entry_id=self.entry_a.pk, user=self.superuser)
         self.assertIsNotNone(result)
 
-    def test_retrieved_entry_is_enriched(self):
-        """The retrieved entry has display attributes set by _enrich_entry."""
+    def test_retrieved_entry_can_be_enriched(self):
+        """The retrieved entry can be enriched by presentation_audit.enrich_entry."""
         result = get_log_entry(entry_id=self.entry_a.pk, user=self.user_a)
+        self.assertIsNotNone(result)
+        enrich_entry(result)
         self.assertTrue(hasattr(result, "action_label"))
         self.assertTrue(hasattr(result, "badge_class"))
         self.assertTrue(hasattr(result, "actor_display"))
@@ -178,6 +180,8 @@ class BuildLogsJsonTests(TestCase):
     def test_returns_valid_json_array(self):
         """build_logs_json returns a parseable JSON array."""
         data = list_log_entries(user=self.user, page=1)
+        for e in data["page_obj"].object_list:
+            enrich_entry(e)
         json_str = build_logs_json(data["page_obj"].object_list)
         parsed = json.loads(json_str)
         self.assertIsInstance(parsed, list)
@@ -192,6 +196,8 @@ class BuildLogsJsonTests(TestCase):
         data = list_log_entries(user=self.user, page=1)
         if not data["page_obj"].object_list:
             self.skipTest("No log entries to serialize")
+        for e in data["page_obj"].object_list:
+            enrich_entry(e)
         json_str = build_logs_json(data["page_obj"].object_list)
         parsed = json.loads(json_str)
         required_fields = {
