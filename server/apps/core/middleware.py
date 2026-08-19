@@ -4,7 +4,10 @@ import logging
 
 from typing import Optional
 
-# Create a context variable to hold the correlation ID for the current thread/async task
+# Context variable for the per-request correlation ID.  Accessed by the
+# logging filter and by django-auditlog (via AUDITLOG_CID_HEADER) so that
+# log entries and audit records share the same trace identifier without
+# passing the request object through every call site.
 correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar('correlation_id', default=None)
 
 def get_correlation_id():
@@ -21,24 +24,18 @@ class CorrelationIdMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # 1. Extract from headers (if called by an upstream microservice) or generate a new one
         req_id = request.META.get('HTTP_X_CORRELATION_ID') or str(uuid.uuid4())
 
-        # 2. Set the ID in the context variable. We intentionally do NOT reset
-        #    it in a finally block: the WSGI request handler (django.server)
-        #    emits its request/response summary log line *after* the middleware
-        #    stack returns, so resetting here would cause that line — and any
-        #    other post-response logging — to see ``no-id`` instead of the real
-        #    correlation id. Each request overwrites the previous value, so
-        #    there is no cross-request leak in the thread-per-request model.
+        # We intentionally do NOT reset the context var in a finally block:
+        # the WSGI request handler emits its summary log line *after* the
+        # middleware stack returns, so resetting here would cause that line
+        # (and any post-response logging) to see ``no-id``.  Each request
+        # overwrites the previous value, so there is no cross-request leak
+        # in the thread-per-request model.
         correlation_id_var.set(req_id)
-        # Also stash it on the request so downstream code can read it directly.
         request.correlation_id = req_id
 
-        # 3. Process the request (this calls views, other middlewares, etc.)
         response = self.get_response(request)
-
-        # 4. Inject the Correlation ID into the response headers for the client/frontend
         response['X-Correlation-ID'] = req_id
         return response
 
