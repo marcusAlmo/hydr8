@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - staging
+      - main
+  push:
+    branches:
+      - develop
+      - staging
+
+# Cancel in-flight runs when a new commit is pushed to the same PR/branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hydr8
+          POSTGRES_PASSWORD: hydr8
+          POSTGRES_DB: hydr8_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hydr8"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://hydr8:hydr8@localhost:5432/hydr8_test
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+      REDIS_URL: redis://127.0.0.1:6379/1
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --frozen --dev
+
+      - name: System check
+        run: uv run python manage.py check --settings=config.settings.test
+
+      - name: Migration check
+        run: uv run python manage.py makemigrations --check --settings=config.settings.test
+
+      - name: Run tests
+        run: uv run python manage.py test --settings=config.settings.test --noinput
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --frozen --dev
+
+      - name: Ruff check
+        run: uv run ruff check .
