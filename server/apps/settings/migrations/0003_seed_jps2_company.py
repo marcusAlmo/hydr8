@@ -111,7 +111,10 @@ class Migration(migrations.Migration):
     dependencies = [
         ('settings', '0002_alter_company_options'),
         ('users', '0008_default_roles_and_permissions'),
-        ('customers', '0001_initial'),
+        # Must include 0009 (not just 0001) because the RunPython
+        # operation below references BorrowedContainer, which is created
+        # in customers.0009_borrowed_container_and_creditline_care_of.
+        ('customers', '0009_borrowed_container_and_creditline_care_of'),
         ('core', '0001_initial'),
         ('remittance', '0012_alter_expense_options_alter_remittance_options_and_more'),
     ]

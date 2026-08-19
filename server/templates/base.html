@@ -267,6 +267,59 @@
         })
     </script>
 
+    <!-- Focus preservation across HTMX swaps for search inputs.
+         Opt-in: only inputs marked with `data-htmx-search` are tracked.
+         When such an input triggers an HTMX request, the server response
+         often swaps a container that includes the input itself (outerHTML
+         swap). hx-preserve + id handles most cases, but this script is a
+         belt-and-suspenders fallback: it saves the active element's id
+         and caret position before the request, then restores focus after
+         the swap completes. Scoping to `data-htmx-search` avoids running
+         the save/restore logic on every HTMX POST (modal submits, paid-
+         status toggles, etc.) and prevents focus theft on unrelated
+         swaps. -->
+    <script>
+        (function () {
+            var savedFocus = null;
+
+            document.body.addEventListener('htmx:beforeRequest', function (e) {
+                var active = document.activeElement;
+                if (
+                    active
+                    && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+                    && active.id
+                    && active.hasAttribute('data-htmx-search')
+                ) {
+                    savedFocus = {
+                        id: active.id,
+                        selectionStart: active.selectionStart,
+                        selectionEnd: active.selectionEnd
+                    };
+                } else {
+                    savedFocus = null;
+                }
+            });
+
+            document.body.addEventListener('htmx:afterSwap', function (e) {
+                if (!savedFocus) return;
+                // Defer to the next tick so any Alpine MutationObserver
+                // or other afterSwap handlers on the page run first —
+                // those can steal focus by re-processing the swapped tree.
+                var focusInfo = savedFocus;
+                savedFocus = null;
+                setTimeout(function () {
+                    var el = document.getElementById(focusInfo.id);
+                    if (el) {
+                        el.focus();
+                        try {
+                            el.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
+                        } catch (err) { /* type=search throws on some browsers */ }
+                    }
+                }, 0);
+            });
+        })();
+    </script>
+
     <!-- Bridge HX-Trigger "showToast" events to the shared hydr8ShowToast
          helper.  This lets any HTMX endpoint fire a toast via:
              response['HX-Trigger'] = '{"showToast": {"msg": "...", "type": "success"}}'

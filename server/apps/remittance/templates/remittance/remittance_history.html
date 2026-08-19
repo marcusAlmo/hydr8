@@ -575,18 +575,12 @@
 
 {% block extra_body %}
     <script>
-        /**
-         * Re-initialise Alpine on HTMX-swapped content so x-model / x-show
-         * bindings on freshly-inserted rows (e.g. after a paid-status POST)
-         * work without a full page reload.  Without this, the swapped-in
-         * <tr> has dead x-model bindings and checkbox toggles never update
-         * the dirty flag, so Confirm/Cancel never re-appear.
-         */
-        document.body.addEventListener('htmx:afterSwap', (e) => {
-            if (window.Alpine && e.detail.target) {
-                window.Alpine.initTree(e.detail.target);
-            }
-        });
+        // NOTE: Alpine v3 ships a MutationObserver (started by
+        // Alpine.start()) that auto-initialises any new x-data element
+        // added to the DOM — including HTMX-swapped partials.  We
+        // therefore do NOT call Alpine.initTree() manually in an
+        // htmx:afterSwap handler; doing so would double-initialise the
+        // swapped content and cause x-for templates to render twice.
 
         /**
          * remittanceRow — per-row Alpine component that tracks the dirty

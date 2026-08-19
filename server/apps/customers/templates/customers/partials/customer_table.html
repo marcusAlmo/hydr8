@@ -38,6 +38,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                 <input
                     type="text"
                     id="customerSearch"
+                    data-htmx-search
                     name="q"
                     value="{{ search_query|default:'' }}"
                     placeholder="Search by name"

@@ -781,6 +781,10 @@ def update_remittance_paid_status(
     mutate remittances belonging to their own company. Raises
     ``ValidationError`` if the remittance does not exist.
 
+    Flags are **immutable once True**: attempting to revert an already-paid
+    flag to ``False`` raises ``ValidationError``. This mirrors the UI,
+    which renders already-paid checkboxes as disabled.
+
     Returns the refreshed :class:`Remittance` instance.
     """
     remittance = (
@@ -792,6 +796,14 @@ def update_remittance_paid_status(
     )
     if remittance is None:
         raise ValidationError("Remittance not found.")
+
+    # Immutability: once a paid flag is True it cannot be reverted.
+    # The UI renders already-paid checkboxes as disabled, but this guard
+    # is the authoritative enforcement so a crafted POST cannot uncheck.
+    if remittance.tithes_paid and not tithes_paid:
+        raise ValidationError("Tithes paid flag is immutable once set.")
+    if remittance.offering_paid and not offering_paid:
+        raise ValidationError("Offering paid flag is immutable once set.")
 
     remittance.tithes_paid = tithes_paid
     remittance.offering_paid = offering_paid

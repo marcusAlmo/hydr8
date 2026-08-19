@@ -116,18 +116,13 @@
 
 {% block extra_body %}
 <script>
-/**
- * Re-initialise Alpine on HTMX-swapped content so x-data / x-init
- * bindings on the freshly-inserted user-detail partial work without
- * a full page reload.  Without this, the swapped-in drawer content
- * has dead Alpine bindings and the trend charts never render because
- * init() is never called.
- */
-document.body.addEventListener('htmx:afterSwap', (e) => {
-    if (window.Alpine && e.detail.target) {
-        window.Alpine.initTree(e.detail.target);
-    }
-});
+// NOTE: Alpine v3 ships a MutationObserver (started by Alpine.start())
+// that auto-initialises any new x-data element added to the DOM —
+// including HTMX-swapped partials.  We therefore do NOT call
+// Alpine.initTree() manually in an htmx:afterSwap handler; doing so
+// would double-initialise the swapped content and cause x-for
+// templates (such as the 7D/14D/30D date filter buttons) to render
+// twice.
 
 // Alpine.js component for the user detail drawer.
 // Handles:

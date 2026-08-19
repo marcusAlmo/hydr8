@@ -1869,7 +1869,9 @@
                     }
                     this.dateChecking = true;
                     try {
-                        const response = await fetch('{% url 'remittance:check_date' %}?date=' + encodeURIComponent(iso));
+                        const response = await fetch('{% url 'remittance:check_date' %}?date=' + encodeURIComponent(iso), {
+                            cache: 'no-store',
+                        });
                         const data = await response.json();
                         // Always capture the read-only summary first so
                         // the panel can render regardless of status.
