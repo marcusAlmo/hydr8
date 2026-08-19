@@ -16,10 +16,8 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.customers.services import record_customer_collection, record_customer_debt
-from apps.remittance.selectors import (
-    get_remittance_date_data,
-    get_remittance_summary_for_date,
-)
+from apps.remittance.selectors import get_remittance_date_data
+from apps.remittance.presentation import build_remittance_summary
 from apps.users.models import DriverCommission, Role, User
 
 
@@ -336,7 +334,7 @@ class CheckDateSummaryTests(TestCase):
 
     def test_selector_returns_none_when_no_remittance(self):
         self.assertIsNone(
-            get_remittance_summary_for_date(self.admin, self.today)
+            build_remittance_summary(self.admin, self.today)
         )
 
     def test_selector_returns_summary_for_draft(self):
@@ -349,7 +347,7 @@ class CheckDateSummaryTests(TestCase):
             tithe_rate="0.10",
             remittance_date=self.today,
         )
-        summary = get_remittance_summary_for_date(self.admin, self.today)
+        summary = build_remittance_summary(self.admin, self.today)
         self.assertIsNotNone(summary)
         self.assertEqual(summary["status"], "DRAFT")
         self.assertEqual(summary["date"], self.today.isoformat())
@@ -373,7 +371,7 @@ class CheckDateSummaryTests(TestCase):
             remittance_date=self.today,
             finalize=True,
         )
-        summary = get_remittance_summary_for_date(self.admin, self.today)
+        summary = build_remittance_summary(self.admin, self.today)
         self.assertIsNotNone(summary)
         self.assertEqual(summary["status"], "FINALIZED")
         self.assertEqual(summary["finalized_by"], self.admin.full_name)

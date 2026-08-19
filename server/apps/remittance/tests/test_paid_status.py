@@ -12,7 +12,7 @@ from django.test import TestCase
 
 from apps.remittance.models import Remittance
 from apps.remittance.services import update_remittance_paid_status
-from apps.remittance.selectors import get_remittance_row
+from apps.remittance.presentation import build_remittance_row
 from apps.users.models import Role, User
 
 
@@ -170,7 +170,7 @@ class GetRemittanceRowSelectorTests(TestCase):
         )
 
     def test_returns_row_dict_with_id(self):
-        row = get_remittance_row(self.user, self.remittance.id)
+        row = build_remittance_row(self.user, self.remittance.id)
         self.assertIsNotNone(row)
         self.assertEqual(row["id"], self.remittance.id)
         self.assertTrue(row["tithes_paid"])
@@ -178,7 +178,7 @@ class GetRemittanceRowSelectorTests(TestCase):
         self.assertTrue(row["unpaid"])  # offering not paid → unpaid
 
     def test_returns_none_for_nonexistent(self):
-        self.assertIsNone(get_remittance_row(self.user, 999_999))
+        self.assertIsNone(build_remittance_row(self.user, 999_999))
 
 
 class UpdatePaidStatusViewTests(TestCase):

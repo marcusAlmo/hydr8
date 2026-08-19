@@ -17,7 +17,7 @@ from apps.core.models import Product
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.customers.services import record_customer_collection, record_customer_debt
 from apps.remittance.models import Remittance, RemittanceRider
-from apps.remittance.selectors import _repayments_for_date, list_riders_for_remittance
+from apps.remittance.selectors import _repayments_for_date
 from apps.remittance.services import (
     create_remittance,
     delete_draft_remittance,

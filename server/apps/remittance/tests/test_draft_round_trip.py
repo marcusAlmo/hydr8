@@ -2,7 +2,7 @@
 
 Verifies that EVERY field the Add Remittance form sends is persisted by
 ``save_remittance_draft`` and faithfully restored by
-``_load_draft_state`` (the selector used to re-hydrate the form after a
+``build_draft_state`` (the selector used to re-hydrate the form after a
 page refresh or "Load draft" click).
 
 Fields covered:
@@ -27,7 +27,7 @@ from apps.remittance.models import (
     RiderDeduction,
     StaffDeduction,
 )
-from apps.remittance.selectors import _load_draft_state
+from apps.remittance.presentation import build_draft_state
 from apps.remittance.services import save_remittance_draft
 from apps.users.models import DriverCommission, Role, User
 
@@ -297,7 +297,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         self.assertIsNotNone(state)
         sold = state["rider_sold"][str(self.rider.pk)][str(self.product.pk)]
         self.assertEqual(sold, 10)
@@ -315,7 +315,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         expenses = state["rider_expenses"][str(self.rider.pk)]
         self.assertEqual(len(expenses), 2)
         self.assertEqual(expenses[0]["description"], "Gas")
@@ -336,7 +336,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         deductions = state["rider_deductions"][str(self.rider.pk)]
         self.assertEqual(len(deductions), 1)
         self.assertEqual(deductions[0]["description"], "Cash advance")
@@ -355,7 +355,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         self.assertEqual(
             state["rider_commission_overrides"][str(self.rider.pk)],
             "150.00",
@@ -374,7 +374,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         self.assertEqual(
             state["rider_remittances"][str(self.rider.pk)],
             "300.00",
@@ -393,7 +393,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         staff_data = state["staff_data"][str(self.staff.pk)]
         self.assertEqual(staff_data["salary_override"], "600.00")
 
@@ -410,7 +410,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         staff_data = state["staff_data"][str(self.staff.pk)]
         self.assertEqual(len(staff_data["deductions"]), 1)
         self.assertEqual(staff_data["deductions"][0]["description"], "Late")
@@ -429,7 +429,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         self.assertEqual(state["other_sales"], 100.0)
 
     def test_round_trip_offering_amount(self):
@@ -445,7 +445,7 @@ class DraftRoundTripTests(TestCase):
             other_sales=payload["otherSales"],
             staff_data=payload["staff"],
         )
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
         self.assertEqual(state["offering_amount"], "50.00")
 
     # --- upsert (save → save again) -----------------------------------------
@@ -552,7 +552,7 @@ class DraftRoundTripTests(TestCase):
         self.assertEqual(rem2.offering_amount, Decimal("75.00"))
 
     def test_upsert_reloads_new_values_via_selector(self):
-        """After saving twice, _load_draft_state returns the NEW values,
+        """After saving twice, build_draft_state returns the NEW values,
         not the old ones."""
         payload = self._full_payload()
         save_remittance_draft(
@@ -591,7 +591,7 @@ class DraftRoundTripTests(TestCase):
             staff_data=payload2["staff"],
         )
 
-        state = _load_draft_state(self.admin, self.remittance_date)
+        state = build_draft_state(self.admin, self.remittance_date)
 
         # New sold qty
         self.assertEqual(
@@ -648,8 +648,8 @@ class DraftRoundTripTests(TestCase):
         self.assertEqual(drafts.first().status, Remittance.StatusChoices.DRAFT)
 
     def test_remittance_id_present_in_summary(self):
-        """get_remittance_summary_for_date includes the remittance id in the returned dict."""
-        from apps.remittance.selectors import get_remittance_summary_for_date
+        """build_remittance_summary includes the remittance id in the returned dict."""
+        from apps.remittance.presentation import build_remittance_summary
 
         payload = self._full_payload()
         draft = save_remittance_draft(
@@ -663,7 +663,7 @@ class DraftRoundTripTests(TestCase):
             staff_data=payload["staff"],
         )
 
-        summary = get_remittance_summary_for_date(self.admin, self.remittance_date)
+        summary = build_remittance_summary(self.admin, self.remittance_date)
         self.assertIsNotNone(summary)
         self.assertEqual(summary["id"], draft.id)
         self.assertEqual(summary["status"], Remittance.StatusChoices.DRAFT)

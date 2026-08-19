@@ -16,15 +16,13 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message, toast_for_exception
 
-from .selectors import (
-    get_add_remittance_context,
-    get_recent_remittances,
-    get_remittance_date_data,
-    get_remittance_history_context,
-    get_remittance_row,
-    get_remittance_summary_for_date,
-    remittance_exists_for_date,
-    remittance_status_for_date,
+from . import selectors
+from .presentation import (
+    build_add_remittance_context,
+    build_recent_remittances,
+    build_remittance_history_context,
+    build_remittance_row,
+    build_remittance_summary,
 )
 from .services import (
     create_remittance,
@@ -61,7 +59,7 @@ def add_remittance_view(request):
         except (ValueError, TypeError):
             target_date = None
 
-    context = get_add_remittance_context(request.user, remittance_date=target_date)
+    context = build_add_remittance_context(request.user, remittance_date=target_date)
     riders = context["riders"]
     products = context["products"]
 
@@ -282,15 +280,15 @@ def check_remittance_date_view(request):
         logger.info("[%s] invalid date in check request: %s", request.user.id, date_str)
         return JsonResponse({"ok": False, "error": "Invalid date format."}, status=400)
 
-    exists = remittance_exists_for_date(request.user, target_date)
-    status = remittance_status_for_date(request.user, target_date)
+    exists = selectors.remittance_exists_for_date(request.user, target_date)
+    status = selectors.remittance_status_for_date(request.user, target_date)
 
     # Only return credit data when the date is available for a new/ draft
     # remittance.  A FINALIZED date is locked — no need to send credit
     # data the form can't use.
     credit_data = None
     if status != "FINALIZED":
-        credit_data = get_remittance_date_data(request.user, target_date)
+        credit_data = selectors.get_remittance_date_data(request.user, target_date)
 
     # When a remittance exists (draft or finalized), attach a full
     # read-only summary so the frontend can display the saved record
@@ -298,7 +296,7 @@ def check_remittance_date_view(request):
     # ``draft_state`` the "Load draft" button can apply to the form.
     summary = None
     if exists:
-        summary = get_remittance_summary_for_date(request.user, target_date)
+        summary = build_remittance_summary(request.user, target_date)
 
     return JsonResponse({
         "ok": True,
@@ -324,8 +322,8 @@ def remittance_history_view(request):
     """
     if not is_admin_user(user=request.user):
         return HttpResponse("Forbidden", status=403)
-    context = get_remittance_history_context(request.user)
-    recent = get_recent_remittances(request.user)
+    context = build_remittance_history_context(request.user)
+    recent = build_recent_remittances(request.user)
 
     total = recent["total"]
     shown = len(recent["remittances"])
@@ -371,7 +369,7 @@ def update_paid_status_view(request, remittance_id: int):
                     request.user.id, remittance_id, error_message(exc))
         return toast_for_exception(request, exc)
 
-    row = get_remittance_row(request.user, remittance_id)
+    row = build_remittance_row(request.user, remittance_id)
     if row is None:
         return toast_for_exception(
             request, ValidationError("Remittance not found.")
@@ -415,7 +413,7 @@ def finalize_remittance_view(request, remittance_id: int):
     except ValidationError as exc:
         logger.info("[%s] finalize error remittance_id=%s: %s",
                     request.user.id, remittance_id, error_message(exc))
-        row = get_remittance_row(request.user, remittance_id)
+        row = build_remittance_row(request.user, remittance_id)
         row_html = (
             render_to_string(
                 "remittance/partials/remittance_row.html",
@@ -431,7 +429,7 @@ def finalize_remittance_view(request, remittance_id: int):
         })
         return response
 
-    row = get_remittance_row(request.user, remittance_id)
+    row = build_remittance_row(request.user, remittance_id)
     if row is None:
         return toast_for_exception(
             request, ValidationError("Remittance not found.")
