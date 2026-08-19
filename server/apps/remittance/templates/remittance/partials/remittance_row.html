@@ -67,20 +67,38 @@
                 {% endif %}
             </td>
         {% else %}
-            <!-- Finalized: tithes/offering paid checkboxes -->
+            <!-- Finalized: tithes/offering paid checkboxes.
+                 Once a flag is True it is IMMUTABLE — the checkbox is
+                 disabled & checked, and a hidden input carries the "on"
+                 value so it is still submitted on Confirm (disabled
+                 checkboxes are NOT submitted by the browser). -->
             <td class="px-6 py-3 text-center">
-                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
-                       type="checkbox"
-                       name="tithes_paid"
-                       value="on"
-                       x-model="tithesPaid">
+                {% if rem.tithes_paid %}
+                    <input type="hidden" name="tithes_paid" value="on">
+                    <input class="w-4 h-4 rounded border-outline-variant cursor-not-allowed"
+                           type="checkbox" checked disabled
+                           title="Tithes already paid — cannot be unchecked">
+                {% else %}
+                    <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
+                           type="checkbox"
+                           name="tithes_paid"
+                           value="on"
+                           x-model="tithesPaid">
+                {% endif %}
             </td>
             <td class="px-6 py-3 text-center">
-                <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
-                       type="checkbox"
-                       name="offering_paid"
-                       value="on"
-                       x-model="offeringPaid">
+                {% if rem.offering_paid %}
+                    <input type="hidden" name="offering_paid" value="on">
+                    <input class="w-4 h-4 rounded border-outline-variant cursor-not-allowed"
+                           type="checkbox" checked disabled
+                           title="Offering already paid — cannot be unchecked">
+                {% else %}
+                    <input class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary"
+                           type="checkbox"
+                           name="offering_paid"
+                           value="on"
+                           x-model="offeringPaid">
+                {% endif %}
             </td>
             <td class="px-6 py-3 text-center">
                 <div class="flex items-center justify-center gap-1.5" x-cloak x-show="dirty"

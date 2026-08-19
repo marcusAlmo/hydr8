@@ -64,19 +64,36 @@ class UpdatePaidStatusServiceTests(TestCase):
         self.assertTrue(self.remittance.tithes_paid)
         self.assertFalse(self.remittance.offering_paid)
 
-    def test_can_unset_paid_flag(self):
-        """A paid flag can be reverted to False."""
+    def test_cannot_unset_paid_flag(self):
+        """A paid flag is immutable — attempting to revert it to False
+        raises ValidationError and leaves the flag True."""
         self.remittance.tithes_paid = True
         self.remittance.offering_paid = True
         self.remittance.save()
-        update_remittance_paid_status(
-            performed_by=self.user,
-            remittance_id=self.remittance.id,
-            tithes_paid=False,
-            offering_paid=True,
-        )
+        with self.assertRaises(ValidationError):
+            update_remittance_paid_status(
+                performed_by=self.user,
+                remittance_id=self.remittance.id,
+                tithes_paid=False,
+                offering_paid=True,
+            )
+        # Neither flag should have changed.
         self.remittance.refresh_from_db()
-        self.assertFalse(self.remittance.tithes_paid)
+        self.assertTrue(self.remittance.tithes_paid)
+        self.assertTrue(self.remittance.offering_paid)
+
+    def test_cannot_unset_offering_paid_flag(self):
+        """Specifically verifying the offering_paid immutability guard."""
+        self.remittance.offering_paid = True
+        self.remittance.save()
+        with self.assertRaises(ValidationError):
+            update_remittance_paid_status(
+                performed_by=self.user,
+                remittance_id=self.remittance.id,
+                tithes_paid=False,
+                offering_paid=False,
+            )
+        self.remittance.refresh_from_db()
         self.assertTrue(self.remittance.offering_paid)
 
     def test_raises_for_nonexistent_remittance(self):
@@ -205,17 +222,19 @@ class UpdatePaidStatusViewTests(TestCase):
         self.assertIn("showToast", trigger)
         self.assertIn("Payment status updated.", trigger)
 
-    def test_post_with_no_checkboxes_sets_both_false(self):
-        """An empty POST (no checkboxes) clears both flags — standard
-        HTML checkbox convention (absent = unchecked)."""
+    def test_post_with_no_checkboxes_blocked_when_already_paid(self):
+        """An empty POST (no checkboxes) attempts to clear both flags.
+        Because both flags are already True (immutable), the service
+        raises ValidationError and the view returns a 400 error toast."""
         self.remittance.tithes_paid = True
         self.remittance.offering_paid = True
         self.remittance.save()
         response = self.client.post(self._url(), {})
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         self.remittance.refresh_from_db()
-        self.assertFalse(self.remittance.tithes_paid)
-        self.assertFalse(self.remittance.offering_paid)
+        # Flags remain True — immutability enforced.
+        self.assertTrue(self.remittance.tithes_paid)
+        self.assertTrue(self.remittance.offering_paid)
 
     def test_post_updates_single_flag(self):
         """POST with only tithes_paid=on sets tithes True, offering False."""
