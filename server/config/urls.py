@@ -28,7 +28,7 @@ urlpatterns = [
     path('analytics/', include('apps.analytics.urls')),
     path('remittance/', include('apps.remittance.urls')),
     path('customers/', include('apps.customers.urls')),
-    path('products/', include('apps.products.urls')),
+    path('products/', include('apps.core.urls_products')),
     path('employees/', include('apps.users.urls_employees')),
     path('settings/', include('apps.settings.urls')),
     path('audit/', include('apps.core.urls_audit')),

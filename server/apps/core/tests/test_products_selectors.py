@@ -3,7 +3,7 @@ from django.test import TestCase
 
 from apps.core.models import Product
 from apps.users.models import User, Role, DriverCommission
-from apps.products.selectors import (
+from apps.core.selectors_products import (
     get_products_pricing_context,
     list_product_columns,
     list_products,

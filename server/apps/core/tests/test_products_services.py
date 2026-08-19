@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from apps.core.models import Product
 from apps.users.models import User, Role, DriverCommission
-from apps.products.services import (
+from apps.core.services_products import (
     activate_product,
     bulk_set_commission_rates,
     deactivate_product,

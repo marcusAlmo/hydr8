@@ -14,8 +14,8 @@ from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office
 from apps.users.services import validate_user_pin
 
-from .selectors import get_products_pricing_context
-from .services import (
+from apps.core.selectors_products import get_products_pricing_context
+from apps.core.services_products import (
     activate_product,
     bulk_set_commission_rates,
     create_product,
