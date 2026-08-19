@@ -8,7 +8,7 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.users.permissions import is_admin as user_is_admin
 
-from .selectors import (
+from .selectors_employees import (
     get_employee_directory_context,
     get_roles_permissions_context,
     get_user_detail_context,

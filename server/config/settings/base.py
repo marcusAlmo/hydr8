@@ -36,7 +36,6 @@ INSTALLED_APPS = [
     'apps.customers',
     'apps.remittance',
     'apps.products',
-    'apps.employees',
     'apps.analytics',
     'apps.settings',
     'apps.audit',

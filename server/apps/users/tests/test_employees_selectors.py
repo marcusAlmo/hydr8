@@ -1,7 +1,7 @@
-"""Tests for apps.employees.selectors — read-side query logic."""
+"""Tests for apps.users.selectors_employees — read-side query logic."""
 from django.test import TestCase
 
-from apps.employees.selectors import (
+from apps.users.selectors_employees import (
     get_employee_directory_context,
     get_roles_permissions_context,
     get_user_detail_context,

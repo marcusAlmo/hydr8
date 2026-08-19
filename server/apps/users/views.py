@@ -25,7 +25,7 @@ from apps.core.views import (
     toast_for_exception,
     toast_success,
 )
-from apps.employees.selectors import get_user_detail_context
+from apps.users.selectors_employees import get_user_detail_context
 from apps.users.models import Role, User
 from apps.users.permissions import is_admin as user_is_admin
 from apps.users.permissions import is_back_office as user_is_back_office

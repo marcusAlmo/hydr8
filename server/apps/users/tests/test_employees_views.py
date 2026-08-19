@@ -1,4 +1,4 @@
-"""Tests for apps.employees.views — HTTP endpoints for the Employees & Users directory."""
+"""Tests for apps.users.views_employees — HTTP endpoints for the Employees & Users directory."""
 from django.core.cache import cache
 from django.test import TestCase
 
