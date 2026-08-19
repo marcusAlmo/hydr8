@@ -1,22 +1,22 @@
-from typing import Any, Dict, List, Optional
 import uuid
+from typing import Any
 
 
 class GenericFakeRepository:
     """In-memory dictionary store simulating repository pattern without database reliance."""
-    
-    def __init__(self):
-        self._store: Dict[Any, Dict[str, Any]] = {}
 
-    def add(self, entity_id: Any, data: Dict[str, Any]) -> Dict[str, Any]:
+    def __init__(self):
+        self._store: dict[Any, dict[str, Any]] = {}
+
+    def add(self, entity_id: Any, data: dict[str, Any]) -> dict[str, Any]:
         data['id'] = entity_id
         self._store[entity_id] = data
         return data
 
-    def get(self, entity_id: Any) -> Optional[Dict[str, Any]]:
+    def get(self, entity_id: Any) -> dict[str, Any] | None:
         return self._store.get(entity_id)
 
-    def filter(self, **kwargs) -> List[Dict[str, Any]]:
+    def filter(self, **kwargs) -> list[dict[str, Any]]:
         results = []
         for item in self._store.values():
             match = True
@@ -28,10 +28,10 @@ class GenericFakeRepository:
                 results.append(item)
         return results
 
-    def all(self) -> List[Dict[str, Any]]:
+    def all(self) -> list[dict[str, Any]]:
         return list(self._store.values())
 
-    def update(self, entity_id: Any, **kwargs) -> Optional[Dict[str, Any]]:
+    def update(self, entity_id: Any, **kwargs) -> dict[str, Any] | None:
         if entity_id in self._store:
             self._store[entity_id].update(kwargs)
             return self._store[entity_id]
@@ -45,7 +45,7 @@ class GenericFakeRepository:
 
 
 class FakeUserRepository(GenericFakeRepository):
-    def create_user(self, username: str, email: str = '', password: str = '', role: Any = None, **kwargs) -> Dict[str, Any]:
+    def create_user(self, username: str, email: str = '', password: str = '', role: Any = None, **kwargs) -> dict[str, Any]:
         user_id = kwargs.get('id', uuid.uuid4())
         data = {
             'id': user_id,
@@ -56,12 +56,12 @@ class FakeUserRepository(GenericFakeRepository):
             'status': kwargs.get('status', 'ACTIVE'),
             'first_name': kwargs.get('first_name', ''),
             'last_name': kwargs.get('last_name', ''),
-            'pin': kwargs.get('pin', None),
-            'deleted_at': kwargs.get('deleted_at', None),
+            'pin': kwargs.get('pin'),
+            'deleted_at': kwargs.get('deleted_at'),
         }
         return self.add(user_id, data)
 
-    def get_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+    def get_by_username(self, username: str) -> dict[str, Any] | None:
         matches = self.filter(username=username)
         return matches[0] if matches else None
 
@@ -71,7 +71,7 @@ class FakeRoleRepository(GenericFakeRepository):
         super().__init__()
         self._auto_id = 1
 
-    def create_role(self, name: str, description: str = '', is_default: bool = False) -> Dict[str, Any]:
+    def create_role(self, name: str, description: str = '', is_default: bool = False) -> dict[str, Any]:
         role_id = self._auto_id
         self._auto_id += 1
         data = {
@@ -87,7 +87,7 @@ class FakePermissionRepository(GenericFakeRepository):
         super().__init__()
         self._auto_id = 1
 
-    def create_permission(self, role_id: int, action: str, can_read=False, can_write=False, can_update=False, can_delete=False) -> Dict[str, Any]:
+    def create_permission(self, role_id: int, action: str, can_read=False, can_write=False, can_update=False, can_delete=False) -> dict[str, Any]:
         perm_id = self._auto_id
         self._auto_id += 1
         data = {
@@ -106,7 +106,7 @@ class FakeCustomerRepository(GenericFakeRepository):
         super().__init__()
         self._auto_id = 1
 
-    def create_customer(self, name: str, debt_balance: float = 0.0, **kwargs) -> Dict[str, Any]:
+    def create_customer(self, name: str, debt_balance: float = 0.0, **kwargs) -> dict[str, Any]:
         cust_id = kwargs.get('id', self._auto_id)
         if isinstance(cust_id, int) and cust_id >= self._auto_id:
             self._auto_id = cust_id + 1
@@ -126,7 +126,7 @@ class FakeRemittanceRepository(GenericFakeRepository):
         super().__init__()
         self._auto_id = 1
 
-    def create_remittance(self, date_str: str, created_by_id: Any, status: str = 'DRAFT', **kwargs) -> Dict[str, Any]:
+    def create_remittance(self, date_str: str, created_by_id: Any, status: str = 'DRAFT', **kwargs) -> dict[str, Any]:
         rem_id = kwargs.get('id', self._auto_id)
         if isinstance(rem_id, int) and rem_id >= self._auto_id:
             self._auto_id = rem_id + 1
@@ -146,7 +146,7 @@ class FakeProductRepository(GenericFakeRepository):
         super().__init__()
         self._auto_id = 1
 
-    def create_product(self, name: str, variation: str, price: float, is_active: bool = True) -> Dict[str, Any]:
+    def create_product(self, name: str, variation: str, price: float, is_active: bool = True) -> dict[str, Any]:
         prod_id = self._auto_id
         self._auto_id += 1
         data = {

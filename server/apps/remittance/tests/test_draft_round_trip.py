@@ -631,7 +631,7 @@ class DraftRoundTripTests(TestCase):
         """Calling save_remittance_draft multiple times in rapid succession
         replaces the previous draft and produces exactly 1 Remittance row."""
         payload = self._full_payload()
-        for i in range(5):
+        for _ in range(5):
             save_remittance_draft(
                 performed_by=self.admin,
                 riders_data=payload["riders"],

@@ -1,16 +1,15 @@
 import uuid
-import secrets
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db import models
-from django.conf import settings
-from django.utils import timezone
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import AbstractUser
-from django.contrib.auth.hashers import make_password, check_password
+from django.db import models
+from django.utils import timezone
 
+from apps.core.managers import TenantManager, TenantQuerySet
 from apps.core.models import Product
-from apps.core.managers import TenantQuerySet, TenantManager
+
 
 class RoleQuerySet(TenantQuerySet):
     def active(self):

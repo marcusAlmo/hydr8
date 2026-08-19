@@ -6,6 +6,7 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         from auditlog.registry import auditlog
+
         from .models import Product, SystemConfig
         auditlog.register(Product)
         auditlog.register(SystemConfig)

@@ -62,7 +62,7 @@ def _parse_display_value(key: str, display_value: str) -> str:
             raise ValidationError("Tithe rate must be a number.") from exc
         if pct < 0 or pct > 100:
             raise ValidationError("Tithe rate must be between 0 and 100.")
-        fraction = (pct / Decimal('100')).quantize(Decimal('0.0001'))
+        fraction = (pct / Decimal(100)).quantize(Decimal('0.0001'))
         return str(fraction)
 
     if key == 'approved_credit_limit':

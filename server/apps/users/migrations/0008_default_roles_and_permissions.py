@@ -2,7 +2,6 @@
 
 from django.db import migrations
 
-
 MODULES = ["Remittance", "Customers", "Products", "Users", "Reports"]
 
 CANONICAL_ROLES = {

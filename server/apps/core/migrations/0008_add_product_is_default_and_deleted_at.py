@@ -2,7 +2,6 @@
 
 from django.db import migrations, models
 
-
 _DEFAULT_PRODUCT_NAMES_VARIATIONS = [
     ("Alkaline Water", "5-Gallon Round"),
     ("Mineral Water", "5-Gallon Slim"),

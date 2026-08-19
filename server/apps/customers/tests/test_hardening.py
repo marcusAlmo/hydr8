@@ -27,7 +27,6 @@ from apps.customers.services import (
     blacklist_customer,
     flag_customer,
     record_customer_borrowed,
-    record_customer_collection,
     record_customer_debt,
     reset_customer_status,
 )
@@ -250,9 +249,8 @@ class UniqueCustomerNameTests(TestCase):
     def test_duplicate_active_name_raises(self):
         """Two active customers with the same name in one company clash."""
         Customer.objects.create(name="Dupe Store", company=self.company)
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                Customer.objects.create(name="Dupe Store", company=self.company)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Customer.objects.create(name="Dupe Store", company=self.company)
 
     def test_soft_deleted_name_can_be_reused(self):
         """A soft-deleted customer's name can be reused."""
@@ -310,54 +308,49 @@ class DatabaseConstraintTests(TestCase):
 
     def test_negative_debt_balance_rejected(self):
         """The DB rejects a negative debt_balance."""
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                Customer.objects.create(
-                    name="Negative Debt", debt_balance=Decimal("-1.00")
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Customer.objects.create(
+                name="Negative Debt", debt_balance=Decimal("-1.00")
+            )
 
     def test_negative_credit_limit_rejected(self):
         """The DB rejects a negative credit_limit."""
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                Customer.objects.create(
-                    name="Negative Limit", credit_limit=Decimal("-50.00")
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Customer.objects.create(
+                name="Negative Limit", credit_limit=Decimal("-50.00")
+            )
 
     def test_negative_borrowed_counter_rejected(self):
         """The DB rejects a negative borrowed_* counter."""
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                Customer.objects.create(
-                    name="Negative Borrowed", borrowed_round_8gal=-1
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Customer.objects.create(
+                name="Negative Borrowed", borrowed_round_8gal=-1
+            )
 
     def test_credit_line_qty_remaining_above_credited_rejected(self):
         """qty_remaining cannot exceed qty_credited at the DB level."""
         customer = Customer.objects.create(name="CL Constraint Store")
         product = Product.objects.create(name="Water", price=Decimal("10.00"))
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                CreditLine.objects.create(
-                    customer=customer,
-                    product=product,
-                    qty_credited=5,
-                    qty_remaining=6,
-                    unit_price_snapshot=Decimal("10.00"),
-                    total_credit_amount=Decimal("50.00"),
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            CreditLine.objects.create(
+                customer=customer,
+                product=product,
+                qty_credited=5,
+                qty_remaining=6,
+                unit_price_snapshot=Decimal("10.00"),
+                total_credit_amount=Decimal("50.00"),
+            )
 
     def test_borrowed_qty_returned_above_borrowed_rejected(self):
         """qty_returned cannot exceed qty_borrowed at the DB level."""
         customer = Customer.objects.create(name="BC Constraint Store")
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                BorrowedContainer.objects.create(
-                    customer=customer,
-                    container_key="round_8gal",
-                    qty_borrowed=3,
-                    qty_returned=4,
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            BorrowedContainer.objects.create(
+                customer=customer,
+                container_key="round_8gal",
+                qty_borrowed=3,
+                qty_returned=4,
+            )
 
     def test_negative_credit_payment_amount_rejected(self):
         """A negative payment amount is rejected at the DB level."""
@@ -371,10 +364,9 @@ class DatabaseConstraintTests(TestCase):
             unit_price_snapshot=Decimal("10.00"),
             total_credit_amount=Decimal("20.00"),
         )
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                CreditPayment.objects.create(
-                    credit_line=line,
-                    containers_paid=1,
-                    amount=Decimal("-5.00"),
-                )
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            CreditPayment.objects.create(
+                credit_line=line,
+                containers_paid=1,
+                amount=Decimal("-5.00"),
+            )

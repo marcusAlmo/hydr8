@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.test import TestCase
 
 from apps.core.models import Product
-from apps.users.models import User, Role, DriverCommission
+from apps.users.models import DriverCommission, Role, User
 
 
 class ProductsPricingViewTests(TestCase):

@@ -11,8 +11,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from apps.remittance.models import Remittance
-from apps.remittance.services import update_remittance_paid_status
 from apps.remittance.selectors import get_remittance_row
+from apps.remittance.services import update_remittance_paid_status
 from apps.users.models import Role, User
 
 

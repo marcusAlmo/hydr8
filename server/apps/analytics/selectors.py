@@ -30,13 +30,13 @@ def _fmt_peso(value: Decimal) -> str:
     return f"₱{value:,.2f}"
 
 
-def _sales_for_date(user: "User", target: timezone.datetime.date) -> Decimal:
+def _sales_for_date(user: User, target: timezone.datetime.date) -> Decimal:
     """Return total_sales for a given date, or zero if no remittance exists."""
     rem = Remittance.objects.for_user(user).filter(date=target).first()
     return rem.total_sales if rem else Decimal("0.00")
 
 
-def _sales_trend(user: "User") -> tuple[Decimal, str, str]:
+def _sales_trend(user: User) -> tuple[Decimal, str, str]:
     """Return today's sales, a human trend string, and the trend direction."""
     today = timezone.localdate()
     yesterday = today - timedelta(days=1)
@@ -60,7 +60,7 @@ def _sales_trend(user: "User") -> tuple[Decimal, str, str]:
     return today_sales, trend, direction
 
 
-def _outstanding_debt(user: "User") -> Decimal:
+def _outstanding_debt(user: User) -> Decimal:
     """Sum of outstanding customer debt balances."""
     result = (
         Customer.objects.for_user(user)
@@ -75,7 +75,7 @@ def _outstanding_debt(user: "User") -> Decimal:
     return result["total"] or Decimal("0.00")
 
 
-def _unreturned_containers(user: "User") -> dict:
+def _unreturned_containers(user: User) -> dict:
     """Return total and breakdown of customer-borrowed containers."""
     aggregates = (
         Customer.objects.for_user(user)
@@ -102,7 +102,7 @@ def _unreturned_containers(user: "User") -> dict:
     }
 
 
-def _build_stats(user: "User") -> list[dict]:
+def _build_stats(user: User) -> list[dict]:
     """Assemble the asymmetric 6/3/3 summary cards."""
     today_sales, sales_trend, sales_direction = _sales_trend(user)
     containers = _unreturned_containers(user)
@@ -152,7 +152,7 @@ def _build_stats(user: "User") -> list[dict]:
     ]
 
 
-def _today_remittance(user: "User") -> dict:
+def _today_remittance(user: User) -> dict:
     """Centralized today's-remittance status for the dashboard panel.
 
     Returns one of three states:
@@ -206,7 +206,7 @@ def _today_remittance(user: "User") -> dict:
     }
 
 
-def _recent_remittances(user: "User") -> list[dict]:
+def _recent_remittances(user: User) -> list[dict]:
     """Recent finalized/draft remittances for the dashboard table."""
     qs = (
         Remittance.objects.for_user(user)
@@ -235,7 +235,7 @@ def _recent_remittances(user: "User") -> list[dict]:
     return rows
 
 
-def _outstanding_debts(user: "User") -> list[dict]:
+def _outstanding_debts(user: User) -> list[dict]:
     """All unpaid customer credit lines, ordered by age (oldest first)."""
     today = timezone.localdate()
 
@@ -279,21 +279,21 @@ def _outstanding_debts(user: "User") -> list[dict]:
 # each section only runs its own queries instead of the full dashboard set.
 # ---------------------------------------------------------------------------
 
-def get_stats(user: "User") -> list[dict]:
+def get_stats(user: User) -> list[dict]:
     """Stats row cards (6/3/3 grid)."""
     return _build_stats(user)
 
 
-def get_recent_remittances(user: "User") -> list[dict]:
+def get_recent_remittances(user: User) -> list[dict]:
     """Recent remittances table rows."""
     return _recent_remittances(user)
 
 
-def get_outstanding_debts(user: "User") -> list[dict]:
+def get_outstanding_debts(user: User) -> list[dict]:
     """Outstanding debts table rows."""
     return _outstanding_debts(user)
 
 
-def get_today_remittance(user: "User") -> dict:
+def get_today_remittance(user: User) -> dict:
     """Today's remittance status for the dashboard side panel."""
     return _today_remittance(user)

@@ -1,12 +1,18 @@
 from decimal import Decimal
+
 from django.test import SimpleTestCase
-from apps.remittance.models import (
-    Remittance, RemittanceRider, RemittanceRiderProductLine, 
-    Expense, RiderCredit, RiderCreditRepayment
-)
-from apps.users.models import User
+
 from apps.core.models import Product
+from apps.remittance.models import (
+    Expense,
+    Remittance,
+    RemittanceRider,
+    RemittanceRiderProductLine,
+    RiderCredit,
+    RiderCreditRepayment,
+)
 from apps.tests.fakes import FakeRemittanceRepository
+from apps.users.models import User
 
 
 class RemittanceModelTests(SimpleTestCase):
@@ -29,7 +35,7 @@ class RemittanceModelTests(SimpleTestCase):
         rider = RemittanceRider(remittance=remittance, rider=rider_user)
         product = Product(name="Gallon Water", variation="8 Gal Round")
         line = RemittanceRiderProductLine(remittance_rider=rider, product=product)
-        self.assertEqual(str(line), f"Gallon Water line for {str(rider)}")
+        self.assertEqual(str(line), f"Gallon Water line for {rider!s}")
 
     def test_expense_str(self):
         """Test Expense string representation."""
@@ -48,7 +54,7 @@ class RemittanceModelTests(SimpleTestCase):
         rider_user = User(username="driver2")
         credit = RiderCredit(rider=rider_user, recipient_name="Alice", amount=Decimal("200.00"))
         repayment = RiderCreditRepayment(rider_credit=credit, amount_repaid=Decimal("100.00"))
-        self.assertEqual(str(repayment), f"Repayment of 100.00 for {str(credit)}")
+        self.assertEqual(str(repayment), f"Repayment of 100.00 for {credit!s}")
 
     def test_fake_remittance_repository(self):
         """Test FakeRemittanceRepository in-memory store operations."""

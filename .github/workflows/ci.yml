@@ -39,7 +39,7 @@ jobs:
     env:
       DATABASE_URL: postgres://hydr8:hydr8@localhost:5432/hydr8_test
       DJANGO_SETTINGS_MODULE: config.settings.test
-      DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+      SECRET_KEY: ci-test-secret-key-not-for-production
       REDIS_URL: redis://127.0.0.1:6379/1
 
     defaults:

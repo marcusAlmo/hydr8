@@ -338,8 +338,9 @@ class IsStaffRoleHelperTests(StaffLimitedAccessTestCase):
         self.assertFalse(is_staff_role(su))
 
     def test_anonymous_returns_false(self):
-        from apps.users.permissions import is_staff_role
         from django.contrib.auth.models import AnonymousUser
+
+        from apps.users.permissions import is_staff_role
         self.assertFalse(is_staff_role(AnonymousUser()))
 
     def test_user_without_role_returns_false(self):

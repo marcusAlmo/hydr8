@@ -1,6 +1,6 @@
 from pathlib import Path
+
 import environ
-import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # BASE_DIR is the root of the project (hydr8)

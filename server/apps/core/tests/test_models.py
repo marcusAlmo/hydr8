@@ -1,4 +1,5 @@
-from django.test import TestCase, SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+
 from apps.core.models import Product, SystemConfig
 from apps.tests.fakes import FakeProductRepository
 
@@ -18,7 +19,7 @@ class ProductModelTests(SimpleTestCase):
         """Test FakeProductRepository operations without DB."""
         repo = FakeProductRepository()
         prod = repo.create_product(name="Mineral Water", variation="Standard", price=30.0)
-        
+
         self.assertEqual(prod['id'], 1)
         self.assertEqual(prod['price'], 30.0)
         self.assertTrue(prod['is_active'])

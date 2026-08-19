@@ -1,7 +1,7 @@
 """Tests for the audit log selectors."""
 from django.test import TestCase
 
-from apps.audit.selectors import list_log_entries, get_log_entry
+from apps.audit.selectors import get_log_entry, list_log_entries
 from apps.users.models import User
 
 

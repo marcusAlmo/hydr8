@@ -2,10 +2,10 @@ import json
 import re
 from functools import wraps
 
-from django.http import HttpResponse
-from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
@@ -13,6 +13,7 @@ from apps.core.views import error_message
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.permissions import is_admin, is_back_office
 
+from .models import BorrowedContainer, CreditLine, CreditPayment
 from .selectors import (
     DEFAULT_DIR,
     DEFAULT_SORT,
@@ -41,8 +42,6 @@ from .services import (
     record_customer_debt,
     update_customer,
 )
-from .models import BorrowedContainer, CreditLine, CreditPayment
-
 
 # ---------------------------------------------------------------------------
 # Accent colour mapping for summary cards.
@@ -369,7 +368,6 @@ def record_debt_submit_view(request):
             status=400,
         )
 
-    customer = credit_line.customer
     customer_id = request.POST.get("customer_id", "")
     message = (
         f"Recorded {credit_line.qty_credited} credited unit(s) "

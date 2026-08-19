@@ -11,7 +11,6 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message
 from apps.users.permissions import is_admin as user_is_admin
-from apps.users.permissions import is_back_office as user_is_back_office
 from apps.users.services import validate_user_pin
 
 from .selectors import get_products_pricing_context
