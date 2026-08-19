@@ -11,7 +11,7 @@ import json
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from apps.audit.selectors import (
+from apps.core.selectors_audit import (
     _tenant_filter,
     build_logs_json,
     get_log_entry,

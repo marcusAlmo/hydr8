@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views_audit as views
 
 app_name = "audit"
 

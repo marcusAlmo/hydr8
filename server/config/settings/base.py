@@ -38,7 +38,6 @@ INSTALLED_APPS = [
     'apps.products',
     'apps.analytics',
     'apps.settings',
-    'apps.audit',
 ]
 
 MIDDLEWARE = [

@@ -31,7 +31,7 @@ urlpatterns = [
     path('products/', include('apps.products.urls')),
     path('employees/', include('apps.users.urls_employees')),
     path('settings/', include('apps.settings.urls')),
-    path('audit/', include('apps.audit.urls')),
+    path('audit/', include('apps.core.urls_audit')),
 ]
 
 # Custom error handlers — render friendly fragments for common errors.

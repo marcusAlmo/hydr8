@@ -1024,7 +1024,7 @@ def logout_view(request):
     """Logs out the current user and redirects to the login landing page.
 
     POST-only to prevent CSRF-via-GET logout attacks. ``auth_logout`` fires
-    the ``user_logged_out`` signal, which ``apps.audit.signals`` turns into
+    the ``user_logged_out`` signal, which ``apps.core.signals_audit`` turns into
     an ACCESS log entry automatically.
     """
     user_id = request.user.id

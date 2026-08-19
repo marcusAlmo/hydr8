@@ -9,3 +9,5 @@ class CoreConfig(AppConfig):
         from .models import Product, SystemConfig
         auditlog.register(Product)
         auditlog.register(SystemConfig)
+        # Import audit signal handlers so they connect to Django's signal bus.
+        from . import signals_audit  # noqa: F401

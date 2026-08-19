@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
-from apps.audit.selectors import (
+from apps.core.selectors_audit import (
     build_logs_json,
     get_log_entry,
     list_log_entries,
