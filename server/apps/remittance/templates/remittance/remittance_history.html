@@ -354,7 +354,6 @@
                             <div class="max-h-64 overflow-y-auto custom-scrollbar">
                                 <template x-for="rider in filteredRiders(riderQuery)" :key="rider.name">
                                     <label
-                                        @click.prevent=""
                                         :class="isRiderActive(rider.name)
                                             ? 'bg-primary/5'
                                             : 'hover:bg-surface-container-low'"
