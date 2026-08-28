@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.timezone import localtime
 
@@ -234,17 +234,25 @@ def _directory_stats(users_qs):
     ]
 
 
-def _directory_filters(users_qs):
-    total = users_qs.count()
+def _directory_filters(users_qs, active_filter: str = "all") -> list[dict]:
+    """Aggregate all filter counts in a single query using annotate + Count."""
+    counts = users_qs.aggregate(
+        total=Count('id'),
+        admins=Count('id', filter=Q(role__name="Admin")),
+        staff=Count('id', filter=Q(role__name="Staff")),
+        drivers=Count('id', filter=Q(role__name="Driver")),
+        inactive=Count('id', filter=Q(is_active=False) | Q(deactivated_at__isnull=False)),
+    )
     return [
-        {"label": "All", "count": total, "active": True},
-        {"label": "Admins", "count": users_qs.filter(role__name="Admin").count(), "active": False},
-        {"label": "Staff", "count": users_qs.filter(role__name="Staff").count(), "active": False},
-        {"label": "Drivers", "count": users_qs.filter(role__name="Driver").count(), "active": False},
+        {"label": "All", "key": "all", "count": counts['total'], "active": active_filter == "all"},
+        {"label": "Admins", "key": "admins", "count": counts['admins'], "active": active_filter == "admins"},
+        {"label": "Staff", "key": "staff", "count": counts['staff'], "active": active_filter == "staff"},
+        {"label": "Drivers", "key": "drivers", "count": counts['drivers'], "active": active_filter == "drivers"},
         {
             "label": "Inactive",
-            "count": users_qs.exclude(is_active=True, deactivated_at__isnull=True).count(),
-            "active": False,
+            "key": "inactive",
+            "count": counts['inactive'],
+            "active": active_filter == "inactive",
         },
     ]
 
@@ -593,11 +601,13 @@ def get_employee_directory_context(
     request_user: UserType,
     query: str = "",
     page: int = 1,
+    active_filter: str = "all",
 ) -> dict:
     """Returns the full context for the Employees & Users directory page.
 
     When ``query`` is non-empty, filters by first_name, last_name, or username
-    using ``__icontains``. Uses real pagination (PER_PAGE=25).
+    using ``__icontains``. When ``active_filter`` is set, further narrows by
+    role or inactive users. Uses real pagination (PER_PAGE=25).
     """
     users_qs = _user_qs(request_user).select_related('role')
 
@@ -609,6 +619,16 @@ def get_employee_directory_context(
             | Q(last_name__icontains=query)
             | Q(username__icontains=query)
         )
+
+    active_filter = (active_filter or "all").lower()
+    if active_filter == "admins":
+        users_qs = users_qs.filter(role__name="Admin")
+    elif active_filter == "staff":
+        users_qs = users_qs.filter(role__name="Staff")
+    elif active_filter == "drivers":
+        users_qs = users_qs.filter(role__name="Driver")
+    elif active_filter == "inactive":
+        users_qs = users_qs.exclude(is_active=True, deactivated_at__isnull=True)
 
     users_qs = users_qs.order_by("first_name", "last_name")
 
@@ -624,10 +644,11 @@ def get_employee_directory_context(
     return {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "stats": stats,
-        "filters": _directory_filters(_user_qs(request_user)),
+        "filters": _directory_filters(_user_qs(request_user), active_filter),
         "users": users,
         "pagination": _pagination_from_page(page_obj),
         "search_query": query,
+        "active_filter": active_filter,
     }
 
 
