@@ -20,6 +20,9 @@ dev = [
     "django-stubs>=6.0.7",
     "ruff>=0.13.0",
 ]
+prod = [
+    "sentry-sdk>=2.0",
+]
 
 [tool.ruff]
 target-version = "py312"
