@@ -64,10 +64,11 @@ def employees_search_view(request):
         return HttpResponse("Forbidden", status=403)
 
     query = request.GET.get("q", "")
+    active_filter = request.GET.get("filter", "all")
     try:
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
 
-    context = get_employee_directory_context(request.user, query, page)
+    context = get_employee_directory_context(request.user, query, page, active_filter)
     return render(request, "employees/partials/users_table.html", context)

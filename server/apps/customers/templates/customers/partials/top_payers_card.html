@@ -1,0 +1,105 @@
+{% comment %}
+Top Payers leaderboard card.
+Expects context:
+  - top_payers: list of { rank, rank_class, id, name, initials,
+                          on_time_ratio, avg_payment_days, payment_count,
+                          total_paid, tier, tier_class }
+  - pagination: { showing_from, showing_to, total, total_display, current_page,
+                  total_pages, has_previous, previous_page_number, has_next,
+                  next_page_number }
+{% endcomment %}
+<div id="top-payers-card" class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+    <div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant/20 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-tertiary">verified</span>
+            <h3 class="font-headline-sm text-sm font-bold text-on-surface">Top Payers</h3>
+        </div>
+        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">By on-time ratio</span>
+    </div>
+    <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-surface-container-low/50 border-b border-outline-variant/20">
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-12">#</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Customer</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">On-Time</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Avg Pay</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Paid</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tier</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                {% for payer in top_payers %}
+                <tr class="hover:bg-surface-container-low transition-colors group">
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full {{ payer.rank_class }} font-bold text-xs">{{ payer.rank }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">{{ payer.initials }}</div>
+                            <div class="flex flex-col">
+                                <span class="font-sans text-on-surface font-headline-sm text-sm">{{ payer.name }}</span>
+                                <span class="font-data-mono text-on-surface-variant text-[10px]">{{ payer.id }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <span class="text-tertiary font-bold">{{ payer.on_time_ratio }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface-variant">{{ payer.avg_payment_days }}d</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface font-bold">{{ payer.total_paid }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="font-label-caps text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider {{ payer.tier_class }}">{{ payer.tier }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="py-10 px-4 text-center text-on-surface-variant font-body-sm">
+                        <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">verified</span>
+                        No payer data yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="px-4 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">
+            {% if pagination.total == 0 %}
+                No reliable payers
+            {% else %}
+                Showing {{ pagination.showing_from }}–{{ pagination.showing_to }} of {{ pagination.total_display }} reliable payers
+            {% endif %}
+        </span>
+        <div class="flex items-center gap-1">
+            {% if pagination.has_previous %}
+            <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                    title="Previous page"
+                    hx-get="{% url 'customers:top_payers' %}?page={{ pagination.previous_page_number }}"
+                    hx-target="#top-payers-card"
+                    hx-swap="outerHTML">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            {% else %}
+            <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
+                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+            {% endif %}
+            <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
+            <span class="px-2 text-on-surface-variant text-xs font-data-mono">/ {{ pagination.total_pages }}</span>
+            {% if pagination.has_next %}
+            <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                    title="Next page"
+                    hx-get="{% url 'customers:top_payers' %}?page={{ pagination.next_page_number }}"
+                    hx-target="#top-payers-card"
+                    hx-swap="outerHTML">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+            {% else %}
+            <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
+                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>

@@ -25,8 +25,10 @@ from .selectors import (
     get_customer_history_context,
     get_customer_list_context,
     get_customer_table_context,
+    get_prompt_returners_paginated,
     get_record_borrowed_context,
     get_record_debt_context,
+    get_top_payers_paginated,
 )
 from .services import (
     create_customer,
@@ -115,6 +117,34 @@ def customer_list_view(request):
 @_back_office_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
+def top_payers_view(request):
+    """HTMX endpoint — returns a paginated page of the Top Payers leaderboard."""
+    try:
+        page = int(request.GET.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    context = get_top_payers_paginated(request.user, page=page)
+    return render(request, "customers/partials/top_payers_card.html", context)
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def prompt_returners_view(request):
+    """HTMX endpoint — returns a paginated page of the Prompt Returners leaderboard."""
+    try:
+        page = int(request.GET.get("page", 1))
+    except (TypeError, ValueError):
+        page = 1
+    context = get_prompt_returners_paginated(request.user, page=page)
+    return render(request, "customers/partials/prompt_returners_card.html", context)
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
 def customer_table_view(request):
     """HTMX endpoint — returns the sorted/filtered customer table partial."""
     sort_field = request.GET.get("sort", DEFAULT_SORT)
@@ -122,11 +152,14 @@ def customer_table_view(request):
     direction = request.GET.get("dir", DEFAULT_DIR)
     direction = direction if direction in ("asc", "desc") else DEFAULT_DIR
     query = request.GET.get("q", "")
+    active_filter = request.GET.get("filter", "all")
     try:
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
-    context = get_customer_table_context(request.user, sort_field, direction, query, page)
+    context = get_customer_table_context(
+        request.user, sort_field, direction, query, page, active_filter
+    )
     return render(request, "customers/partials/customer_table.html", context)
 
 
