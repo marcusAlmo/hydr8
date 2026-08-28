@@ -21,7 +21,7 @@
     </header>
 
     <!-- Slide-in Content Area — Alpine.js root -->
-    <div x-data='remittanceForm({{ alpine_seed|safe }})' x-init="initCache(); checkDate()"
+    <div x-data='remittanceForm({{ alpine_seed|safe }})' x-init="initCache(); checkDate(); setupChangeDetection()"
          class="flex-1 overflow-y-auto custom-scrollbar bg-surface-container-low/50 relative">
 
         <!-- Page Description -->
@@ -1821,6 +1821,10 @@
                 _lastSnapshot: null,
                 _autoSaveTimer: null,
 
+                // ---- change detection for unsaved changes guard ----
+                remittance_has_changes: false,
+                _initialSnapshot: null,
+
                 // ---- draft saved confirmation (staff) ----
                 // Staff cannot access Remittance History, so after a
                 // successful draft save we keep them on this page and
@@ -2043,6 +2047,12 @@
                     this.applyDraftState(this.pendingDraftState);
                     this.showLoadDraftConfirm = false;
                     this.hasDraft = true;
+                    // Reset the change detection snapshot after loading draft
+                    this._initialSnapshot = JSON.stringify(this._extractCacheState());
+                    this.remittance_has_changes = false;
+                    try {
+                        localStorage.setItem('remittance_has_changes', 'false');
+                    } catch (err) { /* ignore */ }
                     this.showToast('Draft loaded into the form.', 'success');
                 },
                 productName(key) {
@@ -2687,6 +2697,42 @@
                     }
                     // Start the 2-second auto-save interval
                     this._startAutoSave();
+                    // Initialize the change detection snapshot
+                    this._initialSnapshot = JSON.stringify(this._extractCacheState());
+                    this.remittance_has_changes = false;
+                },
+                setupChangeDetection() {
+                    // Set up watchers for all mutable fields to detect changes
+                    this.$watch('remittanceDate', () => this._checkForChanges());
+                    this.$watch('manualOffering', () => this._checkForChanges());
+                    this.$watch('otherSales', () => this._checkForChanges());
+                    this.$watch('riders', () => this._checkForChanges(), { deep: true });
+                    this.$watch('staffs', () => this._checkForChanges(), { deep: true });
+
+                    // Set up beforeunload event to prompt on navigation with unsaved changes
+                    window.addEventListener('beforeunload', (e) => {
+                        if (this.remittance_has_changes && !this.isFinalizedView) {
+                            e.preventDefault();
+                            e.returnValue = 'You have unsaved changes. Do you want to save them as a draft before leaving?';
+                            return e.returnValue;
+                        }
+                    });
+                },
+                _checkForChanges() {
+                    if (this.isFinalizedView) {
+                        this.remittance_has_changes = false;
+                        return;
+                    }
+                    try {
+                        const currentSnapshot = JSON.stringify(this._extractCacheState());
+                        this.remittance_has_changes = currentSnapshot !== this._initialSnapshot;
+                        // Update localStorage with the remittance_has_changes flag
+                        try {
+                            localStorage.setItem('remittance_has_changes', this.remittance_has_changes ? 'true' : 'false');
+                        } catch (err) { /* ignore */ }
+                    } catch (err) {
+                        console.warn('Error checking for changes:', err);
+                    }
                 },
                 _startAutoSave() {
                     if (this._autoSaveTimer) clearInterval(this._autoSaveTimer);
@@ -2777,6 +2823,12 @@
                     this._clearCache();
                     // Reset the form to its initial seed state
                     this._resetFormFields();
+                    // Reset the change detection flag
+                    this._initialSnapshot = JSON.stringify(this._extractCacheState());
+                    this.remittance_has_changes = false;
+                    try {
+                        localStorage.setItem('remittance_has_changes', 'false');
+                    } catch (err) { /* ignore */ }
                     // Re-fetch the date's credit data so the live
                     // credited/repaid counts and repayments reflect the
                     // current state (the draft's linked CreditPayments
@@ -2829,6 +2881,12 @@
                             // (now the source of truth) is loaded on the
                             // next visit instead of a stale snapshot.
                             this._clearCache();
+                            // Reset the change detection flag
+                            this._initialSnapshot = JSON.stringify(this._extractCacheState());
+                            this.remittance_has_changes = false;
+                            try {
+                                localStorage.setItem('remittance_has_changes', 'false');
+                            } catch (err) { /* ignore */ }
                             // Staff get a draft_saved confirmation (they
                             // cannot access Remittance History).  Admins
                             // are redirected to history as before.
@@ -2883,6 +2941,11 @@
                             // Finalize succeeded — clear the localStorage cache
                             // so the next visit starts fresh.
                             this._clearCache();
+                            // Reset the change detection flag
+                            this.remittance_has_changes = false;
+                            try {
+                                localStorage.setItem('remittance_has_changes', 'false');
+                            } catch (err) { /* ignore */ }
                             window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
                         } else {
                             this.pinError = data.error || 'Failed to finalize remittance.';
