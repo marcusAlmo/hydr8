@@ -1,5 +1,5 @@
 {% comment %}
-Ranking tab — two leaderboards to reward good behaviour.
+Ranking tab — two paginated leaderboards to reward good behaviour.
 Expects context:
   - ranking_stats: list of { col_span, label, icon, icon_class, value,
                              value_size, subtitle?, border_class }
@@ -9,6 +9,8 @@ Expects context:
   - prompt_returners: list of { rank, rank_class, id, name, initials,
                                 avg_return_days, return_count,
                                 containers_returned, on_time_ratio }
+  - top_payers_pagination: pagination dict
+  - prompt_returners_pagination: pagination dict
   - payer_count: int
   - returner_count: int
 {% endcomment %}
@@ -39,8 +41,8 @@ Expects context:
 
     <!-- Two-column leaderboards -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {% include "customers/partials/top_payers_card.html" %}
-        {% include "customers/partials/prompt_returners_card.html" %}
+        {% include "customers/partials/top_payers_card.html" with pagination=top_payers_pagination %}
+        {% include "customers/partials/prompt_returners_card.html" with pagination=prompt_returners_pagination %}
     </div>
 
     <!-- Reward hint banner -->

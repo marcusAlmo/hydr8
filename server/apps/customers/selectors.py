@@ -44,6 +44,7 @@ SORT_FIELD_MAP: dict[str, str] = {
 DEFAULT_SORT = "name"
 DEFAULT_DIR = "asc"
 PER_PAGE = 25
+RANKING_PER_PAGE = 10
 
 # Maps sort field names to actual DB column/annotation names for DB-side sorting.
 # "last_credit" maps to "last_credit_at" with inverted direction (more recent = fewer days).
@@ -239,34 +240,38 @@ def _pagination(current_page: int, total: int) -> dict:
     }
 
 
-def _customer_filters(user: UserType) -> list[dict]:
+def _customer_filters(user: UserType, active_filter: str = "all") -> list[dict]:
     base = Customer.objects.for_user(user).filter(deleted_at__isnull=True)
     return [
         {
             "label": "All",
+            "key": "all",
             "count": base.count(),
-            "active": True,
+            "active": active_filter == "all",
         },
         {
             "label": "Has Debt",
+            "key": "has_debt",
             "count": base.filter(debt_balance__gt=0).count(),
-            "active": False,
+            "active": active_filter == "has_debt",
         },
         {
             "label": "Has Borrowed Items",
+            "key": "has_borrowed",
             "count": base.filter(
                 Q(borrowed_round_8gal__gt=0)
                 | Q(borrowed_slim_8gal__gt=0)
                 | Q(borrowed_other__gt=0)
             ).count(),
-            "active": False,
+            "active": active_filter == "has_borrowed",
         },
         {
             "label": "Anomalous",
+            "key": "anomalous",
             "count": base.filter(
                 status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED)
             ).count(),
-            "active": False,
+            "active": active_filter == "anomalous",
         },
     ]
 
@@ -518,17 +523,39 @@ def get_prompt_returners(user: UserType, limit: int | None = 5) -> list[dict]:
     return prompt_returners
 
 
+def get_top_payers_paginated(user: UserType, page: int = 1, per_page: int = RANKING_PER_PAGE) -> dict:
+    """Returns a paginated page of top-paying customers."""
+    all_payers = get_top_payers(user, limit=None)
+    paginator = Paginator(all_payers, per_page)
+    page_obj = paginator.get_page(page)
+    return {
+        "top_payers": page_obj.object_list,
+        "payer_count": paginator.count,
+        "pagination": _pagination_from_page(page_obj),
+    }
+
+
+def get_prompt_returners_paginated(user: UserType, page: int = 1, per_page: int = RANKING_PER_PAGE) -> dict:
+    """Returns a paginated page of prompt container returners."""
+    all_returners = get_prompt_returners(user, limit=None)
+    paginator = Paginator(all_returners, per_page)
+    page_obj = paginator.get_page(page)
+    return {
+        "prompt_returners": page_obj.object_list,
+        "returner_count": paginator.count,
+        "pagination": _pagination_from_page(page_obj),
+    }
+
+
 def _ranking_context(user: UserType) -> dict:
-    payer_count = get_top_payer_count(user)
-    returner_count = get_prompt_returner_count(user)
-    top_payers = get_top_payers(user, limit=5)
-    prompt_returners = get_prompt_returners(user, limit=5)
+    payer_data = get_top_payers_paginated(user, page=1)
+    returner_data = get_prompt_returners_paginated(user, page=1)
     stats = [
         {
             "key": "top_payers",
             "label": "Reliable Payers",
-            "value": str(payer_count),
-            "raw_value": payer_count,
+            "value": str(payer_data["payer_count"]),
+            "raw_value": payer_data["payer_count"],
             "value_prefix": "",
             "value_decimals": 0,
             "value_size": "4xl",
@@ -540,12 +567,12 @@ def _ranking_context(user: UserType) -> dict:
         {
             "key": "prompt_returners",
             "label": "Prompt Returners",
-            "value": str(returner_count),
-            "raw_value": returner_count,
+            "value": str(returner_data["returner_count"]),
+            "raw_value": returner_data["returner_count"],
             "value_prefix": "",
             "value_decimals": 0,
             "value_size": "4xl",
-            "subtitle": "No return data yet" if returner_count == 0 else "Containers returned on time",
+            "subtitle": "No return data yet" if returner_data["returner_count"] == 0 else "Containers returned on time",
             "icon": "cached",
             "accent": "tertiary",
             "col_span": "md:col-span-3",
@@ -566,10 +593,12 @@ def _ranking_context(user: UserType) -> dict:
     ]
     return {
         "ranking_stats": stats,
-        "top_payers": top_payers,
-        "prompt_returners": prompt_returners,
-        "payer_count": payer_count,
-        "returner_count": returner_count,
+        "top_payers": payer_data["top_payers"],
+        "prompt_returners": returner_data["prompt_returners"],
+        "payer_count": payer_data["payer_count"],
+        "returner_count": returner_data["returner_count"],
+        "top_payers_pagination": payer_data["pagination"],
+        "prompt_returners_pagination": returner_data["pagination"],
     }
 
 
@@ -591,11 +620,13 @@ def get_customer_table_context(
     direction: str = DEFAULT_DIR,
     query: str = "",
     page: int = 1,
+    active_filter: str = "all",
 ) -> dict:
     """Returns the full customer table partial context.
 
     When ``query`` is non-empty, filters by ``name__icontains``.
-    Uses DB-side sorting and real pagination (PER_PAGE=25).
+    When ``active_filter`` is set, narrows by debt, borrowed items, or
+    anomalous status. Uses DB-side sorting and real pagination (PER_PAGE=25).
     """
     next_dir = "desc" if direction == "asc" else "asc"
 
@@ -605,6 +636,18 @@ def get_customer_table_context(
     query = (query or "").strip()
     if query:
         qs = qs.filter(name__icontains=query)
+
+    active_filter = (active_filter or "all").lower()
+    if active_filter == "has_debt":
+        qs = qs.filter(debt_balance__gt=0)
+    elif active_filter == "has_borrowed":
+        qs = qs.filter(
+            Q(borrowed_round_8gal__gt=0)
+            | Q(borrowed_slim_8gal__gt=0)
+            | Q(borrowed_other__gt=0)
+        )
+    elif active_filter == "anomalous":
+        qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
 
     # Annotate borrowed_total for sorting
     qs = qs.annotate(
@@ -631,7 +674,7 @@ def get_customer_table_context(
     rows = [_customer_row(c) for c in page_obj.object_list]
 
     return {
-        "filters": _customer_filters(user),
+        "filters": _customer_filters(user, active_filter),
         "customers": rows,
         "pagination": _pagination_from_page(page_obj),
         "sort_state": {
@@ -640,6 +683,7 @@ def get_customer_table_context(
             "next_dir": next_dir,
         },
         "search_query": query,
+        "active_filter": active_filter,
     }
 
 
