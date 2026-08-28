@@ -44,6 +44,7 @@ SORT_FIELD_MAP: dict[str, str] = {
 DEFAULT_SORT = "name"
 DEFAULT_DIR = "asc"
 PER_PAGE = 25
+RANKING_PER_PAGE = 10
 
 # Maps sort field names to actual DB column/annotation names for DB-side sorting.
 # "last_credit" maps to "last_credit_at" with inverted direction (more recent = fewer days).
@@ -239,34 +240,38 @@ def _pagination(current_page: int, total: int) -> dict:
     }
 
 
-def _customer_filters(user: UserType) -> list[dict]:
+def _customer_filters(user: UserType, active_filter: str = "all") -> list[dict]:
     base = Customer.objects.for_user(user).filter(deleted_at__isnull=True)
     return [
         {
             "label": "All",
+            "key": "all",
             "count": base.count(),
-            "active": True,
+            "active": active_filter == "all",
         },
         {
             "label": "Has Debt",
+            "key": "has_debt",
             "count": base.filter(debt_balance__gt=0).count(),
-            "active": False,
+            "active": active_filter == "has_debt",
         },
         {
             "label": "Has Borrowed Items",
+            "key": "has_borrowed",
             "count": base.filter(
                 Q(borrowed_round_8gal__gt=0)
                 | Q(borrowed_slim_8gal__gt=0)
                 | Q(borrowed_other__gt=0)
             ).count(),
-            "active": False,
+            "active": active_filter == "has_borrowed",
         },
         {
             "label": "Anomalous",
+            "key": "anomalous",
             "count": base.filter(
                 status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED)
             ).count(),
-            "active": False,
+            "active": active_filter == "anomalous",
         },
     ]
 
@@ -400,23 +405,43 @@ def _customer_stats(user: UserType) -> list[dict]:
     ]
 
 
-def _ranking_context(user: UserType) -> dict:
-    top_payers_qs = (
+def _ranking_row_class(rank: int) -> str:
+    """Tailwind class for the rank badge based on position."""
+    rank_class_map = {
+        1: "bg-tertiary text-on-primary",
+        2: "bg-tertiary-container text-tertiary",
+    }
+    return rank_class_map.get(
+        rank, "bg-surface-container-high text-on-surface-variant"
+    )
+
+
+def get_top_payer_count(user: UserType) -> int:
+    """Returns the number of customers with at least one recorded payment."""
+    return (
+        Customer.objects.for_user(user)
+        .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
+        .distinct()
+        .count()
+    )
+
+
+def get_top_payers(user: UserType, limit: int | None = 5) -> list[dict]:
+    """Returns the top-paying customers, optionally limited to the first N."""
+    qs = (
         Customer.objects.for_user(user)
         .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
         .annotate(
             total_paid=Sum("credit_lines__payments__amount"),
             payment_count=Count("credit_lines__payments", distinct=True),
         )
-        .order_by("-total_paid")[:5]
+        .order_by("-total_paid")
     )
+    if limit is not None:
+        qs = qs[:limit]
     top_payers: list[dict] = []
-    rank_class_map = {
-        1: "bg-tertiary text-on-primary",
-        2: "bg-tertiary-container text-tertiary",
-    }
-    for idx, customer in enumerate(top_payers_qs, start=1):
-        rank_class = rank_class_map.get(idx, "bg-surface-container-high text-on-surface-variant")
+    for idx, customer in enumerate(qs, start=1):
+        rank_class = _ranking_row_class(idx)
         top_payers.append({
             "rank": idx,
             "rank_class": rank_class,
@@ -430,20 +455,107 @@ def _ranking_context(user: UserType) -> dict:
             "tier": "—",
             "tier_class": "bg-surface-container-high text-on-surface-variant",
         })
+    return top_payers
 
-    payer_count = (
-        Customer.objects.for_user(user)
-        .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
+
+def get_prompt_returner_count(user: UserType) -> int:
+    """Returns the number of customers with at least one returned container."""
+    return (
+        BorrowedContainer.objects.for_user(user)
+        .filter(qty_returned__gt=0, returned_at__isnull=False)
+        .values_list("customer_id", flat=True)
         .distinct()
         .count()
     )
 
+
+def get_prompt_returners(user: UserType, limit: int | None = 5) -> list[dict]:
+    """Returns customers with the fastest container return times."""
+    borrowed = (
+        BorrowedContainer.objects.for_user(user)
+        .filter(qty_returned__gt=0, returned_at__isnull=False)
+        .select_related("customer")
+    )
+    by_customer: dict[int, dict] = {}
+    for bc in borrowed:
+        customer = bc.customer
+        if customer.id not in by_customer:
+            by_customer[customer.id] = {
+                "customer": customer,
+                "containers_returned": 0,
+                "return_count": 0,
+                "return_days_sum": 0,
+                "on_time_count": 0,
+            }
+        data = by_customer[customer.id]
+        data["containers_returned"] += bc.qty_returned
+        data["return_count"] += 1
+        days = max(0, (bc.returned_at - bc.transaction_date).days)
+        data["return_days_sum"] += days
+        if days <= 7:
+            data["on_time_count"] += 1
+
+    prompt_returners: list[dict] = []
+    for data in by_customer.values():
+        if data["return_count"] == 0:
+            continue
+        customer = data["customer"]
+        avg_days = round(data["return_days_sum"] / data["return_count"])
+        on_time_ratio = round((data["on_time_count"] / data["return_count"]) * 100)
+        prompt_returners.append({
+            "rank": 0,
+            "rank_class": "",
+            "id": _display_id(customer),
+            "name": customer.name,
+            "initials": _customer_initials(customer.name),
+            "avg_return_days": avg_days,
+            "return_count": data["return_count"],
+            "containers_returned": data["containers_returned"],
+            "on_time_ratio": f"{on_time_ratio}%",
+        })
+
+    prompt_returners.sort(key=lambda r: (r["avg_return_days"], -r["containers_returned"]))
+    for idx, row in enumerate(prompt_returners, start=1):
+        row["rank"] = idx
+        row["rank_class"] = _ranking_row_class(idx)
+    if limit is not None:
+        return prompt_returners[:limit]
+    return prompt_returners
+
+
+def get_top_payers_paginated(user: UserType, page: int = 1, per_page: int = RANKING_PER_PAGE) -> dict:
+    """Returns a paginated page of top-paying customers."""
+    all_payers = get_top_payers(user, limit=None)
+    paginator = Paginator(all_payers, per_page)
+    page_obj = paginator.get_page(page)
+    return {
+        "top_payers": page_obj.object_list,
+        "payer_count": paginator.count,
+        "pagination": _pagination_from_page(page_obj),
+    }
+
+
+def get_prompt_returners_paginated(user: UserType, page: int = 1, per_page: int = RANKING_PER_PAGE) -> dict:
+    """Returns a paginated page of prompt container returners."""
+    all_returners = get_prompt_returners(user, limit=None)
+    paginator = Paginator(all_returners, per_page)
+    page_obj = paginator.get_page(page)
+    return {
+        "prompt_returners": page_obj.object_list,
+        "returner_count": paginator.count,
+        "pagination": _pagination_from_page(page_obj),
+    }
+
+
+def _ranking_context(user: UserType) -> dict:
+    payer_data = get_top_payers_paginated(user, page=1)
+    returner_data = get_prompt_returners_paginated(user, page=1)
     stats = [
         {
             "key": "top_payers",
             "label": "Reliable Payers",
-            "value": str(payer_count),
-            "raw_value": payer_count,
+            "value": str(payer_data["payer_count"]),
+            "raw_value": payer_data["payer_count"],
             "value_prefix": "",
             "value_decimals": 0,
             "value_size": "4xl",
@@ -455,12 +567,12 @@ def _ranking_context(user: UserType) -> dict:
         {
             "key": "prompt_returners",
             "label": "Prompt Returners",
-            "value": "0",
-            "raw_value": 0,
+            "value": str(returner_data["returner_count"]),
+            "raw_value": returner_data["returner_count"],
             "value_prefix": "",
             "value_decimals": 0,
             "value_size": "4xl",
-            "subtitle": "No return data yet",
+            "subtitle": "No return data yet" if returner_data["returner_count"] == 0 else "Containers returned on time",
             "icon": "cached",
             "accent": "tertiary",
             "col_span": "md:col-span-3",
@@ -481,8 +593,12 @@ def _ranking_context(user: UserType) -> dict:
     ]
     return {
         "ranking_stats": stats,
-        "top_payers": top_payers,
-        "prompt_returners": [],
+        "top_payers": payer_data["top_payers"],
+        "prompt_returners": returner_data["prompt_returners"],
+        "payer_count": payer_data["payer_count"],
+        "returner_count": returner_data["returner_count"],
+        "top_payers_pagination": payer_data["pagination"],
+        "prompt_returners_pagination": returner_data["pagination"],
     }
 
 
@@ -504,11 +620,13 @@ def get_customer_table_context(
     direction: str = DEFAULT_DIR,
     query: str = "",
     page: int = 1,
+    active_filter: str = "all",
 ) -> dict:
     """Returns the full customer table partial context.
 
     When ``query`` is non-empty, filters by ``name__icontains``.
-    Uses DB-side sorting and real pagination (PER_PAGE=25).
+    When ``active_filter`` is set, narrows by debt, borrowed items, or
+    anomalous status. Uses DB-side sorting and real pagination (PER_PAGE=25).
     """
     next_dir = "desc" if direction == "asc" else "asc"
 
@@ -518,6 +636,18 @@ def get_customer_table_context(
     query = (query or "").strip()
     if query:
         qs = qs.filter(name__icontains=query)
+
+    active_filter = (active_filter or "all").lower()
+    if active_filter == "has_debt":
+        qs = qs.filter(debt_balance__gt=0)
+    elif active_filter == "has_borrowed":
+        qs = qs.filter(
+            Q(borrowed_round_8gal__gt=0)
+            | Q(borrowed_slim_8gal__gt=0)
+            | Q(borrowed_other__gt=0)
+        )
+    elif active_filter == "anomalous":
+        qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
 
     # Annotate borrowed_total for sorting
     qs = qs.annotate(
@@ -544,7 +674,7 @@ def get_customer_table_context(
     rows = [_customer_row(c) for c in page_obj.object_list]
 
     return {
-        "filters": _customer_filters(user),
+        "filters": _customer_filters(user, active_filter),
         "customers": rows,
         "pagination": _pagination_from_page(page_obj),
         "sort_state": {
@@ -553,6 +683,7 @@ def get_customer_table_context(
             "next_dir": next_dir,
         },
         "search_query": query,
+        "active_filter": active_filter,
     }
 
 

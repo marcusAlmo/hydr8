@@ -330,3 +330,102 @@ class GetUserDetailContextTests(TestCase):
         self.assertIn("2 open debts", debts_stat["subtitle"])
         # Total = (2*40) + (1*40) = 120
         self.assertEqual(debts_stat["raw_value"], 120.0)
+
+
+class EmployeeSelectorHelperTests(TestCase):
+    """Tests for small private helpers used in employees.selectors."""
+
+    def test_format_peso_with_invalid_value(self):
+        """A non-numeric value falls back to a zero-peso string."""
+        from apps.employees.selectors import _format_peso
+        self.assertEqual(_format_peso("not-a-number"), "₱0.00")
+
+    def test_format_peso_with_float(self):
+        """Float inputs are formatted with two decimals."""
+        from apps.employees.selectors import _format_peso
+        self.assertEqual(_format_peso(100.5), "₱100.50")
+
+    def test_days_ago_handles_none(self):
+        """None is rendered as "Never"."""
+        from apps.employees.selectors import _days_ago
+        self.assertEqual(_days_ago(None), "Never")
+
+    def test_role_badge_class_for_unknown_role(self):
+        """Unknown roles use a neutral surface style."""
+        from apps.employees.selectors import _role_badge_class
+        self.assertIn("bg-surface", _role_badge_class("Manager"))
+
+    def test_user_status_inactive(self):
+        """A deactivated user is marked inactive."""
+        from django.utils import timezone
+
+        from apps.employees.selectors import _user_status
+
+        user = User.objects.create_user(username="inactiveuser", password="pw1234567")
+        user.deactivated_at = timezone.now()
+        user.save()
+        self.assertEqual(_user_status(user), "inactive")
+
+    def test_user_status_onboarding(self):
+        """A user with no PIN is in onboarding status."""
+        from apps.employees.selectors import _user_status
+
+        user = User.objects.create_user(username="onboarduser", password="pw1234567")
+        self.assertEqual(_user_status(user), "onboarding")
+
+
+class EmployeeDirectoryFilterTests(TestCase):
+    """Tests for the active_filter parameter in get_employee_directory_context."""
+
+    def setUp(self):
+        self.admin_role, _ = Role.objects.get_or_create(name="Admin")
+        self.staff_role, _ = Role.objects.get_or_create(name="Staff")
+        self.driver_role, _ = Role.objects.get_or_create(name="Driver")
+
+        self.admin = User.objects.create_user(
+            username="adminf",
+            password="pw1234567",
+            first_name="Alice",
+            last_name="Admin",
+        )
+        self.admin.role = self.admin_role
+        self.admin.save()
+
+        self.driver = User.objects.create_user(
+            username="driverf",
+            password="pw1234567",
+            first_name="Dave",
+            last_name="Driver",
+        )
+        self.driver.role = self.driver_role
+        self.driver.save()
+
+        self.inactive = User.objects.create_user(
+            username="inactivef",
+            password="pw1234567",
+            first_name="Ivan",
+            last_name="Inactive",
+        )
+        self.inactive.role = self.staff_role
+        self.inactive.is_active = False
+        self.inactive.save()
+
+    def test_filter_by_drivers(self):
+        """Filtering by drivers excludes other roles."""
+        from apps.employees.selectors import get_employee_directory_context
+
+        ctx = get_employee_directory_context(self.admin, active_filter="drivers")
+        usernames = [u["username"] for u in ctx["users"]]
+        self.assertIn("@driverf", usernames)
+        self.assertNotIn("@adminf", usernames)
+        self.assertNotIn("@inactivef", usernames)
+
+    def test_filter_by_inactive(self):
+        """Filtering by inactive excludes active users."""
+        from apps.employees.selectors import get_employee_directory_context
+
+        ctx = get_employee_directory_context(self.admin, active_filter="inactive")
+        usernames = [u["username"] for u in ctx["users"]]
+        self.assertIn("@inactivef", usernames)
+        self.assertNotIn("@driverf", usernames)
+        self.assertNotIn("@adminf", usernames)

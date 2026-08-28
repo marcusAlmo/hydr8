@@ -21,7 +21,13 @@ Expects context:
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center flex-wrap gap-2">
             {% for filter in filters %}
-            <button class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 {% if filter.active %}bg-primary text-on-primary shadow-sm{% else %}bg-surface-container text-on-surface-variant hover:bg-surface-container-highest{% endif %}">
+            <button
+                type="button"
+                class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 {% if filter.active %}bg-primary text-on-primary shadow-sm{% else %}bg-surface-container text-on-surface-variant hover:bg-surface-container-highest{% endif %}"
+                hx-get="{% url 'employees:search' %}?filter={{ filter.key }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                hx-target="#users-table"
+                hx-swap="outerHTML"
+            >
                 {{ filter.label }}
                 <span class="font-data-mono text-xs {% if filter.active %}text-on-primary/70{% else %}text-on-surface-variant/60{% endif %}">{{ filter.count }}</span>
             </button>
@@ -43,6 +49,7 @@ Expects context:
                     hx-target="#users-table"
                     hx-swap="outerHTML"
                     hx-include="this"
+                    hx-vals='{"filter": "{{ active_filter|default:"all" }}"}'
                     hx-preserve="true"
                 >
             </div>
@@ -160,7 +167,7 @@ Expects context:
                 {% if pagination.has_previous %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Previous page"
-                        hx-get="{% url 'employees:search' %}?page={{ pagination.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-get="{% url 'employees:search' %}?page={{ pagination.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
                         hx-target="#users-table"
                         hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -175,7 +182,7 @@ Expects context:
                 {% if pagination.has_next %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Next page"
-                        hx-get="{% url 'employees:search' %}?page={{ pagination.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-get="{% url 'employees:search' %}?page={{ pagination.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
                         hx-target="#users-table"
                         hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_right</span>
