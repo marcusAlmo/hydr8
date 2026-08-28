@@ -400,23 +400,43 @@ def _customer_stats(user: UserType) -> list[dict]:
     ]
 
 
-def _ranking_context(user: UserType) -> dict:
-    top_payers_qs = (
+def _ranking_row_class(rank: int) -> str:
+    """Tailwind class for the rank badge based on position."""
+    rank_class_map = {
+        1: "bg-tertiary text-on-primary",
+        2: "bg-tertiary-container text-tertiary",
+    }
+    return rank_class_map.get(
+        rank, "bg-surface-container-high text-on-surface-variant"
+    )
+
+
+def get_top_payer_count(user: UserType) -> int:
+    """Returns the number of customers with at least one recorded payment."""
+    return (
+        Customer.objects.for_user(user)
+        .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
+        .distinct()
+        .count()
+    )
+
+
+def get_top_payers(user: UserType, limit: int | None = 5) -> list[dict]:
+    """Returns the top-paying customers, optionally limited to the first N."""
+    qs = (
         Customer.objects.for_user(user)
         .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
         .annotate(
             total_paid=Sum("credit_lines__payments__amount"),
             payment_count=Count("credit_lines__payments", distinct=True),
         )
-        .order_by("-total_paid")[:5]
+        .order_by("-total_paid")
     )
+    if limit is not None:
+        qs = qs[:limit]
     top_payers: list[dict] = []
-    rank_class_map = {
-        1: "bg-tertiary text-on-primary",
-        2: "bg-tertiary-container text-tertiary",
-    }
-    for idx, customer in enumerate(top_payers_qs, start=1):
-        rank_class = rank_class_map.get(idx, "bg-surface-container-high text-on-surface-variant")
+    for idx, customer in enumerate(qs, start=1):
+        rank_class = _ranking_row_class(idx)
         top_payers.append({
             "rank": idx,
             "rank_class": rank_class,
@@ -430,14 +450,79 @@ def _ranking_context(user: UserType) -> dict:
             "tier": "—",
             "tier_class": "bg-surface-container-high text-on-surface-variant",
         })
+    return top_payers
 
-    payer_count = (
-        Customer.objects.for_user(user)
-        .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
+
+def get_prompt_returner_count(user: UserType) -> int:
+    """Returns the number of customers with at least one returned container."""
+    return (
+        BorrowedContainer.objects.for_user(user)
+        .filter(qty_returned__gt=0, returned_at__isnull=False)
+        .values_list("customer_id", flat=True)
         .distinct()
         .count()
     )
 
+
+def get_prompt_returners(user: UserType, limit: int | None = 5) -> list[dict]:
+    """Returns customers with the fastest container return times."""
+    borrowed = (
+        BorrowedContainer.objects.for_user(user)
+        .filter(qty_returned__gt=0, returned_at__isnull=False)
+        .select_related("customer")
+    )
+    by_customer: dict[int, dict] = {}
+    for bc in borrowed:
+        customer = bc.customer
+        if customer.id not in by_customer:
+            by_customer[customer.id] = {
+                "customer": customer,
+                "containers_returned": 0,
+                "return_count": 0,
+                "return_days_sum": 0,
+                "on_time_count": 0,
+            }
+        data = by_customer[customer.id]
+        data["containers_returned"] += bc.qty_returned
+        data["return_count"] += 1
+        days = max(0, (bc.returned_at - bc.transaction_date).days)
+        data["return_days_sum"] += days
+        if days <= 7:
+            data["on_time_count"] += 1
+
+    prompt_returners: list[dict] = []
+    for data in by_customer.values():
+        if data["return_count"] == 0:
+            continue
+        customer = data["customer"]
+        avg_days = round(data["return_days_sum"] / data["return_count"])
+        on_time_ratio = round((data["on_time_count"] / data["return_count"]) * 100)
+        prompt_returners.append({
+            "rank": 0,
+            "rank_class": "",
+            "id": _display_id(customer),
+            "name": customer.name,
+            "initials": _customer_initials(customer.name),
+            "avg_return_days": avg_days,
+            "return_count": data["return_count"],
+            "containers_returned": data["containers_returned"],
+            "on_time_ratio": f"{on_time_ratio}%",
+        })
+
+    prompt_returners.sort(key=lambda r: (r["avg_return_days"], -r["containers_returned"]))
+    for idx, row in enumerate(prompt_returners, start=1):
+        row["rank"] = idx
+        row["rank_class"] = _ranking_row_class(idx)
+    if limit is not None:
+        return prompt_returners[:limit]
+    return prompt_returners
+
+
+def _ranking_context(user: UserType) -> dict:
+    payer_count = get_top_payer_count(user)
+    returner_count = get_prompt_returner_count(user)
+    top_payers = get_top_payers(user, limit=5)
+    prompt_returners = get_prompt_returners(user, limit=5)
     stats = [
         {
             "key": "top_payers",
@@ -455,12 +540,12 @@ def _ranking_context(user: UserType) -> dict:
         {
             "key": "prompt_returners",
             "label": "Prompt Returners",
-            "value": "0",
-            "raw_value": 0,
+            "value": str(returner_count),
+            "raw_value": returner_count,
             "value_prefix": "",
             "value_decimals": 0,
             "value_size": "4xl",
-            "subtitle": "No return data yet",
+            "subtitle": "No return data yet" if returner_count == 0 else "Containers returned on time",
             "icon": "cached",
             "accent": "tertiary",
             "col_span": "md:col-span-3",
@@ -482,7 +567,9 @@ def _ranking_context(user: UserType) -> dict:
     return {
         "ranking_stats": stats,
         "top_payers": top_payers,
-        "prompt_returners": [],
+        "prompt_returners": prompt_returners,
+        "payer_count": payer_count,
+        "returner_count": returner_count,
     }
 
 

@@ -1,0 +1,82 @@
+{% comment %}
+Top Payers leaderboard card.
+Expects context:
+  - top_payers: list of { rank, rank_class, id, name, initials,
+                          on_time_ratio, avg_payment_days, payment_count,
+                          total_paid, tier, tier_class }
+  - payer_count: int
+  - view_all: bool (default False)
+{% endcomment %}
+<div id="top-payers-card" class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+    <div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant/20 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-tertiary">verified</span>
+            <h3 class="font-headline-sm text-sm font-bold text-on-surface">Top Payers</h3>
+        </div>
+        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">By on-time ratio</span>
+    </div>
+    <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-surface-container-low/50 border-b border-outline-variant/20">
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider w-12">#</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Customer</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">On-Time</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Avg Pay</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider text-right">Paid</th>
+                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tier</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                {% for payer in top_payers %}
+                <tr class="hover:bg-surface-container-low transition-colors group">
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full {{ payer.rank_class }} font-bold text-xs">{{ payer.rank }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">{{ payer.initials }}</div>
+                            <div class="flex flex-col">
+                                <span class="font-sans text-on-surface font-headline-sm text-sm">{{ payer.name }}</span>
+                                <span class="font-data-mono text-on-surface-variant text-[10px]">{{ payer.id }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <span class="text-tertiary font-bold">{{ payer.on_time_ratio }}</span>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface-variant">{{ payer.avg_payment_days }}d</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-on-surface font-bold">{{ payer.total_paid }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <span class="font-label-caps text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider {{ payer.tier_class }}">{{ payer.tier }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="py-10 px-4 text-center text-on-surface-variant font-body-sm">
+                        <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">verified</span>
+                        No payer data yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="px-4 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
+        <span class="font-label-caps text-[10px] text-on-surface-variant uppercase tracking-wider">
+            {% if view_all %}
+                All {{ payer_count }} reliable payers
+            {% else %}
+                Top {{ top_payers|length }} of {{ payer_count }} reliable payers
+            {% endif %}
+        </span>
+        {% if not view_all %}
+        <button class="text-primary text-xs font-bold hover:underline"
+                hx-get="{% url 'customers:top_payers' %}"
+                hx-target="#top-payers-card"
+                hx-swap="outerHTML">
+            View all
+        </button>
+        {% endif %}
+    </div>
+</div>

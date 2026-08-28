@@ -25,8 +25,12 @@ from .selectors import (
     get_customer_history_context,
     get_customer_list_context,
     get_customer_table_context,
+    get_prompt_returner_count,
+    get_prompt_returners,
     get_record_borrowed_context,
     get_record_debt_context,
+    get_top_payer_count,
+    get_top_payers,
 )
 from .services import (
     create_customer,
@@ -109,6 +113,42 @@ def customer_list_view(request):
     _apply_accent(context["stats"])
     _apply_accent(context["ranking_stats"])
     return render(request, "customers/customer_list.html", context)
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def top_payers_view(request):
+    """HTMX endpoint — returns the full Top Payers leaderboard."""
+    top_payers = get_top_payers(request.user, limit=None)
+    return render(
+        request,
+        "customers/partials/top_payers_card.html",
+        {
+            "top_payers": top_payers,
+            "payer_count": get_top_payer_count(request.user),
+            "view_all": True,
+        },
+    )
+
+
+@login_required
+@_back_office_required
+@require_http_methods(["GET"])
+@ratelimit(key="user", rate="120/m", method="GET", block=True)
+def prompt_returners_view(request):
+    """HTMX endpoint — returns the full Prompt Returners leaderboard."""
+    prompt_returners = get_prompt_returners(request.user, limit=None)
+    return render(
+        request,
+        "customers/partials/prompt_returners_card.html",
+        {
+            "prompt_returners": prompt_returners,
+            "returner_count": get_prompt_returner_count(request.user),
+            "view_all": True,
+        },
+    )
 
 
 @login_required
