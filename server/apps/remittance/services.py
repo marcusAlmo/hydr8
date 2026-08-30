@@ -18,7 +18,7 @@ from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from apps.core.models import Product
-from apps.customers.models import CreditPayment
+from apps.customers.models import CreditLine, CreditPayment
 from apps.settings.models import Company
 from apps.users.models import DriverCommission, User
 from apps.users.permissions import is_admin, is_tenant_scoped
@@ -161,6 +161,25 @@ def _unlink_credit_payments(remittance: Remittance) -> int:
     return count
 
 
+def _unlink_credit_lines(remittance: Remittance) -> int:
+    """Unlink any CreditLine records attached to a draft remittance.
+
+    Draft remittances can be replaced or discarded; when that happens,
+    the recorded credit lines linked to the draft must be unlinked
+    (``remittance=NULL``) so the PROTECT FK does not block cascade delete.
+
+    Returns the number of CreditLine rows unlinked.
+    """
+    count = CreditLine.objects.filter(remittance=remittance).update(remittance=None)
+    if count:
+        logger.info(
+            "Unlinked %d CreditLine(s) from draft Remittance id=%s",
+            count,
+            remittance.id,
+        )
+    return count
+
+
 @transaction.atomic
 def create_remittance(
     *,
@@ -205,6 +224,7 @@ def create_remittance(
             # "a draft already exists".
             for existing in existing_list:
                 _unlink_credit_payments(existing)
+                _unlink_credit_lines(existing)
                 existing.delete()
                 logger.info(
                     "[%s] Replaced DRAFT id=%s for date=%s prior to finalize",
@@ -273,6 +293,7 @@ def save_remittance_draft(
             # Unlink CreditPayments before deleting so the PROTECT FK does not
             # block the cascade delete of the draft.
             _unlink_credit_payments(existing)
+            _unlink_credit_lines(existing)
             existing.delete()
             logger.info(
                 "[%s] Replaced existing DRAFT id=%s for date=%s",
@@ -328,9 +349,10 @@ def delete_draft_remittance(
                 "Cannot delete a finalized remittance. "
                 "Finalized records are immutable."
             )
-        # Unlink CreditPayments before deleting so the PROTECT FK does not
+        # Unlink CreditPayments and CreditLines before deleting so the PROTECT FKs do not
         # block the cascade delete of the draft.
         _unlink_credit_payments(existing)
+        _unlink_credit_lines(existing)
         existing.delete()
         logger.info(
             "[%s] Cleared DRAFT remittance id=%s for date=%s",
