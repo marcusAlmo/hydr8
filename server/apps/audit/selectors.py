@@ -56,7 +56,7 @@ def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: st
     """Returns a paginated, enriched, tenant-scoped view of the audit log.
 
     When ``query`` is non-empty, filters by object_repr, cid, remote_addr,
-    or actor name/username using ``__icontains``.
+    or actor name/username using ``__ilike``.
 
     Returns a dict with:
         page_obj:      Django Page object (object_list entries are enriched)
@@ -76,12 +76,12 @@ def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: st
     query = (query or "").strip()
     if query:
         qs = qs.filter(
-            Q(object_repr__icontains=query)
-            | Q(cid__icontains=query)
-            | Q(remote_addr__icontains=query)
-            | Q(actor__username__icontains=query)
-            | Q(actor__first_name__icontains=query)
-            | Q(actor__last_name__icontains=query)
+            Q(object_repr__ilike=query)
+            | Q(cid__ilike=query)
+            | Q(remote_addr__ilike=query)
+            | Q(actor__username__ilike=query)
+            | Q(actor__first_name__ilike=query)
+            | Q(actor__last_name__ilike=query)
         )
 
     # Aggregate counts from the full queryset (single query via values+annotate)

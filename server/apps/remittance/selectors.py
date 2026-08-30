@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
+from django.core.paginator import Paginator
 from django.db.models import (
     IntegerField,
     OuterRef,
@@ -461,11 +462,11 @@ def _load_draft_state(
     for rider_id, rr in rider_id_to_row.items():
         rider_expenses[rider_id] = [
             {"description": exp.description, "amount": str(exp.amount)}
-            for exp in rr.expenses.all().order_by("id")
+            for exp in rr.expenses.all()
         ]
         rider_deductions[rider_id] = [
             {"description": ded.description, "amount": str(ded.amount)}
-            for ded in rr.deductions.all().order_by("id")
+            for ded in rr.deductions.all()
         ]
         if rr.commission_override is not None:
             rider_commission_overrides[rider_id] = str(rr.commission_override)
@@ -488,12 +489,20 @@ def _load_draft_state(
     ]
 
     # Load staff payment data.
+    staff_rows = (
+        RemittanceStaff.objects
+        .filter(remittance=draft)
+        .select_related("staff")
+        .prefetch_related(
+            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id"))
+        )
+    )
     staff_data: dict[str, dict] = {}
-    for sp in RemittanceStaff.objects.filter(remittance=draft).select_related("staff"):
+    for sp in staff_rows:
         staff_id = str(sp.staff_id)
         deductions = [
             {"description": d.description, "amount": str(d.amount)}
-            for d in StaffDeduction.objects.filter(remittance_staff=sp).order_by("id")
+            for d in sp.deductions.all()
         ]
         staff_data[staff_id] = {
             "salary_override": str(sp.salary_override) if sp.salary_override is not None else "",
@@ -839,6 +848,9 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
         RemittanceStaff.objects
         .filter(remittance=rem)
         .select_related("staff")
+        .prefetch_related(
+            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id"))
+        )
         .order_by("staff__first_name", "staff__last_name")
     ):
         staff_summary.append({
@@ -847,7 +859,7 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
             "net_pay": _peso_float(sp.net_pay),
             "deductions": [
                 {"description": d.description, "amount": _peso_float(d.amount)}
-                for d in StaffDeduction.objects.filter(remittance_staff=sp).order_by("id")
+                for d in sp.deductions.all()
             ],
         })
 
@@ -1254,4 +1266,163 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "trends": trends,
         "summary_cards": summary_cards,
+    }
+
+
+def get_remittance_detail(
+    user: UserType,
+    remittance_id: int,
+    remittance: Remittance | None = None,
+) -> dict | None:
+    """Returns a single remittance with summary data for the detail view."""
+    if remittance is None:
+        try:
+            remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
+        except Remittance.DoesNotExist:
+            return None
+    rem = remittance
+
+    return {
+        "id": rem.id,
+        "date": rem.date.isoformat(),
+        "status": rem.status,
+        "is_draft": rem.status == Remittance.StatusChoices.DRAFT,
+        "total_sales": _format_peso(rem.total_sales),
+        "total_repayments_received": _format_peso(rem.total_repayments_received),
+        "total_credit_sales": _format_peso(rem.total_credit_sales),
+        "total_expenses": _format_peso(rem.total_expenses),
+        "net_remittance": _format_peso(rem.net_remittance),
+        "drivers_remittance": _format_peso(rem.total_sales - rem.total_commission),
+        "handler_name": (
+            rem.finalized_by.full_name
+            if rem.finalized_by
+            else (rem.created_by.full_name if rem.created_by else "—")
+        ),
+        "status_date": (
+            rem.finalized_at.strftime("%b %d, %Y %I:%M %p")
+            if rem.finalized_at
+            else rem.updated_at.strftime("%b %d, %Y %I:%M %p")
+        ),
+        "status_date_label": "Finalized" if rem.status == Remittance.StatusChoices.FINALIZED else "Updated",
+    }
+
+
+def get_credit_repayments_for_remittance(
+    user: UserType,
+    remittance_id: int,
+    page: int = 1,
+    page_size: int = 5,
+    remittance: Remittance | None = None,
+) -> dict:
+    """Returns paginated customer credit repayments for a remittance."""
+    if remittance is None:
+        try:
+            remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
+        except Remittance.DoesNotExist:
+            return {
+                "repayments": [],
+                "total": 0,
+                "page": 1,
+                "page_size": page_size,
+                "total_pages": 0,
+                "page_range": [],
+            }
+
+    qs = (
+        CreditPayment.objects.filter(remittance=remittance)
+        .select_related(
+            "credit_line__customer",
+            "credit_line__product",
+            "credit_line__care_of",
+            "credit_line__remittance",
+        )
+        .order_by("-paid_at")
+    )
+
+    paginator = Paginator(qs, page_size)
+    page_obj = paginator.get_page(page)
+
+    repayments = []
+    for payment in page_obj:
+        repayments.append({
+            "payer": payment.credit_line.customer.name,
+            "product_name": payment.credit_line.product.name,
+            "qty": payment.containers_paid,
+            "amount": _format_peso(payment.amount),
+            "care_of_name": payment.credit_line.care_of.full_name if payment.credit_line.care_of else "—",
+            "date": payment.paid_at.strftime("%Y-%m-%d"),
+            "credit_recorded_on": payment.credit_line.remittance.date.isoformat() if payment.credit_line.remittance else "—",
+        })
+
+    page_range = list(paginator.page_range)
+    return {
+        "repayments": repayments,
+        "total": paginator.count,
+        "page": page_obj.number,
+        "page_size": page_size,
+        "total_pages": paginator.num_pages,
+        "page_range": page_range,
+        "page_start": page_obj.start_index() if page_obj else 0,
+        "page_end": page_obj.end_index() if page_obj else 0,
+    }
+
+
+def get_credits_recorded_for_remittance(
+    user: UserType,
+    remittance_id: int,
+    page: int = 1,
+    page_size: int = 5,
+    remittance: Remittance | None = None,
+) -> dict:
+    """Returns paginated customer credit lines recorded for a remittance."""
+    if remittance is None:
+        try:
+            remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
+        except Remittance.DoesNotExist:
+            return {
+                "credits": [],
+                "total": 0,
+                "page": 1,
+                "page_size": page_size,
+                "total_pages": 0,
+                "page_range": [],
+            }
+
+    qs = (
+        CreditLine.objects.filter(remittance=remittance)
+        .select_related("customer", "product", "care_of", "remittance")
+        .annotate(total_paid=Coalesce(Sum("payments__amount"), Decimal("0.00")))
+        .order_by("-created_at")
+    )
+
+    paginator = Paginator(qs, page_size)
+    page_obj = paginator.get_page(page)
+
+    credits = []
+    for credit in page_obj:
+        is_repaid = credit.total_paid >= credit.total_credit_amount
+
+        credits.append({
+            "rider_name": credit.care_of.full_name if credit.care_of else "—",
+            "customer_name": credit.customer.name,
+            "product_name": credit.product.name,
+            "qty": credit.qty_credited,
+            "amount": _format_peso(credit.total_credit_amount),
+            "is_repaid": is_repaid,
+            "status": "Repaid" if is_repaid else "Pending",
+            "created_at": credit.created_at.strftime("%Y-%m-%d"),
+            "remittance_id": credit.remittance.id if credit.remittance else None,
+            "remittance_date": credit.remittance.date.isoformat() if credit.remittance else "—",
+        })
+
+    page_range = list(paginator.page_range)
+    return {
+        "credits": credits,
+        "total": paginator.count,
+        "page": page_obj.number,
+        "page_size": page_size,
+        "total_pages": paginator.num_pages,
+        "page_range": page_range,
+        "page_start": page_obj.start_index() if page_obj else 0,
+        "page_end": page_obj.end_index() if page_obj else 0,
     }

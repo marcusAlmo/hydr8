@@ -400,6 +400,11 @@ def _build_remittance(
     active_riders = _active_riders_qs(performed_by)
     active_rider_list = list(active_riders)
     rider_id_set = {r.pk for r in active_rider_list}
+    active_rider_by_id = {str(r.pk): r for r in active_rider_list}
+
+    active_staff_qs = _active_staff_qs(performed_by)
+    active_staff_list = list(active_staff_qs)
+    active_staff_by_id = {str(s.pk): s for s in active_staff_list}
 
     # Collect ALL repayments collected on the remittance date and not yet
     # linked to a Remittance — regardless of whether care_of is a driver
@@ -408,12 +413,26 @@ def _build_remittance(
         performed_by, active_rider_list, remittance_date
     )
 
+    # Pre-fetch driver commission rates for every active rider + product
+    # in the payload so the product-line loop below is N+1-free.
+    commission_map: dict[tuple[str, str], Decimal] = {}
+    if active_rider_list and products:
+        for row in (
+            DriverCommission.objects
+            .filter(
+                driver__in=active_rider_list,
+                product__in=list(products.values()),
+            )
+            .values("driver_id", "product_id", "rate_per_unit")
+        ):
+            commission_map[(str(row["driver_id"]), str(row["product_id"]))] = Decimal(row["rate_per_unit"])
+
     # Map rider_id -> RemittanceRider for repayment attribution.
     rider_rows: dict[int, RemittanceRider] = {}
 
     for rider_payload in riders_data:
         rider_id = rider_payload.get("id")
-        rider = active_riders.filter(id=rider_id).first()
+        rider = active_rider_by_id.get(str(rider_id))
         if not rider:
             raise ValidationError(f"Rider not found or inactive: {rider_id}")
 
@@ -447,12 +466,9 @@ def _build_remittance(
             # Total remittable units = cash sales - credit given + credit repaid
             paid = max(0, sold - credited + repaid)
 
-            commission_rate = Decimal("0.00")
-            commission = DriverCommission.objects.filter(
-                driver=rider, product=product
-            ).first()
-            if commission is not None:
-                commission_rate = commission.rate_per_unit
+            commission_rate = commission_map.get(
+                (str(rider.id), str(product.id)), Decimal("0.00")
+            )
 
             unit_price = product.price
             payable = Decimal(paid) * unit_price
@@ -645,11 +661,9 @@ def _build_remittance(
     total_sales = gross_sales + other_sales_dec
 
     # --- Persist staff payments and deductions ---------------------------
-    active_staff_qs = _active_staff_qs(performed_by)
-
     for staff_entry in staff_data or []:
         staff_id = staff_entry.get("id")
-        staff_user = active_staff_qs.filter(id=staff_id).first()
+        staff_user = active_staff_by_id.get(str(staff_id))
         if staff_user is None:
             continue
 

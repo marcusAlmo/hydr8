@@ -545,7 +545,7 @@ def deactivate_user_view(request, user_id):
         })
 
     # --- PIN verification (server-side, defence in depth) ---
-    pin = (request.POST.get('pin', '') or '').strip()
+    pin = (request.POST.get('status_pin', '') or '').strip()
     try:
         validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to deactivate a user.")
     except ValidationError as exc:
@@ -613,7 +613,7 @@ def activate_user_view(request, user_id):
     roles = get_roles_for_user(request.user)
 
     # --- PIN verification (server-side, defence in depth) ---
-    pin = (request.POST.get('pin', '') or '').strip()
+    pin = (request.POST.get('status_pin', '') or '').strip()
     try:
         validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to activate a user.")
     except ValidationError as exc:

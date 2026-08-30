@@ -1,0 +1,97 @@
+<div class="space-y-4">
+    {% if credits %}
+        <div class="overflow-x-auto rounded-xl border border-outline-variant/30 shadow-sm">
+            <table class="w-full">
+                <thead class="bg-surface-container border-b border-outline-variant/20">
+                    <tr>
+                        <th class="px-6 py-3 text-left font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Care Of</th>
+                        <th class="px-6 py-3 text-left font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Customer</th>
+                        <th class="px-6 py-3 text-left font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Product</th>
+                        <th class="px-6 py-3 text-center font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Qty</th>
+                        <th class="px-6 py-3 text-right font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Amount</th>
+                        <th class="px-6 py-3 text-center font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Status</th>
+                        <th class="px-6 py-3 text-left font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Reported On</th>
+                        <th class="px-6 py-3 text-left font-label-caps text-label-caps text-on-surface-variant uppercase text-[11px]">Date Credited</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/10">
+                    {% for credit in credits %}
+                        <tr class="hover:bg-surface-container-low/50 transition-colors border-l-4 {% if credit.is_repaid %}border-l-tertiary{% else %}border-l-[#D97706]{% endif %}">
+                            <td class="px-6 py-3 text-body-sm text-on-surface font-semibold">{{ credit.rider_name }}</td>
+                            <td class="px-6 py-3 text-body-sm text-on-surface">{{ credit.customer_name }}</td>
+                            <td class="px-6 py-3 text-body-sm text-on-surface-variant">{{ credit.product_name }}</td>
+                            <td class="px-6 py-3 text-center font-data-mono text-body-sm text-on-surface">{{ credit.qty }}</td>
+                            <td class="px-6 py-3 text-right font-data-mono text-body-sm font-bold text-error">{{ credit.amount }}</td>
+                            <td class="px-6 py-3 text-center">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full {% if credit.is_repaid %}bg-tertiary/15 text-tertiary{% else %}bg-[#D97706]/15 text-[#D97706]{% endif %} text-[12px] font-bold uppercase">
+                                    <span class="material-symbols-outlined text-[12px]">{% if credit.is_repaid %}check_circle{% else %}schedule{% endif %}</span>
+                                    {{ credit.status }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-3 text-body-sm text-on-surface-variant font-data-mono">
+                                {% if credit.remittance_id %}
+                                    <a href="{% url 'remittance:detail' credit.remittance_id %}" class="hover:text-primary transition-colors" hx-boost="false">{{ credit.remittance_date }}</a>
+                                {% else %}
+                                    <span class="text-on-surface-variant italic">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-3 text-body-sm text-on-surface-variant font-data-mono">{{ credit.created_at }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="flex items-center justify-between">
+            <p class="text-body-sm text-on-surface-variant">
+                Showing <span class="font-bold">{{ page_start }}</span>–<span class="font-bold">{{ page_end }}</span> of <span class="font-bold">{{ total_credits }}</span> credits
+            </p>
+            <div class="flex gap-1">
+                {% if page > 1 %}
+                    <button
+                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'-1' }}"
+                        hx-target="#tab-content"
+                        hx-swap="innerHTML"
+                        class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                    >
+                        <span class="material-symbols-outlined text-[16px] align-middle">chevron_left</span>
+                    </button>
+                {% endif %}
+                
+                {% for p in page_range %}
+                    {% if p == page %}
+                        <button class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-body-sm font-semibold">{{ p }}</button>
+                    {% else %}
+                        <button
+                            hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ p }}"
+                            hx-target="#tab-content"
+                            hx-swap="innerHTML"
+                            class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                        >
+                            {{ p }}
+                        </button>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page < total_pages %}
+                    <button
+                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'1' }}"
+                        hx-target="#tab-content"
+                        hx-swap="innerHTML"
+                        class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                    >
+                        <span class="material-symbols-outlined text-[16px] align-middle">chevron_right</span>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <!-- Empty state -->
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <span class="material-symbols-outlined text-[48px] text-on-surface-variant/40 mb-3">credit_card</span>
+            <h3 class="font-headline-sm text-body-md text-on-surface mb-1">No Credits</h3>
+            <p class="text-body-sm text-on-surface-variant">No credits recorded for this remittance.</p>
+        </div>
+    {% endif %}
+</div>

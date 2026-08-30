@@ -118,7 +118,7 @@ class DeactivateUserViewTests(TestCase):
         challenge = self._session_challenge()
         response = self.client.post(
             f"/user/{self.target.pk}/deactivate/",
-            {"deactivate_challenge": challenge, "pin": "1234"},
+            {"deactivate_challenge": challenge, "status_pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
@@ -181,7 +181,7 @@ class DeactivateUserViewTests(TestCase):
         challenge = self._session_challenge()
         self.client.post(
             f"/user/{self.target.pk}/deactivate/",
-            {"deactivate_challenge": challenge, "pin": "1234"},
+            {"deactivate_challenge": challenge, "status_pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         # The user is not deleted, only deactivated, so the selector still finds it.
@@ -213,7 +213,7 @@ class ActivateUserViewTests(TestCase):
         """Posting the correct PIN reactivates a deactivated user."""
         response = self.client.post(
             f"/user/{self.target.pk}/activate/",
-            {"pin": "1234"},
+            {"status_pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
@@ -226,7 +226,7 @@ class ActivateUserViewTests(TestCase):
         """A wrong PIN does not activate the user."""
         response = self.client.post(
             f"/user/{self.target.pk}/activate/",
-            {"pin": "9999"},
+            {"status_pin": "9999"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)

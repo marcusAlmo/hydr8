@@ -389,7 +389,7 @@ class DeactivateUserPinTests(TestCase):
         challenge = self._session_challenge()
         response = self.client.post(
             f"/user/{self.target.pk}/deactivate/",
-            {"deactivate_challenge": challenge, "pin": "1234"},
+            {"deactivate_challenge": challenge, "status_pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
@@ -403,7 +403,7 @@ class DeactivateUserPinTests(TestCase):
         challenge = self._session_challenge()
         response = self.client.post(
             f"/user/{self.target.pk}/deactivate/",
-            {"deactivate_challenge": challenge, "pin": "9999"},
+            {"deactivate_challenge": challenge, "status_pin": "9999"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)

@@ -606,7 +606,7 @@ def get_employee_directory_context(
     """Returns the full context for the Employees & Users directory page.
 
     When ``query`` is non-empty, filters by first_name, last_name, or username
-    using ``__icontains``. When ``active_filter`` is set, further narrows by
+    using ``__ilike``. When ``active_filter`` is set, further narrows by
     role or inactive users. Uses real pagination (PER_PAGE=25).
     """
     users_qs = _user_qs(request_user).select_related('role')
@@ -615,9 +615,9 @@ def get_employee_directory_context(
     query = (query or "").strip()
     if query:
         users_qs = users_qs.filter(
-            Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-            | Q(username__icontains=query)
+            Q(first_name__ilike=query)
+            | Q(last_name__ilike=query)
+            | Q(username__ilike=query)
         )
 
     active_filter = (active_filter or "all").lower()

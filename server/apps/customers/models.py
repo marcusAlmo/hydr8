@@ -138,6 +138,15 @@ class CreditLine(models.Model):
         blank=True,
         related_name='credit_lines'
     )
+    remittance = models.ForeignKey(
+        'remittance.Remittance',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='recorded_credit_lines',
+        db_index=True,
+        help_text='The remittance on which this credit was originally reported in sales.',
+    )
     product = models.ForeignKey('core.Product', on_delete=models.PROTECT)
     qty_credited = models.SmallIntegerField(validators=[MinValueValidator(1)])
     unit_price_snapshot = models.DecimalField(

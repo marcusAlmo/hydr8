@@ -16,10 +16,14 @@ from django_ratelimit.decorators import ratelimit
 
 from apps.core.views import error_message, toast_for_exception
 
+from .models import Remittance
 from .selectors import (
     get_add_remittance_context,
+    get_credit_repayments_for_remittance,
+    get_credits_recorded_for_remittance,
     get_recent_remittances,
     get_remittance_date_data,
+    get_remittance_detail,
     get_remittance_history_context,
     get_remittance_row,
     get_remittance_summary_for_date,
@@ -487,3 +491,144 @@ def clear_draft_view(request):
         return JsonResponse({"ok": False, "error": error_message(exc)}, status=400)
 
     return JsonResponse({"ok": True, "deleted": deleted})
+
+
+@login_required
+@never_cache
+@require_http_methods(["GET"])
+@ratelimit(key='user', rate='120/m', method='GET', block=True)
+def remittance_detail_view(request, remittance_id: int):
+    """Renders the remittance detail page with summary and initial repayments tab."""
+    if not is_admin_user(user=request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    try:
+        remittance_obj = Remittance.objects.for_user(request.user).get(pk=remittance_id)
+    except Remittance.DoesNotExist:
+        return HttpResponse("Remittance not found.", status=404)
+
+    remittance = get_remittance_detail(
+        request.user, remittance_id, remittance=remittance_obj
+    )
+    if remittance is None:
+        return HttpResponse("Remittance not found.", status=404)
+
+    repayments_data = get_credit_repayments_for_remittance(
+        request.user, remittance_id, page=1, page_size=5, remittance=remittance_obj
+    )
+    credits_data = get_credits_recorded_for_remittance(
+        request.user, remittance_id, page=1, page_size=1, remittance=remittance_obj
+    )
+
+    context = {
+        "remittance": remittance,
+        "repayments": repayments_data["repayments"],
+        "repayments_count": repayments_data["total"],
+        "credits_count": credits_data["total"],
+        "page": repayments_data["page"],
+        "total_pages": repayments_data["total_pages"],
+        "page_size": repayments_data["page_size"],
+        "total_repayments": repayments_data["total"],
+        "page_range": repayments_data["page_range"],
+        "page_start": repayments_data["page_start"],
+        "page_end": repayments_data["page_end"],
+        "is_admin": True,
+    }
+
+    return render(request, "remittance/remittance_detail.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key='user', rate='120/m', method='GET', block=True)
+def remittance_detail_repayments_view(request, remittance_id: int):
+    """HTMX endpoint — returns paginated credit repayments table partial."""
+    if not is_admin_user(user=request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    page = request.GET.get("page", 1)
+    try:
+        page = int(page)
+    except (ValueError, TypeError):
+        page = 1
+
+    try:
+        remittance_obj = Remittance.objects.for_user(request.user).get(pk=remittance_id)
+    except Remittance.DoesNotExist:
+        return HttpResponse("Remittance not found.", status=404)
+
+    remittance = get_remittance_detail(
+        request.user, remittance_id, remittance=remittance_obj
+    )
+    if remittance is None:
+        return HttpResponse("Remittance not found.", status=404)
+
+    data = get_credit_repayments_for_remittance(
+        request.user, remittance_id, page=page, page_size=5, remittance=remittance_obj
+    )
+
+    context = {
+        "remittance": remittance,
+        "repayments": data["repayments"],
+        "page": data["page"],
+        "total_pages": data["total_pages"],
+        "page_size": data["page_size"],
+        "total_repayments": data["total"],
+        "page_range": data["page_range"],
+        "page_start": data["page_start"],
+        "page_end": data["page_end"],
+    }
+
+    return render(
+        request,
+        "remittance/partials/credit_repayments_table.html",
+        context,
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+@ratelimit(key='user', rate='120/m', method='GET', block=True)
+def remittance_detail_credits_view(request, remittance_id: int):
+    """HTMX endpoint — returns paginated credits recorded table partial."""
+    if not is_admin_user(user=request.user):
+        return HttpResponse("Forbidden", status=403)
+
+    page = request.GET.get("page", 1)
+    try:
+        page = int(page)
+    except (ValueError, TypeError):
+        page = 1
+
+    try:
+        remittance_obj = Remittance.objects.for_user(request.user).get(pk=remittance_id)
+    except Remittance.DoesNotExist:
+        return HttpResponse("Remittance not found.", status=404)
+
+    remittance = get_remittance_detail(
+        request.user, remittance_id, remittance=remittance_obj
+    )
+    if remittance is None:
+        return HttpResponse("Remittance not found.", status=404)
+
+    data = get_credits_recorded_for_remittance(
+        request.user, remittance_id, page=page, page_size=5, remittance=remittance_obj
+    )
+
+    context = {
+        "remittance": remittance,
+        "credits": data["credits"],
+        "page": data["page"],
+        "total_pages": data["total_pages"],
+        "page_size": data["page_size"],
+        "total_credits": data["total"],
+        "page_range": data["page_range"],
+        "page_start": data["page_start"],
+        "page_end": data["page_end"],
+    }
+
+    return render(
+        request,
+        "remittance/partials/credits_recorded_table.html",
+        context,
+    )

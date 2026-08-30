@@ -39,16 +39,18 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
             {% endfor %}
         </div>
         <div class="flex items-center gap-3">
-            <div class="relative max-w-sm w-full">
+            <div class="relative w-full md:w-80" x-data="{ customerQuery: '{{ search_query|default:''|escapejs }}' }">
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
                 <input
-                    type="text"
+                    type="search"
                     id="customerSearch"
                     data-htmx-search
+                    x-ref="customerSearch"
+                    x-model="customerQuery"
                     name="q"
                     value="{{ search_query|default:'' }}"
                     placeholder="Search by name"
-                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                    class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-16 py-2.5 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface"
                     hx-get="{% url 'customers:table' %}"
                     hx-trigger="keyup changed delay:300ms, search"
                     hx-target="#customer-table"
@@ -56,7 +58,20 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                     hx-include="this"
                     hx-vals='{"sort": "{{ sort_state.field }}", "dir": "{{ sort_state.direction }}", "filter": "{{ active_filter|default:"all" }}"}'
                     hx-preserve="true"
+                    hx-indicator="#customer-search-spinner"
+                    aria-label="Search customers"
                 >
+                <span id="customer-search-spinner" class="htmx-indicator absolute right-10 top-1/2 -translate-y-1/2 text-primary">
+                    <span class="material-symbols-outlined text-[18px] animate-spin">refresh</span>
+                </span>
+                <button
+                    type="button"
+                    x-show="customerQuery.length > 0"
+                    @click="customerQuery = ''; $nextTick(() => { $refs.customerSearch.dispatchEvent(new Event('search')); })"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
+                    aria-label="Clear search">
+                    <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
             </div>
             <button
                 hx-get="{% url 'customers:add' %}"
