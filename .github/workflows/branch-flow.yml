@@ -1,6 +1,6 @@
 name: Branch Flow
 
-# Enforces the develop → staging → main release pipeline.
+# Enforces the develop → main release pipeline.
 # A PR whose base branch does not match the allowed source branch will
 # fail this check, blocking the merge.
 
@@ -8,13 +8,11 @@ on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
     branches:
-      - develop
-      - staging
       - main
 
 jobs:
   enforce-flow:
-    name: Enforce develop → staging → main
+    name: Enforce develop → main
     runs-on: ubuntu-latest
 
     steps:
@@ -25,18 +23,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "PR: $HEAD → $BASE"
-          case "$BASE" in
-            main)
-              if [ "$HEAD" != "staging" ]; then
-                echo "::error::main only accepts PRs from 'staging' (got '$HEAD')"
-                exit 1
-              fi
-              ;;
-            staging)
-              if [ "$HEAD" != "develop" ]; then
-                echo "::error::staging only accepts PRs from 'develop' (got '$HEAD')"
-                exit 1
-              fi
-              ;;
-          esac
+          if [ "$BASE" = "main" ] && [ "$HEAD" != "develop" ]; then
+            echo "::error::main only accepts PRs from 'develop' (got '$HEAD')"
+            exit 1
+          fi
           echo "Branch flow OK: $HEAD → $BASE"
