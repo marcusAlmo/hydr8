@@ -1128,8 +1128,16 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
     outstanding_debt = [float(current_debt)] * days
 
     # Per-rider units sold over the date range
-    active_riders = list(_active_riders_qs(user))
-    rider_ids = [r.pk for r in active_riders]
+    # NOTE: history must show every rider (active or deactivated) so
+    # historical per-rider breakdowns remain visible after offboarding.
+    riders_qs = User.objects.filter(
+        role__name__iexact="driver",
+        deleted_at__isnull=True,
+    )
+    if is_tenant_scoped(user):
+        riders_qs = riders_qs.filter(company_id=user.company_id)
+    riders = list(riders_qs.order_by("first_name", "last_name", "username"))
+    rider_ids = [r.pk for r in riders]
 
     unit_rows = (
         RemittanceRiderProductLine.objects.for_user(user)
@@ -1149,7 +1157,7 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
     }
 
     rider_series: list[dict] = []
-    for idx, rider in enumerate(active_riders):
+    for idx, rider in enumerate(riders):
         units = [units_by_rider_date.get((rider.pk, d), 0) for d in dates]
         rider_series.append({
             "name": rider.full_name,

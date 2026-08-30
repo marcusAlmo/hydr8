@@ -920,13 +920,13 @@ def get_customer_collect_context(customer: Customer) -> dict:
 
 
 def _care_of_users(user: UserType) -> list[dict]:
-    """Active users in the operator's tenant, for the ``care of`` dropdown.
+    """Users in the operator's tenant, for the ``care of`` dropdown.
 
     Includes admins, staff, and drivers — anyone who could be responsible
     for lending containers or extending credit to a customer.
     """
     qs = User.objects.filter(
-        deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True
+        deleted_at__isnull=True
     ).select_related("role")
     if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
