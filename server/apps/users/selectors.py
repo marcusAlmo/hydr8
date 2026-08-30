@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from apps.users.models import Role, User
+from apps.users.permissions import is_tenant_scoped
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -17,7 +18,7 @@ def get_user_by_id(request_user: UserType, user_id: str) -> User | None:
     qs = User.objects.select_related('role', 'company').filter(
         deleted_at__isnull=True, pk=user_id
     )
-    if not request_user.is_superuser and request_user.company_id is not None:
+    if is_tenant_scoped(request_user):
         qs = qs.filter(company_id=request_user.company_id)
     return qs.first()
 

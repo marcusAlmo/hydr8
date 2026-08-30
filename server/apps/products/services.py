@@ -23,6 +23,7 @@ from django.utils import timezone
 
 from apps.core.models import Product
 from apps.users.models import DriverCommission, User
+from apps.users.permissions import is_tenant_scoped
 
 if TYPE_CHECKING:
     import uuid
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 def _tenant_filter(user: UserType) -> dict:
     """Returns a filter dict for company scoping, or {} for superusers."""
-    if user.is_superuser or user.company_id is None:
+    if not is_tenant_scoped(user):
         return {}
     return {"company_id": user.company_id}
 

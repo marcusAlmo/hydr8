@@ -18,7 +18,7 @@ from apps.core.models import Product
 from apps.remittance.models import Remittance
 from apps.settings.selectors import get_overdue_threshold_days
 from apps.users.models import User
-from apps.users.permissions import is_admin
+from apps.users.permissions import is_admin, is_tenant_scoped
 from apps.users.presentation import driver_code as user_driver_code
 from apps.users.presentation import initials as user_initials
 
@@ -904,7 +904,7 @@ def _care_of_users(user: UserType) -> list[dict]:
     qs = User.objects.filter(
         deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True
     ).select_related("role")
-    if not user.is_superuser and user.company_id is not None:
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     qs = qs.order_by("first_name", "last_name", "username")
     users: list[dict] = []

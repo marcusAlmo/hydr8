@@ -42,6 +42,19 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 
+def _safe_json(obj) -> str:
+    """Serializes data for a single-quoted HTML attribute with HTML escaping."""
+    raw = json.dumps(obj)
+    return (
+        raw
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("'", "&#39;")
+        .replace('"', "&quot;")
+    )
+
+
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
@@ -74,7 +87,7 @@ def add_remittance_view(request):
         riders[0]["id"] if riders else None,
     )
 
-    context["alpine_seed"] = json.dumps({
+    context["alpine_seed"] = _safe_json({
         "riders": riders,
         "products": products,
         "repayments": context["repayments"],
@@ -86,7 +99,7 @@ def add_remittance_view(request):
         "selectedRiderId": selected_rider_id,
         "remittanceDate": context["default_date"],
         "hasDraft": context.get("has_draft", False),
-    }).replace("'", "&#39;")
+    })
 
     context["is_admin"] = is_admin(request.user)
     context["verify_pin_url"] = reverse("remittance:verify_pin")
@@ -344,7 +357,7 @@ def remittance_history_view(request):
         "total_pages": total_pages,
     }
 
-    context["trends_seed"] = json.dumps(context["trends"]).replace("'", "&#39;")
+    context["trends_seed"] = _safe_json(context["trends"])
     return render(request, "remittance/remittance_history.html", context)
 
 

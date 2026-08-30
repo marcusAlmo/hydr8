@@ -27,6 +27,7 @@ from django.utils import timezone
 from apps.core.models import Product, SystemConfig
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.users.models import DriverCommission, User
+from apps.users.permissions import is_tenant_scoped
 from apps.users.presentation import avatar_classes, driver_code, initials
 
 from .models import (
@@ -90,7 +91,7 @@ def _active_riders_qs(user: UserType):
         is_active=True,
         deactivated_at__isnull=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     return qs.order_by("first_name", "last_name", "username")
 
@@ -329,7 +330,7 @@ def _active_staff_qs(user: UserType):
         is_active=True,
         deactivated_at__isnull=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     return qs.order_by("first_name", "last_name", "username")
 

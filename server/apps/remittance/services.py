@@ -21,7 +21,7 @@ from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.settings.models import Company
 from apps.users.models import DriverCommission, User
-from apps.users.permissions import is_admin
+from apps.users.permissions import is_admin, is_tenant_scoped
 from apps.users.services import validate_user_pin
 
 from .models import (
@@ -58,7 +58,7 @@ def _active_riders_qs(*, user: UserType) -> QuerySet:
         is_active=True,
         deactivated_at__isnull=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     return qs
 
@@ -71,7 +71,7 @@ def _active_staff_qs(*, user: UserType) -> QuerySet:
         is_active=True,
         deactivated_at__isnull=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     return qs
 

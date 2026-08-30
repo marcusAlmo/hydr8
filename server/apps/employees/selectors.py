@@ -21,6 +21,7 @@ from apps.customers.models import CreditLine
 from apps.customers.selectors import _display_id as _customer_display_id
 from apps.remittance.models import RemittanceRiderProductLine
 from apps.users.models import Role, User
+from apps.users.permissions import is_tenant_scoped
 from apps.users.presentation import avatar_classes, initials
 
 if TYPE_CHECKING:
@@ -107,7 +108,7 @@ def _days_ago(dt) -> str:
 def _user_qs(request_user: UserType):
     """Tenant-scoped queryset of active (not soft-deleted) users."""
     qs = User.objects.filter(deleted_at__isnull=True)
-    if not request_user.is_superuser and request_user.company_id is not None:
+    if is_tenant_scoped(request_user):
         qs = qs.filter(company_id=request_user.company_id)
     return qs
 
