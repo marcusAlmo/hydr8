@@ -22,7 +22,7 @@ from apps.core.models import Product
 from apps.remittance.models import Remittance
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import User
-from apps.users.permissions import is_admin
+from apps.users.permissions import is_admin, is_superuser
 from apps.users.services import validate_user_pin
 
 from .models import BorrowedContainer, CreditLine, CreditPayment, Customer
@@ -53,7 +53,7 @@ def _resolve_care_of(care_of_id: str, user: UserType) -> UserType | None:
     qs = User.objects.filter(
         deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True
     )
-    if not user.is_superuser and user.company_id is not None:
+    if not is_superuser(user) and user.company_id is not None:
         qs = qs.filter(company_id=user.company_id)
     care_of = qs.filter(pk=raw).first()
     if care_of is None:
@@ -818,7 +818,7 @@ def _log_ledger_delete(*, record, performed_by: UserType) -> None:
     )
 
 
-def _field_change(old, new):
+def _field_change(*, old, new) -> list[str]:
     """Normalizes values for the audit log changes dict."""
     return [str(old), str(new)]
 
@@ -978,7 +978,7 @@ def edit_credit_line(
         line.refresh_from_db()
         _log_ledger_edit(
             record=line,
-            changes={k: _field_change(old[k], new[k]) for k in old},
+            changes={k: _field_change(old=old[k], new=new[k]) for k in old},
             performed_by=performed_by,
         )
         logger.info(
@@ -1078,7 +1078,7 @@ def edit_credit_payment(
         payment.refresh_from_db()
         _log_ledger_edit(
             record=payment,
-            changes={k: _field_change(old[k], new[k]) for k in old},
+            changes={k: _field_change(old=old[k], new=new[k]) for k in old},
             performed_by=performed_by,
         )
         logger.info(
@@ -1166,7 +1166,7 @@ def edit_borrowed_container(
         borrowed.refresh_from_db()
         _log_ledger_edit(
             record=borrowed,
-            changes={k: _field_change(old[k], new[k]) for k in old},
+            changes={k: _field_change(old=old[k], new=new[k]) for k in old},
             performed_by=performed_by,
         )
         logger.info(
@@ -1431,7 +1431,7 @@ def bulk_update_credit_limit(
     qs = Customer.objects.filter(deleted_at__isnull=True)
     if company is not None:
         qs = qs.filter(company=company)
-    elif not performed_by.is_superuser:
+    elif not is_superuser(performed_by):
         qs = qs.filter(company__isnull=True)
 
     count = qs.update(credit_limit=dec, updated_at=timezone.now())

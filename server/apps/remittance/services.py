@@ -14,13 +14,14 @@ from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.settings.models import Company
 from apps.users.models import DriverCommission, User
+from apps.users.permissions import is_admin
 from apps.users.services import validate_user_pin
 
 from .models import (
@@ -49,7 +50,7 @@ def _to_decimal(value) -> Decimal:
         return Decimal("0.00")
 
 
-def _active_riders_qs(user: UserType):
+def _active_riders_qs(*, user: UserType) -> QuerySet:
     """Tenant-scoped active driver users."""
     qs = User.objects.filter(
         role__name__iexact="driver",
@@ -62,7 +63,7 @@ def _active_riders_qs(user: UserType):
     return qs
 
 
-def _active_staff_qs(user: UserType):
+def _active_staff_qs(*, user: UserType) -> QuerySet:
     """Tenant-scoped active staff users."""
     qs = User.objects.filter(
         role__name__iexact="Staff",
@@ -397,12 +398,12 @@ def _build_remittance(
     other_sales_dec = _to_decimal(other_sales)
     total_salary_dec = Decimal("0.00")
 
-    active_riders = _active_riders_qs(performed_by)
+    active_riders = _active_riders_qs(user=performed_by)
     active_rider_list = list(active_riders)
     rider_id_set = {r.pk for r in active_rider_list}
     active_rider_by_id = {str(r.pk): r for r in active_rider_list}
 
-    active_staff_qs = _active_staff_qs(performed_by)
+    active_staff_qs = _active_staff_qs(user=performed_by)
     active_staff_list = list(active_staff_qs)
     active_staff_by_id = {str(s.pk): s for s in active_staff_list}
 
@@ -833,14 +834,6 @@ def update_remittance_paid_status(
     return remittance
 
 
-def is_admin_user(*, user: UserType) -> bool:
-    """Returns True if the user has the Admin role (or is a superuser)."""
-    return bool(
-        user.is_superuser
-        or (getattr(user, "role", None) is not None and user.role.name == "Admin")
-    )
-
-
 @transaction.atomic
 def finalize_remittance(
     *,
@@ -862,7 +855,7 @@ def finalize_remittance(
 
     Returns the refreshed :class:`Remittance` instance.
     """
-    if not is_admin_user(user=performed_by):
+    if not is_admin(user=performed_by):
         raise ValidationError("Only administrators can finalize remittances.")
 
     validate_user_pin(user=performed_by, pin=pin)
