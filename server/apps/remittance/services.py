@@ -14,13 +14,14 @@ from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from apps.core.models import Product
 from apps.customers.models import CreditPayment
 from apps.settings.models import Company
 from apps.users.models import DriverCommission, User
+from apps.users.permissions import is_admin, is_tenant_scoped
 from apps.users.services import validate_user_pin
 
 from .models import (
@@ -49,7 +50,7 @@ def _to_decimal(value) -> Decimal:
         return Decimal("0.00")
 
 
-def _active_riders_qs(user: UserType):
+def _active_riders_qs(*, user: UserType) -> QuerySet:
     """Tenant-scoped active driver users."""
     qs = User.objects.filter(
         role__name__iexact="driver",
@@ -57,12 +58,12 @@ def _active_riders_qs(user: UserType):
         is_active=True,
         deactivated_at__isnull=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     return qs
 
 
-def _active_staff_qs(user: UserType):
+def _active_staff_qs(*, user: UserType) -> QuerySet:
     """Tenant-scoped active staff users."""
     qs = User.objects.filter(
         role__name__iexact="Staff",
@@ -70,7 +71,7 @@ def _active_staff_qs(user: UserType):
         is_active=True,
         deactivated_at__isnull=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     return qs
 
@@ -397,9 +398,14 @@ def _build_remittance(
     other_sales_dec = _to_decimal(other_sales)
     total_salary_dec = Decimal("0.00")
 
-    active_riders = _active_riders_qs(performed_by)
+    active_riders = _active_riders_qs(user=performed_by)
     active_rider_list = list(active_riders)
     rider_id_set = {r.pk for r in active_rider_list}
+    active_rider_by_id = {str(r.pk): r for r in active_rider_list}
+
+    active_staff_qs = _active_staff_qs(user=performed_by)
+    active_staff_list = list(active_staff_qs)
+    active_staff_by_id = {str(s.pk): s for s in active_staff_list}
 
     # Collect ALL repayments collected on the remittance date and not yet
     # linked to a Remittance — regardless of whether care_of is a driver
@@ -408,12 +414,26 @@ def _build_remittance(
         performed_by, active_rider_list, remittance_date
     )
 
+    # Pre-fetch driver commission rates for every active rider + product
+    # in the payload so the product-line loop below is N+1-free.
+    commission_map: dict[tuple[str, str], Decimal] = {}
+    if active_rider_list and products:
+        for row in (
+            DriverCommission.objects
+            .filter(
+                driver__in=active_rider_list,
+                product__in=list(products.values()),
+            )
+            .values("driver_id", "product_id", "rate_per_unit")
+        ):
+            commission_map[(str(row["driver_id"]), str(row["product_id"]))] = Decimal(row["rate_per_unit"])
+
     # Map rider_id -> RemittanceRider for repayment attribution.
     rider_rows: dict[int, RemittanceRider] = {}
 
     for rider_payload in riders_data:
         rider_id = rider_payload.get("id")
-        rider = active_riders.filter(id=rider_id).first()
+        rider = active_rider_by_id.get(str(rider_id))
         if not rider:
             raise ValidationError(f"Rider not found or inactive: {rider_id}")
 
@@ -447,12 +467,9 @@ def _build_remittance(
             # Total remittable units = cash sales - credit given + credit repaid
             paid = max(0, sold - credited + repaid)
 
-            commission_rate = Decimal("0.00")
-            commission = DriverCommission.objects.filter(
-                driver=rider, product=product
-            ).first()
-            if commission is not None:
-                commission_rate = commission.rate_per_unit
+            commission_rate = commission_map.get(
+                (str(rider.id), str(product.id)), Decimal("0.00")
+            )
 
             unit_price = product.price
             payable = Decimal(paid) * unit_price
@@ -645,11 +662,9 @@ def _build_remittance(
     total_sales = gross_sales + other_sales_dec
 
     # --- Persist staff payments and deductions ---------------------------
-    active_staff_qs = _active_staff_qs(performed_by)
-
     for staff_entry in staff_data or []:
         staff_id = staff_entry.get("id")
-        staff_user = active_staff_qs.filter(id=staff_id).first()
+        staff_user = active_staff_by_id.get(str(staff_id))
         if staff_user is None:
             continue
 
@@ -819,14 +834,6 @@ def update_remittance_paid_status(
     return remittance
 
 
-def is_admin_user(*, user: UserType) -> bool:
-    """Returns True if the user has the Admin role (or is a superuser)."""
-    return bool(
-        user.is_superuser
-        or (getattr(user, "role", None) is not None and user.role.name == "Admin")
-    )
-
-
 @transaction.atomic
 def finalize_remittance(
     *,
@@ -848,7 +855,7 @@ def finalize_remittance(
 
     Returns the refreshed :class:`Remittance` instance.
     """
-    if not is_admin_user(user=performed_by):
+    if not is_admin(user=performed_by):
         raise ValidationError("Only administrators can finalize remittances.")
 
     validate_user_pin(user=performed_by, pin=pin)

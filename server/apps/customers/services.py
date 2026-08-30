@@ -22,7 +22,7 @@ from apps.core.models import Product
 from apps.remittance.models import Remittance
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import User
-from apps.users.permissions import is_admin
+from apps.users.permissions import is_admin, is_superuser, is_tenant_scoped
 from apps.users.services import validate_user_pin
 
 from .models import BorrowedContainer, CreditLine, CreditPayment, Customer
@@ -50,8 +50,10 @@ def _resolve_care_of(care_of_id: str, user: UserType) -> UserType | None:
     raw = (care_of_id or "").strip()
     if not raw:
         return None
-    qs = User.objects.filter(deleted_at__isnull=True, is_active=True)
-    if not user.is_superuser and user.company_id is not None:
+    qs = User.objects.filter(
+        deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True
+    )
+    if is_tenant_scoped(user):
         qs = qs.filter(company_id=user.company_id)
     care_of = qs.filter(pk=raw).first()
     if care_of is None:
@@ -816,7 +818,7 @@ def _log_ledger_delete(*, record, performed_by: UserType) -> None:
     )
 
 
-def _field_change(old, new):
+def _field_change(*, old, new) -> list[str]:
     """Normalizes values for the audit log changes dict."""
     return [str(old), str(new)]
 
@@ -887,6 +889,7 @@ def edit_credit_line(
     customer: Customer,
     qty_credited,
     unit_price,
+    care_of_id: str = "",
     transaction_date,
     pin: str,
     performed_by: UserType,
@@ -899,6 +902,7 @@ def edit_credit_line(
     new_qty = _parse_int(qty_credited, "Quantity credited")
     new_price = _to_decimal(unit_price)
     new_transaction_date = _parse_date(transaction_date, "Transaction date")
+    new_care_of = _resolve_care_of(care_of_id, performed_by)
     if new_price <= 0:
         raise ValidationError("Unit price must be greater than zero.")
     if new_qty <= 0:
@@ -923,11 +927,15 @@ def edit_credit_line(
 
         delta = new_total - old_total
 
+        old_care_of_id = str(line.care_of_id) if line.care_of_id else ""
+        new_care_of_id = str(new_care_of.id) if new_care_of else ""
+
         old = {
             "qty_credited": line.qty_credited,
             "unit_price_snapshot": str(line.unit_price_snapshot),
             "total_credit_amount": str(line.total_credit_amount),
             "qty_remaining": line.qty_remaining,
+            "care_of_id": old_care_of_id,
             "transaction_date": str(line.transaction_date),
         }
         new = {
@@ -935,6 +943,7 @@ def edit_credit_line(
             "unit_price_snapshot": str(new_price),
             "total_credit_amount": str(new_total),
             "qty_remaining": new_remaining,
+            "care_of_id": new_care_of_id,
             "transaction_date": str(new_transaction_date),
         }
 
@@ -959,6 +968,7 @@ def edit_credit_line(
             qty_remaining=new_remaining,
             unit_price_snapshot=new_price,
             total_credit_amount=new_total,
+            care_of=new_care_of,
             transaction_date=new_transaction_date,
         )
         Customer.objects.filter(pk=line.customer_id).update(
@@ -968,14 +978,15 @@ def edit_credit_line(
         line.refresh_from_db()
         _log_ledger_edit(
             record=line,
-            changes={k: _field_change(old[k], new[k]) for k in old},
+            changes={k: _field_change(old=old[k], new=new[k]) for k in old},
             performed_by=performed_by,
         )
         logger.info(
-            "[%s] Edited CreditLine id=%s customer_id=%s",
+            "[%s] Edited CreditLine id=%s customer_id=%s care_of_id=%s",
             performed_by.id,
             line.id,
             line.customer_id,
+            new_care_of_id,
         )
         return line
 
@@ -1067,7 +1078,7 @@ def edit_credit_payment(
         payment.refresh_from_db()
         _log_ledger_edit(
             record=payment,
-            changes={k: _field_change(old[k], new[k]) for k in old},
+            changes={k: _field_change(old=old[k], new=new[k]) for k in old},
             performed_by=performed_by,
         )
         logger.info(
@@ -1155,7 +1166,7 @@ def edit_borrowed_container(
         borrowed.refresh_from_db()
         _log_ledger_edit(
             record=borrowed,
-            changes={k: _field_change(old[k], new[k]) for k in old},
+            changes={k: _field_change(old=old[k], new=new[k]) for k in old},
             performed_by=performed_by,
         )
         logger.info(
@@ -1420,7 +1431,7 @@ def bulk_update_credit_limit(
     qs = Customer.objects.filter(deleted_at__isnull=True)
     if company is not None:
         qs = qs.filter(company=company)
-    elif not performed_by.is_superuser:
+    elif not is_superuser(performed_by):
         qs = qs.filter(company__isnull=True)
 
     count = qs.update(credit_limit=dec, updated_at=timezone.now())

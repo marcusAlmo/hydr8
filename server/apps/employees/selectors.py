@@ -21,6 +21,7 @@ from apps.customers.models import CreditLine
 from apps.customers.selectors import _display_id as _customer_display_id
 from apps.remittance.models import RemittanceRiderProductLine
 from apps.users.models import Role, User
+from apps.users.permissions import is_tenant_scoped
 from apps.users.presentation import avatar_classes, initials
 
 if TYPE_CHECKING:
@@ -107,7 +108,7 @@ def _days_ago(dt) -> str:
 def _user_qs(request_user: UserType):
     """Tenant-scoped queryset of active (not soft-deleted) users."""
     qs = User.objects.filter(deleted_at__isnull=True)
-    if not request_user.is_superuser and request_user.company_id is not None:
+    if is_tenant_scoped(request_user):
         qs = qs.filter(company_id=request_user.company_id)
     return qs
 
@@ -606,7 +607,7 @@ def get_employee_directory_context(
     """Returns the full context for the Employees & Users directory page.
 
     When ``query`` is non-empty, filters by first_name, last_name, or username
-    using ``__icontains``. When ``active_filter`` is set, further narrows by
+    using ``__ilike``. When ``active_filter`` is set, further narrows by
     role or inactive users. Uses real pagination (PER_PAGE=25).
     """
     users_qs = _user_qs(request_user).select_related('role')
@@ -615,9 +616,9 @@ def get_employee_directory_context(
     query = (query or "").strip()
     if query:
         users_qs = users_qs.filter(
-            Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-            | Q(username__icontains=query)
+            Q(first_name__ilike=query)
+            | Q(last_name__ilike=query)
+            | Q(username__ilike=query)
         )
 
     active_filter = (active_filter or "all").lower()

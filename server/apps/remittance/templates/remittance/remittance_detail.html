@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Remittance Detail | Hydr8{% endblock %}
+
+{% block sidebar %}
+    {% include "components/sidebar.html" with active_page="remittance" %}
+{% endblock %}
+
+{% block content %}
+<div class="flex-1 flex flex-col overflow-hidden">
+    
+    <!-- Header with back button and remittance info -->
+    {% include "remittance/partials/remittance_detail_header.html" %}
+    
+    <!-- Summary KPI Cards (Revenue, Deductions, Summary, Obligations) -->
+    <section class="px-margin-page py-6 border-b border-outline-variant/10">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+            <!-- Revenue Card -->
+            <div class="md:col-span-6 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-primary">
+                <p class="font-label-caps text-label-caps text-primary uppercase mb-3">Revenue</p>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Total Cash Sales</span>
+                        <span class="font-data-mono text-[18px] font-bold text-primary">{{ remittance.total_sales }}</span>
+                    </div>
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Total Repayments</span>
+                        <span class="font-data-mono text-[18px] font-bold text-tertiary">{{ remittance.total_repayments_received }}</span>
+                    </div>
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Drivers Remittance</span>
+                        <span class="font-data-mono text-[18px] font-bold text-primary">{{ remittance.drivers_remittance }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Deductions Card -->
+            <div class="md:col-span-3 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-error">
+                <p class="font-label-caps text-label-caps text-error uppercase mb-3">Deductions</p>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Total Credits</span>
+                        <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_credit_sales }}</span>
+                    </div>
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Total Expenses</span>
+                        <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_expenses }}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Summary Card -->
+            <div class="md:col-span-3 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-tertiary">
+                <p class="font-label-caps text-label-caps text-tertiary uppercase mb-3">Summary</p>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Net Remittance</span>
+                        <span class="font-data-mono text-[16px] font-bold text-tertiary">{{ remittance.net_remittance }}</span>
+                    </div>
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-on-surface-variant text-body-sm">Status</span>
+                        <span class="px-2 py-0.5 rounded-full {% if remittance.is_draft %}bg-[#FFBF00]/15 text-[#B45309]{% else %}bg-tertiary/15 text-tertiary{% endif %} text-[12px] font-bold uppercase">
+                            {{ remittance.status }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Tab Navigation -->
+    {% include "remittance/partials/tab_nav.html" %}
+    
+    <!-- Tab Content Container (HTMX-driven) -->
+    <div id="tab-content" class="flex-1 overflow-y-auto px-margin-page py-6">
+        <!-- Initial load: Repayments tab -->
+        {% include "remittance/partials/credit_repayments_table.html" with page=1 page_size=5 %}
+    </div>
+    
+</div>
+{% endblock %}

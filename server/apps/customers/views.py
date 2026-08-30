@@ -18,6 +18,7 @@ from .selectors import (
     DEFAULT_DIR,
     DEFAULT_SORT,
     SORT_FIELD_MAP,
+    _care_of_users,
     get_customer_by_display_id,
     get_customer_collect_context,
     get_customer_detail_context,
@@ -560,6 +561,7 @@ def _history_item_context(item) -> dict:
             "display_id": f"CL-{item.pk}",
             "qty_credited": item.qty_credited,
             "unit_price": str(item.unit_price_snapshot),
+            "care_of_id": str(item.care_of_id) if item.care_of_id else "",
             "transaction_date": item.transaction_date.isoformat(),
         }
     if isinstance(item, CreditPayment):
@@ -620,6 +622,7 @@ def customer_history_edit_view(request, customer_id: str, item_id: str):
         "customer_id": customer_id,
         "item_id": display_id,
         "item": _history_item_context(item),
+        "care_of_users": _care_of_users(request.user),
     }
     return render(request, "customers/partials/history_edit_form.html", context)
 
@@ -647,6 +650,7 @@ def customer_history_edit_submit_view(request, customer_id: str, item_id: str):
                 customer=customer,
                 qty_credited=request.POST.get("qty_credited", ""),
                 unit_price=request.POST.get("unit_price", ""),
+                care_of_id=request.POST.get("care_of_id", ""),
                 transaction_date=transaction_date,
                 pin=pin,
                 performed_by=request.user,

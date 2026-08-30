@@ -226,42 +226,59 @@ def validate_user_pin(
 
 
 # ---------------------------------------------------------------------------
-# Soft-delete — admin action on the edit user form.
+# User activation / deactivation — admin action on the edit user form.
 # ---------------------------------------------------------------------------
 
-# Delete-confirmation challenge — exactly 8 alphanumeric characters.
-DELETE_CHALLENGE_LENGTH = 8
-_DELETE_CHALLENGE_ALPHABET = string.ascii_letters + string.digits
+# Deactivation-confirmation challenge — exactly 8 alphanumeric characters.
+DEACTIVATE_CHALLENGE_LENGTH = 8
+_DEACTIVATE_CHALLENGE_ALPHABET = string.ascii_letters + string.digits
 
 
-def generate_delete_challenge() -> str:
+def generate_deactivate_challenge() -> str:
     """
     Generates a cryptographically-secure 8-character alphanumeric challenge
-    string. The user must retype this exact code to confirm a destructive
-    delete operation, adding friction against accidental deletion.
+    string. The user must retype this exact code to confirm account
+    deactivation, adding friction against accidental status changes.
     """
     return "".join(
-        secrets.choice(_DELETE_CHALLENGE_ALPHABET)
-        for _ in range(DELETE_CHALLENGE_LENGTH)
+        secrets.choice(_DEACTIVATE_CHALLENGE_ALPHABET)
+        for _ in range(DEACTIVATE_CHALLENGE_LENGTH)
     )
 
 
-def soft_delete_user(*, user: User, performed_by) -> None:
+def deactivate_user(*, user: User, performed_by) -> None:
     """
-    Soft-deletes a user by setting ``deleted_at`` to the current timestamp
-    and deactivating the account. The row is preserved for audit/history;
-    all read-side selectors filter ``deleted_at__isnull=True`` so the user
-    disappears from the directory, search, suggestions, and rider lists.
+    Deactivates a user by setting ``deactivated_at`` to the current timestamp
+    and marking the account inactive. The row is preserved for audit/history;
+    the user disappears from active directory, search, suggestions, and
+    rider/staff lists, but existing sales, credits, and metrics remain intact.
 
-    Raises ``ValidationError`` if the user is already soft-deleted or if the
-    actor attempts to delete their own account.
+    Raises ``ValidationError`` if the user is already deactivated or if the
+    actor attempts to deactivate their own account.
     """
-    if user.deleted_at is not None:
-        raise ValidationError("This user has already been deleted.")
+    if user.deactivated_at is not None:
+        raise ValidationError("This user is already deactivated.")
     if performed_by.pk == user.pk:
-        raise ValidationError("You cannot delete your own account.")
+        raise ValidationError("You cannot deactivate your own account.")
 
-    user.deleted_at = timezone.now()
+    user.deactivated_at = timezone.now()
     user.is_active = False
-    user.save(update_fields=["deleted_at", "is_active", "updated_at"])
-    logger.info("[%s] Soft-deleted User id=%s", performed_by.id, user.id)
+    user.save(update_fields=["deactivated_at", "is_active", "updated_at"])
+    logger.info("[%s] Deactivated User id=%s", performed_by.id, user.id)
+
+
+def activate_user(*, user: User, performed_by) -> None:
+    """
+    Reactivates a previously deactivated user by clearing ``deactivated_at``
+    and marking the account active. The user will reappear in directory,
+    search, suggestions, and rider/staff lists.
+
+    Raises ``ValidationError`` if the user is already active.
+    """
+    if user.deactivated_at is None:
+        raise ValidationError("This user is already active.")
+
+    user.deactivated_at = None
+    user.is_active = True
+    user.save(update_fields=["deactivated_at", "is_active", "updated_at"])
+    logger.info("[%s] Activated User id=%s", performed_by.id, user.id)

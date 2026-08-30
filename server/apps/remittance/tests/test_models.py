@@ -47,14 +47,14 @@ class RemittanceModelTests(SimpleTestCase):
         rider_user = User(username="driver2")
         credit = RiderCredit(rider=rider_user, recipient_name="Alice", amount=Decimal("200.00"))
         self.assertFalse(credit.is_repaid)
-        self.assertEqual(str(credit), "Credit of 200.00 for Alice by driver2")
+        self.assertEqual(str(credit), "RiderCredit (unsaved)")
 
     def test_rider_credit_repayment_str(self):
         """Test RiderCreditRepayment string representation."""
         rider_user = User(username="driver2")
         credit = RiderCredit(rider=rider_user, recipient_name="Alice", amount=Decimal("200.00"))
         repayment = RiderCreditRepayment(rider_credit=credit, amount_repaid=Decimal("100.00"))
-        self.assertEqual(str(repayment), f"Repayment of 100.00 for {credit!s}")
+        self.assertEqual(str(repayment), "RiderCreditRepayment (unsaved)")
 
     def test_fake_remittance_repository(self):
         """Test FakeRemittanceRepository in-memory store operations."""

@@ -40,6 +40,13 @@ def is_superuser(user) -> bool:
     return bool(getattr(user, "is_superuser", False))
 
 
+def is_tenant_scoped(user) -> bool:
+    """True for users who belong to a specific company (not superusers / global)."""
+    if not user.is_authenticated:
+        return False
+    return not is_superuser(user) and user.company_id is not None
+
+
 def is_back_office(user) -> bool:
     """
     True if the user may access the back-office system at all.

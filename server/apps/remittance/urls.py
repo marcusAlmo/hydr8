@@ -12,6 +12,21 @@ urlpatterns = [
     path("check-date/", views.check_remittance_date_view, name="check_date"),
     path("history/", views.remittance_history_view, name="history"),
     path(
+        "<int:remittance_id>/",
+        views.remittance_detail_view,
+        name="detail",
+    ),
+    path(
+        "<int:remittance_id>/repayments/",
+        views.remittance_detail_repayments_view,
+        name="detail_repayments",
+    ),
+    path(
+        "<int:remittance_id>/credits/",
+        views.remittance_detail_credits_view,
+        name="detail_credits",
+    ),
+    path(
         "<int:remittance_id>/paid-status/",
         views.update_paid_status_view,
         name="update_paid_status",
