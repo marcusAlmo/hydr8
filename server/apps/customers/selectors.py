@@ -671,6 +671,18 @@ def get_customer_table_context(
     elif active_filter == "anomalous":
         qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
 
+    active_filter = (active_filter or "all").lower()
+    if active_filter == "has_debt":
+        qs = qs.filter(debt_balance__gt=0)
+    elif active_filter == "has_borrowed":
+        qs = qs.filter(
+            Q(borrowed_round_8gal__gt=0)
+            | Q(borrowed_slim_8gal__gt=0)
+            | Q(borrowed_other__gt=0)
+        )
+    elif active_filter == "anomalous":
+        qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
+
     # Annotate borrowed_total for sorting
     qs = qs.annotate(
         borrowed_total=F("borrowed_round_8gal") + F("borrowed_slim_8gal") + F("borrowed_other")
