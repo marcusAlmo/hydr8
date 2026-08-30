@@ -17,12 +17,12 @@ from django_ratelimit.decorators import ratelimit
 from apps.core.views import error_message, toast_for_exception
 from apps.users.permissions import is_admin
 
-from .models import Remittance
 from .selectors import (
     get_add_remittance_context,
     get_credit_repayments_for_remittance,
     get_credits_recorded_for_remittance,
     get_recent_remittances,
+    get_remittance_by_id,
     get_remittance_date_data,
     get_remittance_detail,
     get_remittance_history_context,
@@ -502,16 +502,13 @@ def remittance_detail_view(request, remittance_id: int):
     if not is_admin(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    try:
-        remittance_obj = Remittance.objects.for_user(request.user).get(pk=remittance_id)
-    except Remittance.DoesNotExist:
+    remittance_obj = get_remittance_by_id(request.user, remittance_id)
+    if remittance_obj is None:
         return HttpResponse("Remittance not found.", status=404)
 
     remittance = get_remittance_detail(
         request.user, remittance_id, remittance=remittance_obj
     )
-    if remittance is None:
-        return HttpResponse("Remittance not found.", status=404)
 
     repayments_data = get_credit_repayments_for_remittance(
         request.user, remittance_id, page=1, page_size=5, remittance=remittance_obj
@@ -552,16 +549,13 @@ def remittance_detail_repayments_view(request, remittance_id: int):
     except (ValueError, TypeError):
         page = 1
 
-    try:
-        remittance_obj = Remittance.objects.for_user(request.user).get(pk=remittance_id)
-    except Remittance.DoesNotExist:
+    remittance_obj = get_remittance_by_id(request.user, remittance_id)
+    if remittance_obj is None:
         return HttpResponse("Remittance not found.", status=404)
 
     remittance = get_remittance_detail(
         request.user, remittance_id, remittance=remittance_obj
     )
-    if remittance is None:
-        return HttpResponse("Remittance not found.", status=404)
 
     data = get_credit_repayments_for_remittance(
         request.user, remittance_id, page=page, page_size=5, remittance=remittance_obj
@@ -600,16 +594,13 @@ def remittance_detail_credits_view(request, remittance_id: int):
     except (ValueError, TypeError):
         page = 1
 
-    try:
-        remittance_obj = Remittance.objects.for_user(request.user).get(pk=remittance_id)
-    except Remittance.DoesNotExist:
+    remittance_obj = get_remittance_by_id(request.user, remittance_id)
+    if remittance_obj is None:
         return HttpResponse("Remittance not found.", status=404)
 
     remittance = get_remittance_detail(
         request.user, remittance_id, remittance=remittance_obj
     )
-    if remittance is None:
-        return HttpResponse("Remittance not found.", status=404)
 
     data = get_credits_recorded_for_remittance(
         request.user, remittance_id, page=page, page_size=5, remittance=remittance_obj

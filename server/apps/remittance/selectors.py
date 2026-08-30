@@ -1269,6 +1269,14 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
     }
 
 
+def get_remittance_by_id(user: UserType, remittance_id: int) -> Remittance | None:
+    """Fetches a single remittance scoped to the user's tenant."""
+    try:
+        return Remittance.objects.for_user(user).get(pk=remittance_id)
+    except Remittance.DoesNotExist:
+        return None
+
+
 def get_remittance_detail(
     user: UserType,
     remittance_id: int,
