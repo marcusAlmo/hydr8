@@ -33,16 +33,17 @@ from apps.users.signals import login_failed
 
 from .selectors import get_roles_for_user, get_user_by_id, username_exists
 from .services import (
+    activate_user,
     change_user_password,
     check_login_lockout,
     create_user_account,
-    generate_delete_challenge,
+    deactivate_user,
+    generate_deactivate_challenge,
     get_client_ip,
     onboard_user,
     record_failed_login,
     reset_failed_login,
     set_temporary_password,
-    soft_delete_user,
     validate_user_pin,
 )
 
@@ -347,7 +348,7 @@ class EditUserForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'role', 'is_active', 'daily_rate']
+        fields = ['username', 'first_name', 'last_name', 'email', 'role', 'daily_rate']
         widgets = {
             'username': forms.TextInput(attrs={
                 'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
@@ -363,9 +364,6 @@ class EditUserForm(forms.ModelForm):
             }),
             'role': forms.Select(attrs={
                 'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md focus:ring-2 focus:ring-primary focus:border-transparent',
-            }),
-            'is_active': forms.CheckboxInput(attrs={
-                'class': 'w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary',
             }),
             'daily_rate': forms.NumberInput(attrs={
                 'class': 'w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent',
@@ -406,22 +404,22 @@ def edit_user_view(request, user_id):
     form = EditUserForm(instance=target_user)
     form.fields['role'].queryset = roles
 
-    # Generate a one-time delete-confirmation challenge and stash it in the
-    # session so the delete endpoint can verify it on POST. Regenerated on
-    # every edit-form load so it cannot be replayed across sessions.
-    delete_challenge = generate_delete_challenge()
-    request.session[f'delete_challenge:{target_user.pk}'] = delete_challenge
+    # Generate a one-time deactivation-confirmation challenge and stash it in
+    # the session so the deactivate endpoint can verify it on POST. Regenerated
+    # on every edit-form load so it cannot be replayed across sessions.
+    deactivate_challenge = generate_deactivate_challenge()
+    request.session[f'deactivate_challenge:{target_user.pk}'] = deactivate_challenge
 
-    # Prevent self-deletion in the UI — hide the delete button for the
-    # current user's own edit form.
-    can_delete = _can_change_user(request.user) and request.user.pk != target_user.pk
+    # Prevent self-deactivation in the UI — hide the status buttons for the
+    # current user on their own edit form.
+    can_change_status = _can_change_user(request.user) and request.user.pk != target_user.pk
 
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
         'roles': roles,
-        'delete_challenge': delete_challenge,
-        'can_delete': can_delete,
+        'deactivate_challenge': deactivate_challenge,
+        'can_change_status': can_change_status,
     })
 
 
@@ -473,36 +471,36 @@ def edit_user_submit_view(request, user_id):
         if context is None:
             return HttpResponse("User not found.", status=404)
         return render(request, 'employees/partials/user_detail.html', context)
-    # Re-render the form with errors — preserve the delete challenge so the
-    # delete panel stays functional after a failed save.
-    delete_challenge = request.session.get(f'delete_challenge:{target_user.pk}', generate_delete_challenge())
+    # Re-render the form with errors — preserve the deactivation challenge so
+    # the status panel stays functional after a failed save.
+    deactivate_challenge = request.session.get(f'deactivate_challenge:{target_user.pk}', generate_deactivate_challenge())
     return render(request, 'users/partials/edit_user_form.html', {
         'form': form,
         'target_user': target_user,
         'roles': roles,
-        'delete_challenge': delete_challenge,
-        'can_delete': _can_change_user(request.user) and request.user.pk != target_user.pk,
+        'deactivate_challenge': deactivate_challenge,
+        'can_change_status': _can_change_user(request.user) and request.user.pk != target_user.pk,
         'pin_error': pin_error,
     })
 
 
 # ---------------------------------------------------------------------------
-# Delete user (soft-delete) — admin action on the edit user form.
+# Deactivate / activate user — admin action on the edit user form.
 # ---------------------------------------------------------------------------
 
 @login_required
 @require_http_methods(["POST"])
 @ratelimit(key='user', rate='10/m', method='POST', block=True)
-def delete_user_view(request, user_id):
+def deactivate_user_view(request, user_id):
     """
-    HTMX endpoint — soft-deletes a user after verifying the typed
-    delete-confirmation challenge matches the one issued when the edit form
-    was rendered.
+    HTMX endpoint — deactivates a user after verifying the typed
+    deactivation-confirmation challenge matches the one issued when the
+    edit form was rendered.
 
     On success, returns a confirmation partial and triggers a refresh of the
-    employees directory table so the deleted user disappears immediately.
-    On failure (wrong challenge, self-delete, already deleted), re-renders
-    the edit form with an error message.
+    employees directory table so the deactivated user is immediately marked
+    as inactive. On failure (wrong challenge, self-deactivation, already
+    deactivated), re-renders the edit form with an error message.
     """
     if not _can_change_user(request.user):
         raise PermissionDenied("Forbidden")
@@ -512,24 +510,24 @@ def delete_user_view(request, user_id):
         return HttpResponse("User not found.", status=404)
 
     roles = get_roles_for_user(request.user)
-    session_key = f'delete_challenge:{target_user.pk}'
+    session_key = f'deactivate_challenge:{target_user.pk}'
     expected_challenge = request.session.get(session_key, '')
-    typed_challenge = (request.POST.get('delete_challenge', '') or '').strip()
+    typed_challenge = (request.POST.get('deactivate_challenge', '') or '').strip()
 
     if not expected_challenge:
         # No challenge was issued (stale form / session expired). Regenerate
         # one and re-render the edit form with a fresh challenge + error.
-        delete_challenge = generate_delete_challenge()
-        request.session[session_key] = delete_challenge
+        deactivate_challenge = generate_deactivate_challenge()
+        request.session[session_key] = deactivate_challenge
         form = EditUserForm(instance=target_user)
         form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
             'form': form,
             'target_user': target_user,
             'roles': roles,
-            'delete_challenge': delete_challenge,
-            'can_delete': request.user.pk != target_user.pk,
-            'delete_error': "The delete session expired. Please retry the delete confirmation.",
+            'deactivate_challenge': deactivate_challenge,
+            'can_change_status': request.user.pk != target_user.pk,
+            'status_error': "The deactivation session expired. Please retry the confirmation.",
         })
 
     if typed_challenge != expected_challenge:
@@ -541,32 +539,32 @@ def delete_user_view(request, user_id):
             'form': form,
             'target_user': target_user,
             'roles': roles,
-            'delete_challenge': expected_challenge,
-            'can_delete': request.user.pk != target_user.pk,
-            'delete_error': "The code you entered does not match. Please type it exactly as shown.",
+            'deactivate_challenge': expected_challenge,
+            'can_change_status': request.user.pk != target_user.pk,
+            'status_error': "The code you entered does not match. Please type it exactly as shown.",
         })
 
     # --- PIN verification (server-side, defence in depth) ---
     pin = (request.POST.get('pin', '') or '').strip()
     try:
-        validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to delete a user.")
+        validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to deactivate a user.")
     except ValidationError as exc:
-        logger.info("[%s] delete_user PIN verification failed: %s", request.user.id, exc)
+        logger.info("[%s] deactivate_user PIN verification failed: %s", request.user.id, exc)
         form = EditUserForm(instance=target_user)
         form.fields['role'].queryset = roles
         return render(request, 'users/partials/edit_user_form.html', {
             'form': form,
             'target_user': target_user,
             'roles': roles,
-            'delete_challenge': expected_challenge,
-            'can_delete': request.user.pk != target_user.pk,
-            'delete_error': error_message(exc),
+            'deactivate_challenge': expected_challenge,
+            'can_change_status': request.user.pk != target_user.pk,
+            'status_error': error_message(exc),
         })
 
     try:
-        soft_delete_user(user=target_user, performed_by=request.user)
+        deactivate_user(user=target_user, performed_by=request.user)
     except ValidationError as exc:
-        logger.warning("[%s] Failed to delete User id=%s: %s",
+        logger.warning("[%s] Failed to deactivate User id=%s: %s",
                        request.user.id, target_user.id, error_message(exc))
         form = EditUserForm(instance=target_user)
         form.fields['role'].queryset = roles
@@ -574,19 +572,84 @@ def delete_user_view(request, user_id):
             'form': form,
             'target_user': target_user,
             'roles': roles,
-            'delete_challenge': expected_challenge,
-            'can_delete': request.user.pk != target_user.pk,
-            'delete_error': str(exc),
+            'deactivate_challenge': expected_challenge,
+            'can_change_status': request.user.pk != target_user.pk,
+            'status_error': str(exc),
         })
 
     # Clear the spent challenge so it cannot be replayed.
     request.session.pop(session_key, None)
 
     # Confirmation partial — swaps into the drawer content area. Trigger a
-    # refresh of the directory table so the deleted user vanishes from the
-    # list, search, and suggestions immediately.
+    # refresh of the directory table so the deactivated user is immediately
+    # marked inactive.
     response = render(request, 'users/partials/user_deleted_confirm.html', {
-        'deleted_user': target_user,
+        'target_user': target_user,
+        'deactivated': True,
+    })
+    response['HX-Trigger'] = '{"refreshUsersTable": ""}'
+    return response
+
+
+@login_required
+@require_http_methods(["POST"])
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
+def activate_user_view(request, user_id):
+    """
+    HTMX endpoint — reactivates a previously deactivated user after PIN
+    verification.
+
+    On success, returns a confirmation partial and triggers a refresh of the
+    employees directory table. On failure (wrong PIN, already active),
+    re-renders the edit form with an error message.
+    """
+    if not _can_change_user(request.user):
+        raise PermissionDenied("Forbidden")
+
+    target_user = get_user_by_id(request.user, user_id)
+    if target_user is None:
+        return HttpResponse("User not found.", status=404)
+
+    roles = get_roles_for_user(request.user)
+
+    # --- PIN verification (server-side, defence in depth) ---
+    pin = (request.POST.get('pin', '') or '').strip()
+    try:
+        validate_user_pin(user=request.user, pin=pin, required_message="PIN is required to activate a user.")
+    except ValidationError as exc:
+        logger.info("[%s] activate_user PIN verification failed: %s", request.user.id, exc)
+        form = EditUserForm(instance=target_user)
+        form.fields['role'].queryset = roles
+        return render(request, 'users/partials/edit_user_form.html', {
+            'form': form,
+            'target_user': target_user,
+            'roles': roles,
+            'deactivate_challenge': generate_deactivate_challenge(),
+            'can_change_status': request.user.pk != target_user.pk,
+            'status_error': error_message(exc),
+        })
+
+    try:
+        activate_user(user=target_user, performed_by=request.user)
+    except ValidationError as exc:
+        logger.warning("[%s] Failed to activate User id=%s: %s",
+                       request.user.id, target_user.id, error_message(exc))
+        form = EditUserForm(instance=target_user)
+        form.fields['role'].queryset = roles
+        return render(request, 'users/partials/edit_user_form.html', {
+            'form': form,
+            'target_user': target_user,
+            'roles': roles,
+            'deactivate_challenge': generate_deactivate_challenge(),
+            'can_change_status': request.user.pk != target_user.pk,
+            'status_error': str(exc),
+        })
+
+    # Confirmation partial — swaps into the drawer content area. Trigger a
+    # refresh of the directory table so the reactivated user reappears.
+    response = render(request, 'users/partials/user_deleted_confirm.html', {
+        'target_user': target_user,
+        'deactivated': False,
     })
     response['HX-Trigger'] = '{"refreshUsersTable": ""}'
     return response

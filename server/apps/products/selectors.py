@@ -135,6 +135,7 @@ def list_riders_with_rates(user: UserType) -> list[dict]:
     riders_qs = User.objects.filter(
         role__name__iexact="driver",
         deleted_at__isnull=True,
+        deactivated_at__isnull=True,
         is_active=True,
     )
     if not (user.is_superuser or user.company_id is None):

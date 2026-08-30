@@ -1,21 +1,36 @@
 {% comment %}
-User deleted confirmation — swapped into #user-detail-content after a
-successful soft-delete. Shows a success state and auto-closes the drawer
-after a short delay. The directory table is refreshed via the
-``refreshUsersTable`` HX-Trigger event sent by the delete view.
+User status confirmation — swapped into #user-detail-content after a
+successful deactivation or activation. Shows a success state and
+auto-closes the drawer after a short delay. The directory table is
+refreshed via the ``refreshUsersTable`` HX-Trigger event sent by the
+status views.
 {% endcomment %}
 <div class="flex flex-col items-center justify-center text-center py-16 px-6 h-full">
+    {% if deactivated %}
     <div class="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center mb-4">
-        <span class="material-symbols-outlined text-error text-[32px]" style="font-variation-settings: 'FILL' 1;">delete_forever</span>
+        <span class="material-symbols-outlined text-error text-[32px]" style="font-variation-settings: 'FILL' 1;">block</span>
     </div>
-    <h4 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-2">User Deleted</h4>
+    <h4 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-2">User Deactivated</h4>
     <p class="font-body-sm text-body-sm text-on-surface-variant max-w-sm leading-relaxed mb-1">
-        The account for <span class="font-data-mono text-on-surface font-medium">{{ deleted_user.full_name }}</span>
-        has been deleted.
+        The account for <span class="font-data-mono text-on-surface font-medium">{{ target_user.full_name }}</span>
+        has been deactivated.
     </p>
     <p class="font-body-sm text-body-sm text-on-surface-variant max-w-sm leading-relaxed mb-6">
-        The record is now hidden from the directory, search, and suggestions.
+        The record is hidden from active lists, but previous sales, credits, and metrics are preserved.
     </p>
+    {% else %}
+    <div class="w-16 h-16 rounded-full bg-tertiary/10 flex items-center justify-center mb-4">
+        <span class="material-symbols-outlined text-tertiary text-[32px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+    </div>
+    <h4 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-2">User Activated</h4>
+    <p class="font-body-sm text-body-sm text-on-surface-variant max-w-sm leading-relaxed mb-1">
+        The account for <span class="font-data-mono text-on-surface font-medium">{{ target_user.full_name }}</span>
+        is now active again.
+    </p>
+    <p class="font-body-sm text-body-sm text-on-surface-variant max-w-sm leading-relaxed mb-6">
+        The user will reappear in the directory, search, and rider/staff lists.
+    </p>
+    {% endif %}
     <button
         type="button"
         @click="$dispatch('close-drawer')"

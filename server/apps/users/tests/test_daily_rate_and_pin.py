@@ -359,11 +359,11 @@ class EditUserViewPinAndDailyRateTests(TestCase):
         self.assertEqual(self.target.daily_rate, Decimal("400.00"))
 
 
-class DeleteUserPinTests(TestCase):
+class DeactivateUserPinTests(TestCase):
     def setUp(self):
         self.admin_role, _ = Role.objects.get_or_create(name="Admin")
         self.admin = User.objects.create_user(
-            username="admin", password="securepassword123", is_staff=True,
+            username="testadmin", password="securepassword123", is_staff=True,
         )
         self.admin.role = self.admin_role
         self.admin.set_pin("1234")
@@ -381,49 +381,49 @@ class DeleteUserPinTests(TestCase):
         return response
 
     def _session_challenge(self) -> str:
-        return self.client.session.get(f"delete_challenge:{self.target.pk}", "")
+        return self.client.session.get(f"deactivate_challenge:{self.target.pk}", "")
 
-    def test_delete_with_correct_challenge_and_pin_succeeds(self):
-        """Delete succeeds with both the correct challenge code and PIN."""
+    def test_deactivate_with_correct_challenge_and_pin_succeeds(self):
+        """Deactivation succeeds with both the correct challenge code and PIN."""
         self._load_edit_form()
         challenge = self._session_challenge()
         response = self.client.post(
-            f"/user/{self.target.pk}/delete/",
-            {"delete_challenge": challenge, "pin": "1234"},
+            f"/user/{self.target.pk}/deactivate/",
+            {"deactivate_challenge": challenge, "pin": "1234"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "User Deleted")
+        self.assertContains(response, "User Deactivated")
         self.target.refresh_from_db()
-        self.assertIsNotNone(self.target.deleted_at)
+        self.assertIsNotNone(self.target.deactivated_at)
 
-    def test_delete_with_correct_challenge_but_wrong_pin_fails(self):
-        """Delete fails when the PIN is wrong even if the challenge is correct."""
+    def test_deactivate_with_correct_challenge_but_wrong_pin_fails(self):
+        """Deactivation fails when the PIN is wrong even if the challenge is correct."""
         self._load_edit_form()
         challenge = self._session_challenge()
         response = self.client.post(
-            f"/user/{self.target.pk}/delete/",
-            {"delete_challenge": challenge, "pin": "9999"},
+            f"/user/{self.target.pk}/deactivate/",
+            {"deactivate_challenge": challenge, "pin": "9999"},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Incorrect PIN")
         self.target.refresh_from_db()
-        self.assertIsNone(self.target.deleted_at)
+        self.assertIsNone(self.target.deactivated_at)
 
-    def test_delete_with_correct_challenge_but_no_pin_fails(self):
-        """Delete fails when no PIN is provided even if the challenge is correct."""
+    def test_deactivate_with_correct_challenge_but_no_pin_fails(self):
+        """Deactivation fails when no PIN is provided even if the challenge is correct."""
         self._load_edit_form()
         challenge = self._session_challenge()
         response = self.client.post(
-            f"/user/{self.target.pk}/delete/",
-            {"delete_challenge": challenge},
+            f"/user/{self.target.pk}/deactivate/",
+            {"deactivate_challenge": challenge},
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "PIN is required")
         self.target.refresh_from_db()
-        self.assertIsNone(self.target.deleted_at)
+        self.assertIsNone(self.target.deactivated_at)
 
 
 class GenerateTempPasswordPinTests(TestCase):

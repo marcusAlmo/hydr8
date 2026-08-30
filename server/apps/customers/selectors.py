@@ -273,6 +273,14 @@ def _customer_filters(user: UserType, active_filter: str = "all") -> list[dict]:
             ).count(),
             "active": active_filter == "anomalous",
         },
+        {
+            "label": "Has no assignee",
+            "key": "has_no_assignee",
+            "count": base.filter(
+                credit_lines__care_of__isnull=True
+            ).distinct().count(),
+            "active": active_filter == "has_no_assignee",
+        },
     ]
 
 
@@ -624,7 +632,7 @@ def get_customer_table_context(
 ) -> dict:
     """Returns the full customer table partial context.
 
-    When ``query`` is non-empty, filters by ``name__icontains``.
+    When ``query`` is non-empty, filters by ``name__ilike``.
     When ``active_filter`` is set, narrows by debt, borrowed items, or
     anomalous status. Uses DB-side sorting and real pagination (PER_PAGE=25).
     """
@@ -635,7 +643,7 @@ def get_customer_table_context(
     # Apply search filter
     query = (query or "").strip()
     if query:
-        qs = qs.filter(name__icontains=query)
+        qs = qs.filter(name__ilike=query)
 
     active_filter = (active_filter or "all").lower()
     if active_filter == "has_debt":
@@ -648,6 +656,8 @@ def get_customer_table_context(
         )
     elif active_filter == "anomalous":
         qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
+    elif active_filter == "has_no_assignee":
+        qs = qs.filter(credit_lines__care_of__isnull=True).distinct()
 
     # Annotate borrowed_total for sorting
     qs = qs.annotate(
@@ -891,9 +901,9 @@ def _care_of_users(user: UserType) -> list[dict]:
     Includes admins, staff, and drivers — anyone who could be responsible
     for lending containers or extending credit to a customer.
     """
-    qs = User.objects.filter(deleted_at__isnull=True, is_active=True).select_related(
-        "role"
-    )
+    qs = User.objects.filter(
+        deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True
+    ).select_related("role")
     if not user.is_superuser and user.company_id is not None:
         qs = qs.filter(company_id=user.company_id)
     qs = qs.order_by("first_name", "last_name", "username")
