@@ -65,7 +65,7 @@ class Remittance(models.Model):
             models.Index(fields=['company', 'tithes_paid', 'offering_paid']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Remittance {self.date} ({self.status})"
 
 
@@ -103,7 +103,7 @@ class RemittanceRider(models.Model):
             models.Index(fields=['company', 'rider']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Rider {self.rider.username} for {self.remittance.date}"
 
 
@@ -145,7 +145,7 @@ class RemittanceRiderProductLine(models.Model):
             models.Index(fields=['company', 'product']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.product.name} line for {self.remittance_rider}"
 
 
@@ -182,7 +182,7 @@ class Expense(models.Model):
             models.Index(fields=['company', 'remittance_rider']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Expense: {self.description} ({self.amount})"
 
 
@@ -217,8 +217,9 @@ class RiderCredit(models.Model):
             models.Index(fields=['company', 'created_at']),
         ]
 
-    def __str__(self):
-        return f"Credit of {self.amount} for {self.recipient_name} by {self.rider.username}"
+    def __str__(self) -> str:
+        # RA 10173: Never expose recipient names in __str__ for financial models.
+        return f"RiderCredit {self.pk or '(unsaved)'}"
 
 
 class RiderCreditRepayment(models.Model):
@@ -247,8 +248,9 @@ class RiderCreditRepayment(models.Model):
             models.Index(fields=['company', 'remittance']),
         ]
 
-    def __str__(self):
-        return f"Repayment of {self.amount_repaid} for {self.rider_credit}"
+    def __str__(self) -> str:
+        # RA 10173: Do not re-render related model __str__ that may contain PII.
+        return f"RiderCreditRepayment {self.pk or '(unsaved)'}"
 
 
 class RiderDeduction(models.Model):
@@ -290,7 +292,7 @@ class RiderDeduction(models.Model):
             models.Index(fields=['company', 'remittance_rider']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Deduction: {self.description} ({self.amount}) for {self.remittance_rider}"
 
 
@@ -334,7 +336,7 @@ class RemittanceStaff(models.Model):
             models.Index(fields=['company', 'staff']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Staff {self.staff.username} for {self.remittance.date}"
 
     @property
@@ -383,5 +385,5 @@ class StaffDeduction(models.Model):
             models.Index(fields=['company', 'remittance_staff']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Deduction: {self.description} ({self.amount}) for {self.remittance_staff}"

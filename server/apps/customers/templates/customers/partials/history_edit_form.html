@@ -114,6 +114,23 @@ Expects:
             {% endif %}
         </div>
 
+        {% if item.kind == 'credit_line' %}
+        <div class="mb-3">
+            <label for="history-care-of" class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Care Of</label>
+            <select
+                id="history-care-of"
+                name="care_of_id"
+                class="w-full bg-surface-container text-on-surface font-body-md rounded-lg border border-outline-variant/50 focus:ring-2 focus:ring-primary outline-none px-3 py-2 text-sm"
+            >
+                <option value="" {% if not item.care_of_id %}selected{% endif %}>Unassigned</option>
+                {% for u in care_of_users %}
+                <option value="{{ u.id }}" {% if u.id == item.care_of_id %}selected{% endif %}>{{ u.label }}</option>
+                {% endfor %}
+            </select>
+            <p class="text-[10px] text-on-surface-variant/70 mt-1">Assign or transfer responsibility for this credit line.</p>
+        </div>
+        {% endif %}
+
         <div class="mb-4">
             <label class="block font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">PIN</label>
             <input

@@ -221,6 +221,16 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- See more link to remittance detail -->
+                <div class="pt-4 flex justify-end">
+                    <a href="{% url 'remittance:detail' rem.id %}"
+                       class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-on-primary text-body-sm font-semibold shadow-sm hover:bg-primary/90 hover:shadow-md transition-all"
+                       hx-boost="false">
+                        View Details
+                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </a>
+                </div>
             </div>
         </td>
     </tr>

@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from apps.core.models import Product
 from apps.users.models import DriverCommission, User
+from apps.users.permissions import is_tenant_scoped
 from apps.users.presentation import avatar_classes, driver_code
 from apps.users.presentation import initials as _initials
 
@@ -135,9 +136,10 @@ def list_riders_with_rates(user: UserType) -> list[dict]:
     riders_qs = User.objects.filter(
         role__name__iexact="driver",
         deleted_at__isnull=True,
+        deactivated_at__isnull=True,
         is_active=True,
     )
-    if not (user.is_superuser or user.company_id is None):
+    if is_tenant_scoped(user):
         riders_qs = riders_qs.filter(company_id=user.company_id)
     riders_qs = riders_qs.select_related('role').order_by("first_name", "last_name", "username")
 

@@ -22,7 +22,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core.models import Product
-from apps.users.models import DriverCommission
+from apps.users.models import DriverCommission, User
+from apps.users.permissions import is_tenant_scoped
 
 if TYPE_CHECKING:
     import uuid
@@ -40,12 +41,12 @@ logger = logging.getLogger(__name__)
 
 def _tenant_filter(user: UserType) -> dict:
     """Returns a filter dict for company scoping, or {} for superusers."""
-    if user.is_superuser or user.company_id is None:
+    if not is_tenant_scoped(user):
         return {}
     return {"company_id": user.company_id}
 
 
-def _get_tenant_product(product_id: int, user: UserType):
+def _get_tenant_product(*, product_id: int, user: UserType) -> Product | None:
     """Fetches a non-deleted product scoped to the user's tenant."""
     return (
         Product.objects
@@ -54,9 +55,8 @@ def _get_tenant_product(product_id: int, user: UserType):
     )
 
 
-def _get_tenant_driver(driver_id: uuid.UUID | str, user: UserType):
+def _get_tenant_driver(*, driver_id: uuid.UUID | str, user: UserType) -> User | None:
     """Fetches an active, non-deleted driver scoped to the user's tenant."""
-    from apps.users.models import User
     return (
         User.objects
         .filter(id=driver_id, deleted_at__isnull=True, is_active=True,
@@ -161,7 +161,7 @@ def update_product(
     Tenant-scoped: non-superusers can only mutate products in their own
     company.
     """
-    product = _get_tenant_product(product_id, performed_by)
+    product = _get_tenant_product(product_id=product_id, user=performed_by)
     if product is None:
         raise ValidationError("Product not found.")
     if product.is_default:
@@ -220,7 +220,7 @@ def update_product(
 
 def activate_product(*, product_id: int, performed_by: UserType) -> Product:
     """Re-activates a deactivated product (clears ``deactivated_at``)."""
-    product = _get_tenant_product(product_id, performed_by)
+    product = _get_tenant_product(product_id=product_id, user=performed_by)
     if product is None:
         raise ValidationError("Product not found.")
     if product.deactivated_at is None:
@@ -234,7 +234,7 @@ def activate_product(*, product_id: int, performed_by: UserType) -> Product:
 def deactivate_product(*, product_id: int, performed_by: UserType) -> Product:
     """Deactivates a product (sets ``deactivated_at``).  Default products
     can be deactivated too — they just can't be edited or deleted."""
-    product = _get_tenant_product(product_id, performed_by)
+    product = _get_tenant_product(product_id=product_id, user=performed_by)
     if product is None:
         raise ValidationError("Product not found.")
     if product.deactivated_at is not None:
@@ -254,7 +254,7 @@ def delete_product(*, product_id: int, performed_by: UserType) -> Product:
     """
     from apps.remittance.models import RemittanceRiderProductLine
 
-    product = _get_tenant_product(product_id, performed_by)
+    product = _get_tenant_product(product_id=product_id, user=performed_by)
     if product is None:
         raise ValidationError("Product not found.")
     if product.is_default:
@@ -301,13 +301,13 @@ def set_commission_rate(
     if rate_decimal < 0:
         raise ValidationError("Commission rate cannot be negative.")
 
-    driver = _get_tenant_driver(driver_id, performed_by)
+    driver = _get_tenant_driver(driver_id=driver_id, user=performed_by)
     if driver is None:
         raise ValidationError("Driver not found.")
     if not driver.role or driver.role.name.lower() != "driver":
         raise ValidationError("User is not a driver.")
 
-    product = _get_tenant_product(product_id, performed_by)
+    product = _get_tenant_product(product_id=product_id, user=performed_by)
     if product is None:
         raise ValidationError("Product not found.")
 
@@ -347,7 +347,7 @@ def bulk_set_commission_rates(
     if rate_decimal < 0:
         raise ValidationError("Commission rate cannot be negative.")
 
-    product = _get_tenant_product(product_id, performed_by)
+    product = _get_tenant_product(product_id=product_id, user=performed_by)
     if product is None:
         raise ValidationError("Product not found.")
 

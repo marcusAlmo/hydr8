@@ -1,0 +1,35 @@
+<div x-data="{ activeTab: 'repayments' }" class="px-margin-page py-4 border-b border-outline-variant/10 bg-surface">
+    <div class="flex gap-1 bg-surface-container-low rounded-lg p-1 w-fit">
+        <button
+            hx-get="{% url 'remittance:detail_repayments' remittance.id %}?page=1"
+            hx-target="#tab-content"
+            hx-swap="innerHTML"
+            @click="activeTab = 'repayments'"
+            :class="activeTab === 'repayments' 
+                ? 'bg-primary text-on-primary shadow-sm' 
+                : 'text-on-surface-variant hover:bg-surface-container-high'"
+            class="px-4 py-2 rounded-md text-body-sm font-body-sm font-semibold transition-all flex items-center gap-2"
+            type="button"
+        >
+            <span class="material-symbols-outlined text-[18px]">receipt_long</span>
+            <span>Repayments</span>
+            <span class="font-data-mono text-[12px] bg-on-surface/10 px-2 py-0.5 rounded-full">{{ repayments_count }}</span>
+        </button>
+        
+        <button
+            hx-get="{% url 'remittance:detail_credits' remittance.id %}?page=1"
+            hx-target="#tab-content"
+            hx-swap="innerHTML"
+            @click="activeTab = 'credits'"
+            :class="activeTab === 'credits' 
+                ? 'bg-primary text-on-primary shadow-sm' 
+                : 'text-on-surface-variant hover:bg-surface-container-high'"
+            class="px-4 py-2 rounded-md text-body-sm font-body-sm font-semibold transition-all flex items-center gap-2"
+            type="button"
+        >
+            <span class="material-symbols-outlined text-[18px]">credit_card</span>
+            <span>Credits</span>
+            <span class="font-data-mono text-[12px] bg-on-surface/10 px-2 py-0.5 rounded-full">{{ credits_count }}</span>
+        </button>
+    </div>
+</div>
