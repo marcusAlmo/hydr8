@@ -154,12 +154,13 @@ def customer_table_view(request):
     direction = direction if direction in ("asc", "desc") else DEFAULT_DIR
     query = request.GET.get("q", "")
     active_filter = request.GET.get("filter", "all")
+    care_of_id = request.GET.get("care_of", "")
     try:
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
     context = get_customer_table_context(
-        request.user, sort_field, direction, query, page, active_filter
+        request.user, sort_field, direction, query, page, active_filter, care_of_id
     )
     return render(request, "customers/partials/customer_table.html", context)
 

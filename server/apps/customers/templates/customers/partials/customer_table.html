@@ -2,6 +2,10 @@
 Customer table — searchable, filterable, sortable list of customers.
 Expects context:
   - filters: list of { label, count, active }
+  - assignee_users: list of { id, label } — riders/users who have active
+      assignments (open credit lines or outstanding borrowed containers).
+      Empty list when no assignments exist; combobox is hidden in that case.
+  - care_of_id: str — currently selected assignee PK, or "" for all.
   - customers: list of { id, name, initials, address, contact_number,
                          debt_balance, debt_class, borrowed_round_8gal,
                          borrowed_slim_8gal, borrowed_other, borrowed_total,
@@ -17,29 +21,78 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
 ``#customer-table`` so the swap replaces the search/filter row too.
 {% endcomment %}
 <div id="customer-table" class="flex-1 flex flex-col gap-6"
-     hx-get="{% url 'customers:table' %}?sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}&page={{ pagination.current_page }}"
+     hx-get="{% url 'customers:table' %}?sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}&page={{ pagination.current_page }}"
      hx-trigger="refreshCustomerTable from:body"
      hx-target="this"
      hx-swap="outerHTML">
 
-    <!-- Search & Filter Chips -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex items-center flex-wrap gap-2">
-            {% for filter in filters %}
-            <button
-                type="button"
-                class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 {% if filter.active %}bg-primary text-on-primary shadow-sm{% else %}bg-surface-container text-on-surface-variant hover:bg-surface-container-highest{% endif %}"
-                hx-get="{% url 'customers:table' %}?filter={{ filter.key }}&sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
-                hx-target="#customer-table"
-                hx-swap="outerHTML"
-            >
-                {{ filter.label }}
-                <span class="font-data-mono text-xs {% if filter.active %}text-on-primary/70{% else %}text-on-surface-variant/60{% endif %}">{{ filter.count }}</span>
-            </button>
-            {% endfor %}
+    <!-- Table Controls Header: Filters & Actions -->
+    <div class="flex flex-col gap-4">
+        <!-- Row 1: Filter Chips & Rider/Assignee Dropdown -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+                {% for filter in filters %}
+                <button
+                    type="button"
+                    class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 {% if filter.active %}bg-primary text-on-primary shadow-sm{% else %}bg-surface-container text-on-surface-variant hover:bg-surface-container-highest{% endif %}"
+                    hx-get="{% url 'customers:table' %}?filter={{ filter.key }}&sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
+                    hx-target="#customer-table"
+                    hx-swap="outerHTML"
+                >
+                    {{ filter.label }}
+                    <span class="font-data-mono text-xs {% if filter.active %}text-on-primary/70{% else %}text-on-surface-variant/60{% endif %}">{{ filter.count }}</span>
+                </button>
+                {% endfor %}
+
+                <!-- Rider / Assignee Combobox Filter -->
+                {% if assignee_users %}
+                <div class="h-4 w-px bg-outline-variant/40 hidden sm:block mx-1"></div>
+                <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="material-symbols-outlined text-[18px] text-outline-variant shrink-0" title="Filter by rider/assignee">person_pin</span>
+                    <div class="relative">
+                        <select
+                            id="assigneeFilter"
+                            name="care_of"
+                            aria-label="Filter by rider/assignee"
+                            class="appearance-none bg-surface-container-lowest border border-outline-variant rounded-lg pl-3 pr-8 py-1.5 text-sm font-body-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all cursor-pointer"
+                            hx-get="{% url 'customers:table' %}"
+                            hx-trigger="change"
+                            hx-target="#customer-table"
+                            hx-swap="outerHTML"
+                            hx-include="this"
+                            hx-vals='{"sort": "{{ sort_state.field }}", "dir": "{{ sort_state.direction }}", "filter": "{{ active_filter|default:"all" }}", "q": "{{ search_query|default:"" }}"}'
+                        >
+                            <option value="" {% if not care_of_id %}selected{% endif %}>All Riders</option>
+                            {% for assignee in assignee_users %}
+                            <option value="{{ assignee.id }}" {% if care_of_id == assignee.id %}selected{% endif %}>
+                                {{ assignee.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <!-- Decorative chevron icon overlaid on the select -->
+                        <span class="material-symbols-outlined text-[16px] text-outline-variant pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">expand_more</span>
+                    </div>
+                    {% if care_of_id %}
+                    <!-- Clear assignee filter chip -->
+                    <a
+                        href="{% url 'customers:table' %}?sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                        hx-get="{% url 'customers:table' %}?sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                        hx-target="#customer-table"
+                        hx-swap="outerHTML"
+                        class="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-body-sm hover:bg-primary/20 transition-colors"
+                        title="Clear rider filter"
+                    >
+                        <span class="material-symbols-outlined text-[14px]">close</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
         </div>
-        <div class="flex items-center gap-3">
-            <div class="relative w-full md:w-80" x-data="{ customerQuery: '{{ search_query|default:''|escapejs }}' }">
+
+        <!-- Row 2: Search Input & Action Buttons -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="relative w-full sm:w-72 md:w-80" x-data="{ customerQuery: '{{ search_query|default:''|escapejs }}' }">
                 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
                 <input
                     type="search"
@@ -56,7 +109,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                     hx-target="#customer-table"
                     hx-swap="outerHTML"
                     hx-include="this"
-                    hx-vals='{"sort": "{{ sort_state.field }}", "dir": "{{ sort_state.direction }}", "filter": "{{ active_filter|default:"all" }}"}'
+                    hx-vals='{"sort": "{{ sort_state.field }}", "dir": "{{ sort_state.direction }}", "filter": "{{ active_filter|default:"all" }}", "care_of": "{{ care_of_id|default:"" }}"}'
                     hx-preserve="true"
                     hx-indicator="#customer-search-spinner"
                     aria-label="Search customers"
@@ -73,33 +126,35 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                     <span class="material-symbols-outlined text-[18px]">close</span>
                 </button>
             </div>
-            <button
-                hx-get="{% url 'customers:add' %}"
-                hx-target="#modal-root"
-                hx-swap="innerHTML"
-                class="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                title="Add a new customer">
-                <span class="material-symbols-outlined text-[16px]">person_add</span>
-                Add Customer
-            </button>
-            <button
-                hx-get="{% url 'customers:record_borrowed' %}"
-                hx-target="#modal-root"
-                hx-swap="innerHTML"
-                class="px-4 py-2 bg-[#D97706] text-on-primary text-xs font-bold rounded-lg hover:bg-[#D97706]/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                title="Record containers borrowed by a customer">
-                <span class="material-symbols-outlined text-[16px]">water_damage</span>
-                Record Borrowed
-            </button>
-            <button
-                hx-get="{% url 'customers:record_debt' %}"
-                hx-target="#modal-root"
-                hx-swap="innerHTML"
-                class="px-4 py-2 bg-error text-on-primary text-xs font-bold rounded-lg hover:bg-error/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
-                title="Record credited items owed by a customer">
-                <span class="material-symbols-outlined text-[16px]">receipt_long</span>
-                Record Debt
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+                <button
+                    hx-get="{% url 'customers:add' %}"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                    class="flex-1 sm:flex-none justify-center px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg hover:bg-primary-container transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                    title="Add a new customer">
+                    <span class="material-symbols-outlined text-[16px]">person_add</span>
+                    Add Customer
+                </button>
+                <button
+                    hx-get="{% url 'customers:record_borrowed' %}"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                    class="flex-1 sm:flex-none justify-center px-4 py-2 bg-[#D97706] text-on-primary text-xs font-bold rounded-lg hover:bg-[#D97706]/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                    title="Record containers borrowed by a customer">
+                    <span class="material-symbols-outlined text-[16px]">water_damage</span>
+                    Record Borrowed
+                </button>
+                <button
+                    hx-get="{% url 'customers:record_debt' %}"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                    class="flex-1 sm:flex-none justify-center px-4 py-2 bg-error text-on-primary text-xs font-bold rounded-lg hover:bg-error/90 transition-colors active:scale-[0.98] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+                    title="Record credited items owed by a customer">
+                    <span class="material-symbols-outlined text-[16px]">receipt_long</span>
+                    Record Debt
+                </button>
+            </div>
         </div>
     </div>
 
@@ -111,7 +166,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                     <tr class="bg-surface-container-low border-b border-outline-variant/20">
                         <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
                             <button
-                                hx-get="{% url 'customers:table' %}?sort=name&dir={% if sort_state.field == 'name' %}{{ sort_state.next_dir }}{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                                hx-get="{% url 'customers:table' %}?sort=name&dir={% if sort_state.field == 'name' %}{{ sort_state.next_dir }}{% else %}asc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                                 hx-target="#customer-table"
                                 hx-swap="outerHTML"
                                 class="flex items-center gap-1 {% if sort_state.field == 'name' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
@@ -121,7 +176,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                         </th>
                         <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
                             <button
-                                hx-get="{% url 'customers:table' %}?sort=debt_balance&dir={% if sort_state.field == 'debt_balance' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                                hx-get="{% url 'customers:table' %}?sort=debt_balance&dir={% if sort_state.field == 'debt_balance' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                                 hx-target="#customer-table"
                                 hx-swap="outerHTML"
                                 class="flex items-center gap-1 {% if sort_state.field == 'debt_balance' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
@@ -131,7 +186,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                         </th>
                         <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
                             <button
-                                hx-get="{% url 'customers:table' %}?sort=borrowed_total&dir={% if sort_state.field == 'borrowed_total' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                                hx-get="{% url 'customers:table' %}?sort=borrowed_total&dir={% if sort_state.field == 'borrowed_total' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                                 hx-target="#customer-table"
                                 hx-swap="outerHTML"
                                 class="flex items-center gap-1 {% if sort_state.field == 'borrowed_total' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
@@ -141,7 +196,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                         </th>
                         <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
                             <button
-                                hx-get="{% url 'customers:table' %}?sort=payable_amount&dir={% if sort_state.field == 'payable_amount' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                                hx-get="{% url 'customers:table' %}?sort=payable_amount&dir={% if sort_state.field == 'payable_amount' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                                 hx-target="#customer-table"
                                 hx-swap="outerHTML"
                                 class="flex items-center gap-1 {% if sort_state.field == 'payable_amount' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
@@ -151,7 +206,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                         </th>
                         <th class="px-6 py-4 font-label-caps text-label-caps uppercase tracking-wider">
                             <button
-                                hx-get="{% url 'customers:table' %}?sort=last_credit&dir={% if sort_state.field == 'last_credit' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                                hx-get="{% url 'customers:table' %}?sort=last_credit&dir={% if sort_state.field == 'last_credit' %}{{ sort_state.next_dir }}{% else %}desc{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                                 hx-target="#customer-table"
                                 hx-swap="outerHTML"
                                 class="flex items-center gap-1 {% if sort_state.field == 'last_credit' %}text-primary{% else %}text-on-surface-variant hover:text-on-surface{% endif %} transition-colors">
@@ -258,7 +313,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                 {% if pagination.has_previous %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Previous page"
-                        hx-get="{% url 'customers:table' %}?page={{ pagination.previous_page_number }}&sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                        hx-get="{% url 'customers:table' %}?page={{ pagination.previous_page_number }}&sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                         hx-target="#customer-table"
                         hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -273,7 +328,7 @@ Column headers issue HTMX GETs to the table partial endpoint, swapping
                 {% if pagination.has_next %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Next page"
-                        hx-get="{% url 'customers:table' %}?page={{ pagination.next_page_number }}&sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                        hx-get="{% url 'customers:table' %}?page={{ pagination.next_page_number }}&sort={{ sort_state.field }}&dir={{ sort_state.direction }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}{% if care_of_id %}&care_of={{ care_of_id|urlencode }}{% endif %}"
                         hx-target="#customer-table"
                         hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_right</span>

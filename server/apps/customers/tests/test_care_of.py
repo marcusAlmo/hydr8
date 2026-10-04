@@ -13,8 +13,11 @@ from django.utils import timezone
 from apps.core.models import Product
 from apps.customers.models import BorrowedContainer, CreditLine, CreditPayment, Customer
 from apps.customers.selectors import (
+    get_assignee_filter_users,
     get_customer_collect_context,
     get_customer_history_context,
+    get_customer_list_context,
+    get_customer_table_context,
     get_record_borrowed_context,
     get_record_debt_context,
 )
@@ -474,3 +477,93 @@ class CareOfViewTests(TestCase):
         self.assertContains(response, "Admin Lender")
         # Ensure all 4 kinds are rendered with Care of: Admin Lender
         self.assertEqual(response.content.decode().count("Admin Lender"), 4)
+
+
+class CareOfTableFilterTests(TestCase):
+    """Verifies the rider/assignee combobox filter on the customer table,
+    its visibility on initial page load, and state preservation in links.
+    """
+
+    def setUp(self):
+        self.staff = _make_staff_user(
+            username="table_test_staff",
+            password="securepassword123",
+            first_name="Table",
+            last_name="Staff",
+        )
+        driver_role, _ = Role.objects.get_or_create(name="Driver", company=None)
+        self.driver = User.objects.create_user(
+            username="table_test_driver",
+            password="securepassword123",
+            first_name="Speedy",
+            last_name="Rider",
+            role=driver_role,
+        )
+        self.customer = Customer.objects.create(name="Filter Test Customer")
+        self.product = Product.objects.create(
+            name="Mineral",
+            variation="Slim",
+            price=Decimal("35.00"),
+        )
+        cache.clear()
+        self.client.login(username="table_test_staff", password="securepassword123")
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_get_assignee_filter_users_includes_drivers(self):
+        """Users with role 'Driver' are included in assignee_users even before
+        having open loans."""
+        users = get_assignee_filter_users(self.staff)
+        user_ids = [u["id"] for u in users]
+        self.assertIn(str(self.driver.pk), user_ids)
+        driver_entry = next(u for u in users if u["id"] == str(self.driver.pk))
+        self.assertIn("Speedy Rider", driver_entry["label"])
+        self.assertIn("Driver", driver_entry["label"])
+
+    def test_get_customer_list_context_includes_assignee_users_and_care_of(self):
+        """get_customer_list_context must unpack table_context completely so
+        assignee_users, care_of_id, and active_filter are available on full render."""
+        ctx = get_customer_list_context(self.staff)
+        self.assertIn("assignee_users", ctx)
+        self.assertIn("care_of_id", ctx)
+        self.assertIn("active_filter", ctx)
+        self.assertEqual(ctx["care_of_id"], "")
+        self.assertEqual(ctx["active_filter"], "all")
+        user_ids = [u["id"] for u in ctx["assignee_users"]]
+        self.assertIn(str(self.driver.pk), user_ids)
+
+    def test_customer_list_view_renders_assignee_filter_on_initial_load(self):
+        """GET /customers/ must render the rider/assignee combobox immediately
+        on initial page load without requiring the user to click other filters first."""
+        response = self.client.get("/customers/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="assigneeFilter"')
+        self.assertContains(response, "All Riders")
+        self.assertContains(response, "Speedy Rider (Driver)")
+
+    def test_customer_table_view_filters_by_care_of(self):
+        """GET /customers/table/?care_of=... filters customer rows and preserves
+        care_of in sort headers and pagination links."""
+        # Link debt to driver
+        record_customer_debt(
+            customer_id=f"HY-{self.customer.pk:04d}",
+            product_key=str(self.product.pk),
+            qty_credited=2,
+            unit_price="35.00",
+            care_of_id=str(self.driver.pk),
+            performed_by=self.staff,
+        )
+        # Create another customer without assignments
+        other_customer = Customer.objects.create(name="Unassigned Store")
+
+        # Query with care_of=driver.pk
+        response = self.client.get(f"/customers/table/?care_of={self.driver.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Filter Test Customer")
+        self.assertNotContains(response, "Unassigned Store")
+        # Column headers should preserve &care_of=
+        self.assertContains(response, f"&care_of={self.driver.pk}")
+        # Clear filter button should be rendered
+        self.assertContains(response, "Clear rider filter")
+

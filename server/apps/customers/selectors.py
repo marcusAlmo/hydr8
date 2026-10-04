@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.core.paginator import Paginator
+from django.db import models
 from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
@@ -282,6 +283,60 @@ def _customer_filters(user: UserType, active_filter: str = "all") -> list[dict]:
             "active": active_filter == "has_no_assignee",
         },
     ]
+
+
+def get_assignee_filter_users(user: UserType) -> list[dict]:
+    """Returns users who are assigned as ``care_of`` on at least one active
+    CreditLine or BorrowedContainer for this tenant, plus any users with the
+    canonical Driver role for this tenant.
+
+    Used to populate the rider-assignee combobox on the customer table.
+    """
+    # 1. Any user with role "Driver" in this tenant
+    driver_qs = User.objects.filter(
+        deleted_at__isnull=True,
+        role__name="Driver",
+    )
+    if is_tenant_scoped(user):
+        driver_qs = driver_qs.filter(company_id=user.company_id)
+    driver_pks = set(driver_qs.values_list("id", flat=True))
+
+    # 2. Users who appear as care_of on an open credit line
+    cl_ids = (
+        CreditLine.objects
+        .for_user(user)
+        .filter(care_of__isnull=False, qty_remaining__gt=0)
+        .values_list("care_of_id", flat=True)
+        .distinct()
+    )
+    # 3. Users who appear as care_of on an outstanding borrowed container
+    bc_ids = (
+        BorrowedContainer.objects
+        .for_user(user)
+        .filter(
+            care_of__isnull=False,
+            qty_returned__lt=F("qty_borrowed"),
+        )
+        .values_list("care_of_id", flat=True)
+        .distinct()
+    )
+    assignee_pks = driver_pks | set(cl_ids) | set(bc_ids)
+    if not assignee_pks:
+        return []
+
+    qs = (
+        User.objects
+        .filter(pk__in=assignee_pks, deleted_at__isnull=True)
+        .select_related("role")
+        .order_by("first_name", "last_name", "username")
+    )
+    result: list[dict] = []
+    for u in qs:
+        label = u.full_name
+        if u.role_id is not None and getattr(u.role, "name", None):
+            label = f"{label} ({u.role.name})"
+        result.append({"id": str(u.pk), "label": label})
+    return result
 
 
 def _customer_stats(user: UserType) -> list[dict]:
@@ -629,12 +684,17 @@ def get_customer_table_context(
     query: str = "",
     page: int = 1,
     active_filter: str = "all",
+    care_of_id: str = "",
 ) -> dict:
     """Returns the full customer table partial context.
 
     When ``query`` is non-empty, filters by ``name__ilike``.
     When ``active_filter`` is set, narrows by debt, borrowed items, or
-    anomalous status. Uses DB-side sorting and real pagination (PER_PAGE=25).
+    anomalous status.
+    When ``care_of_id`` is a non-empty user PK string, further narrows to
+    customers who have at least one open CreditLine **or** outstanding
+    BorrowedContainer assigned to that rider/assignee.
+    Uses DB-side sorting and real pagination (PER_PAGE=25).
     """
     next_dir = "desc" if direction == "asc" else "asc"
 
@@ -645,6 +705,8 @@ def get_customer_table_context(
     if query:
         qs = qs.filter(name__ilike=query)
 
+    # Apply status/category chip filter — applied exactly once
+    # FIXME: was duplicated 3× in a previous version; keep this single block.
     active_filter = (active_filter or "all").lower()
     if active_filter == "has_debt":
         qs = qs.filter(debt_balance__gt=0)
@@ -659,29 +721,18 @@ def get_customer_table_context(
     elif active_filter == "has_no_assignee":
         qs = qs.filter(credit_lines__care_of__isnull=True).distinct()
 
-    active_filter = (active_filter or "all").lower()
-    if active_filter == "has_debt":
-        qs = qs.filter(debt_balance__gt=0)
-    elif active_filter == "has_borrowed":
+    # Apply rider/assignee combobox filter — intersects with the chip filter above.
+    # A customer matches if they have an open CreditLine OR an outstanding
+    # BorrowedContainer whose care_of is the selected user.
+    care_of_id = (care_of_id or "").strip()
+    if care_of_id:
         qs = qs.filter(
-            Q(borrowed_round_8gal__gt=0)
-            | Q(borrowed_slim_8gal__gt=0)
-            | Q(borrowed_other__gt=0)
-        )
-    elif active_filter == "anomalous":
-        qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
-
-    active_filter = (active_filter or "all").lower()
-    if active_filter == "has_debt":
-        qs = qs.filter(debt_balance__gt=0)
-    elif active_filter == "has_borrowed":
-        qs = qs.filter(
-            Q(borrowed_round_8gal__gt=0)
-            | Q(borrowed_slim_8gal__gt=0)
-            | Q(borrowed_other__gt=0)
-        )
-    elif active_filter == "anomalous":
-        qs = qs.filter(status__in=(Customer.Status.FLAGGED, Customer.Status.BLACKLISTED))
+            Q(credit_lines__care_of_id=care_of_id, credit_lines__qty_remaining__gt=0)
+            | Q(
+                borrowed_containers__care_of_id=care_of_id,
+                borrowed_containers__qty_returned__lt=F("borrowed_containers__qty_borrowed"),
+            )
+        ).distinct()
 
     # Annotate borrowed_total for sorting
     qs = qs.annotate(
@@ -709,6 +760,7 @@ def get_customer_table_context(
 
     return {
         "filters": _customer_filters(user, active_filter),
+        "assignee_users": get_assignee_filter_users(user),
         "customers": rows,
         "pagination": _pagination_from_page(page_obj),
         "sort_state": {
@@ -718,6 +770,7 @@ def get_customer_table_context(
         },
         "search_query": query,
         "active_filter": active_filter,
+        "care_of_id": care_of_id,
     }
 
 
@@ -735,11 +788,7 @@ def get_customer_list_context(user: UserType) -> dict:
     return {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "stats": _customer_stats(user),
-        "filters": table_context["filters"],
-        "customers": table_context["customers"],
-        "pagination": table_context["pagination"],
-        "sort_state": table_context["sort_state"],
-        "search_query": table_context["search_query"],
+        **table_context,
         **ranking_context,
     }
 
