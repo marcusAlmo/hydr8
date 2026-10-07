@@ -341,8 +341,39 @@ def remittance_history_view(request):
     """
     if not is_admin(request.user):
         return HttpResponse("Forbidden", status=403)
-    context = get_remittance_history_context(request.user)
-    recent = get_recent_remittances(request.user)
+
+    from_str = request.GET.get("from") or request.GET.get("date_from") or request.GET.get("start_date")
+    to_str = request.GET.get("to") or request.GET.get("date_to") or request.GET.get("end_date")
+
+    start_date = None
+    end_date = None
+    if from_str and to_str:
+        try:
+            start_date = date.fromisoformat(from_str)
+            end_date = date.fromisoformat(to_str)
+        except ValueError:
+            pass
+
+    # Direct backend JSON call from Alpine custom filter
+    is_json = request.GET.get("format") == "json" or request.headers.get("x-requested-with") == "XMLHttpRequest"
+    if is_json:
+        context = get_remittance_history_context(
+            request.user,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        return JsonResponse({"ok": True, "trends": context["trends"]})
+
+    context = get_remittance_history_context(
+        request.user,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    recent = get_recent_remittances(
+        request.user,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     total = recent["total"]
     shown = len(recent["remittances"])
@@ -356,7 +387,16 @@ def remittance_history_view(request):
         "current_page": 1,
         "total_pages": total_pages,
     }
+    context["custom_from"] = from_str or ""
+    context["custom_to"] = to_str or ""
+    context["initial_range"] = "custom" if (start_date and end_date) else "7d"
 
+    default_trends = (
+        get_remittance_history_context(request.user)["trends"]
+        if (start_date and end_date)
+        else context["trends"]
+    )
+    context["default_trends_seed"] = _safe_json(default_trends)
     context["trends_seed"] = _safe_json(context["trends"])
     return render(request, "remittance/remittance_history.html", context)
 

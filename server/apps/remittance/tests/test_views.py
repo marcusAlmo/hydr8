@@ -104,6 +104,59 @@ class RemittanceHistoryViewTests(TestCase):
         response = self.client.get(reverse("remittance:history"))
         self.assertEqual(response.status_code, 302)
 
+    def test_history_with_date_range_query_params(self):
+        """Admin can filter history with from and to date range params."""
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("remittance:history"),
+            {"from": "2026-08-01", "to": "2026-08-31"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "remittance/remittance_history.html")
+        self.assertEqual(response.context["initial_range"], "custom")
+        self.assertEqual(response.context["custom_from"], "2026-08-01")
+        self.assertEqual(response.context["custom_to"], "2026-08-31")
+        self.assertIn("default_trends_seed", response.context)
+        self.assertIn("trends_seed", response.context)
+
+    def test_history_json_format_returns_trends(self):
+        """Format=json returns trends data for client-side custom range fetching."""
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("remittance:history"),
+            {"format": "json", "from": "2026-08-01", "to": "2026-08-31"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("trends", data)
+        self.assertIn("labels", data["trends"])
+        self.assertIn("total_sales", data["trends"])
+        self.assertIn("riders", data["trends"])
+
+    def test_history_xml_http_request_header_returns_json(self):
+        """X-Requested-With header triggers JSON response for async Alpine fetch."""
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("remittance:history"),
+            {"from": "2026-08-01", "to": "2026-08-31"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertIn("trends", data)
+
+    def test_history_invalid_date_range_falls_back(self):
+        """Invalid date strings fall back gracefully without error."""
+        self.client.force_login(self.admin)
+        response = self.client.get(
+            reverse("remittance:history"),
+            {"from": "not-a-date", "to": "invalid"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["initial_range"], "7d")
+
 
 class CheckRemittanceDateViewTests(TestCase):
     """Tests for the check-date JSON endpoint."""

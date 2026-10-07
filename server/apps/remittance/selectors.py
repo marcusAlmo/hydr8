@@ -1030,14 +1030,22 @@ def _remittance_row(rem: Remittance) -> dict:
     }
 
 
-def get_recent_remittances(user: UserType, limit: int = 25) -> dict:
+def get_recent_remittances(
+    user: UserType,
+    limit: int = 25,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     """Returns recent remittance rows and the total count for pagination."""
     qs = _apply_kpi_annotations(
         Remittance.objects
         .for_user(user)
         .select_related("created_by")
-        .order_by("-date")
     )
+    if start_date and end_date:
+        qs = qs.filter(date__range=(start_date, end_date))
+    qs = qs.order_by("-date")
 
     rows: list[dict] = [_remittance_row(rem) for rem in qs[:limit]]
     return {"remittances": rows, "total": qs.count()}
@@ -1089,16 +1097,27 @@ def _rider_trend_color(index: int) -> str:
     return _RIDER_TREND_COLORS[index % len(_RIDER_TREND_COLORS)]
 
 
-def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
+def get_remittance_history_context(
+    user: UserType,
+    days: int = 30,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     """Build the full page context for the Remittance History page from live DB data."""
     today = timezone.localdate()
-    start = today - timedelta(days=days - 1)
-    dates = [start + timedelta(days=i) for i in range(days)]
-    labels = [d.strftime("%b %d") for d in dates]
+    if start_date and end_date:
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        start = start_date
+        end = end_date
+    else:
+        end = today
+        start = today - timedelta(days=days - 1)
 
     remit_rows = (
         Remittance.objects.for_user(user)
-        .filter(date__range=(start, today))
+        .filter(date__range=(start, end))
         .values("date")
         .annotate(
             total_sales=Sum("total_sales"),
@@ -1111,6 +1130,18 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
         )
     )
     remit_by_date: dict[date, dict] = {row["date"]: row for row in remit_rows}
+
+    day_span = (end - start).days + 1
+    if day_span <= 90:
+        dates = [start + timedelta(days=i) for i in range(day_span)]
+    else:
+        active_dates = sorted(remit_by_date.keys())
+        dates = active_dates if active_dates else [start, end]
+
+    labels = [
+        d.strftime("%b %d") if d.year == today.year else d.strftime("%b %d '%y")
+        for d in dates
+    ]
 
     total_sales: list[float] = []
     commissions_paid: list[float] = []
@@ -1136,7 +1167,7 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
         .aggregate(Sum("debt_balance"))["debt_balance__sum"]
         or Decimal("0.00")
     )
-    outstanding_debt = [float(current_debt)] * days
+    outstanding_debt = [float(current_debt)] * len(dates)
 
     # Per-rider units sold over the date range
     # NOTE: history must show every rider (active or deactivated) so
@@ -1153,7 +1184,7 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
     unit_rows = (
         RemittanceRiderProductLine.objects.for_user(user)
         .filter(
-            remittance_rider__remittance__date__range=(start, today),
+            remittance_rider__remittance__date__range=(start, end),
             remittance_rider__rider_id__in=rider_ids,
         )
         .values(
