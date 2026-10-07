@@ -1,35 +1,75 @@
-<div x-data="{ activeTab: 'repayments' }" class="px-margin-page py-4 border-b border-outline-variant/10 bg-surface">
-    <div class="flex gap-1 bg-surface-container-low rounded-lg p-1 w-fit">
+<div class="px-margin-page py-4 border-b border-outline-variant/10 bg-surface">
+    <div class="flex flex-wrap gap-1.5 bg-surface-container-low rounded-xl p-1.5 w-fit">
+        <!-- Tab 1: Riders (Default) -->
         <button
-            hx-get="{% url 'remittance:detail_repayments' remittance.id %}?page=1"
-            hx-target="#tab-content"
-            hx-swap="innerHTML"
+            type="button"
+            @click="activeTab = 'riders'"
+            :class="activeTab === 'riders' 
+                ? 'bg-primary text-on-primary shadow-sm' 
+                : 'text-on-surface-variant hover:bg-surface-container-high'"
+            class="px-4 py-2 rounded-lg text-body-sm font-semibold transition-all flex items-center gap-2 cursor-pointer"
+        >
+            <span class="material-symbols-outlined text-[18px]">electric_rickshaw</span>
+            <span>Riders</span>
+            <span class="font-data-mono text-[12px] px-2 py-0.5 rounded-full"
+                  :class="activeTab === 'riders' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'">
+                {{ remittance.riders_count }}
+            </span>
+        </button>
+
+        <!-- Tab 2: Staff -->
+        <button
+            type="button"
+            @click="activeTab = 'staff'"
+            :class="activeTab === 'staff' 
+                ? 'bg-primary text-on-primary shadow-sm' 
+                : 'text-on-surface-variant hover:bg-surface-container-high'"
+            class="px-4 py-2 rounded-lg text-body-sm font-semibold transition-all flex items-center gap-2 cursor-pointer"
+        >
+            <span class="material-symbols-outlined text-[18px]">work</span>
+            <span>Staff</span>
+            <span class="font-data-mono text-[12px] px-2 py-0.5 rounded-full"
+                  :class="activeTab === 'staff' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'">
+                {{ remittance.staff_count }}
+            </span>
+        </button>
+
+        <!-- Tab 3: All Repayments -->
+        <button
+            type="button"
             @click="activeTab = 'repayments'"
             :class="activeTab === 'repayments' 
                 ? 'bg-primary text-on-primary shadow-sm' 
                 : 'text-on-surface-variant hover:bg-surface-container-high'"
-            class="px-4 py-2 rounded-md text-body-sm font-body-sm font-semibold transition-all flex items-center gap-2"
-            type="button"
+            class="px-4 py-2 rounded-lg text-body-sm font-semibold transition-all flex items-center gap-2 cursor-pointer"
         >
             <span class="material-symbols-outlined text-[18px]">receipt_long</span>
-            <span>Repayments</span>
-            <span class="font-data-mono text-[12px] bg-on-surface/10 px-2 py-0.5 rounded-full">{{ repayments_count }}</span>
+            <span>All Repayments</span>
+            <span class="font-data-mono text-[12px] px-2 py-0.5 rounded-full"
+                  :class="activeTab === 'repayments' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'">
+                {{ repayments_count }}
+            </span>
         </button>
-        
+
+        <!-- Tab 4: All Credits -->
         <button
+            type="button"
             hx-get="{% url 'remittance:detail_credits' remittance.id %}?page=1"
-            hx-target="#tab-content"
+            hx-target="#tab-credits-content"
             hx-swap="innerHTML"
+            hx-trigger="click once"
             @click="activeTab = 'credits'"
             :class="activeTab === 'credits' 
                 ? 'bg-primary text-on-primary shadow-sm' 
                 : 'text-on-surface-variant hover:bg-surface-container-high'"
-            class="px-4 py-2 rounded-md text-body-sm font-body-sm font-semibold transition-all flex items-center gap-2"
-            type="button"
+            class="px-4 py-2 rounded-lg text-body-sm font-semibold transition-all flex items-center gap-2 cursor-pointer"
         >
             <span class="material-symbols-outlined text-[18px]">credit_card</span>
-            <span>Credits</span>
-            <span class="font-data-mono text-[12px] bg-on-surface/10 px-2 py-0.5 rounded-full">{{ credits_count }}</span>
+            <span>All Credits</span>
+            <span class="font-data-mono text-[12px] px-2 py-0.5 rounded-full"
+                  :class="activeTab === 'credits' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'">
+                {{ credits_count }}
+            </span>
         </button>
     </div>
 </div>

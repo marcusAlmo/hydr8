@@ -51,7 +51,7 @@
                 {% if page > 1 %}
                     <button
                         hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'-1' }}"
-                        hx-target="#tab-content"
+                        hx-target="#tab-credits-content"
                         hx-swap="innerHTML"
                         class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
                     >
@@ -65,7 +65,7 @@
                     {% else %}
                         <button
                             hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ p }}"
-                            hx-target="#tab-content"
+                            hx-target="#tab-credits-content"
                             hx-swap="innerHTML"
                             class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
                         >
@@ -77,7 +77,7 @@
                 {% if page < total_pages %}
                     <button
                         hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'1' }}"
-                        hx-target="#tab-content"
+                        hx-target="#tab-credits-content"
                         hx-swap="innerHTML"
                         class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
                     >

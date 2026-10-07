@@ -1,0 +1,381 @@
+<!-- =======================================================================
+  detail_riders_tab.html
+  Per-rider audit view for finalized/completed remittances.
+  Displays rider selection dropdown, sold/credited/repaid KPI cards,
+  product line breakdown, per-rider collections, and per-rider credit lines.
+  ======================================================================= -->
+<div class="space-y-6">
+
+    <!-- Empty state: No riders -->
+    <div x-show="riders.length === 0" class="py-12 px-4 text-center text-on-surface-variant text-body-sm italic rounded-xl border border-outline-variant/20 bg-surface-container-lowest">
+        <span class="material-symbols-outlined text-4xl text-outline-variant block mb-2">electric_rickshaw</span>
+        No riders recorded for this remittance.
+    </div>
+
+    <!-- Active Rider Content -->
+    <div x-show="riders.length > 0" class="space-y-6">
+
+        <!-- ============ RIDER SELECTION COMBOBOX BAR ============ -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm">
+            <div class="flex items-center gap-4 flex-1">
+                <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-[24px]">electric_rickshaw</span>
+                </div>
+                <div class="w-full max-w-md relative" x-data="{ open: false, query: '' }">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">Rider Selection</label>
+                    <!-- Combobox trigger -->
+                    <button type="button" @click="open = !open"
+                            class="w-full flex items-center justify-between bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md py-2.5 px-3.5 focus:ring-2 focus:ring-primary cursor-pointer hover:border-primary/40 transition-all">
+                        <span class="truncate font-medium text-on-surface"
+                              x-text="selectedRider() ? selectedRider().name + ' — ' + selectedRider().vehicle + ' [' + selectedRider().plate + ']' : 'Select Assigned Rider...'"></span>
+                        <span class="material-symbols-outlined text-on-surface-variant text-[20px] transition-transform duration-200"
+                              :class="open ? 'rotate-180' : ''">expand_more</span>
+                    </button>
+                    <!-- Dropdown panel -->
+                    <div x-show="open" x-cloak
+                         @click.outside="open = false; query = ''"
+                         @keydown.escape.window="open = false; query = ''"
+                         class="absolute z-50 mt-1 w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-xl max-h-72 overflow-auto">
+                        <input type="text" x-model="query" @click.stop
+                               placeholder="Search rider name, vehicle, or plate..."
+                               class="w-full sticky top-0 bg-surface-container-lowest border-b border-outline-variant/20 px-3.5 py-2.5 text-body-md focus:ring-0 focus:outline-none">
+                        <template x-for="r in riders.filter(r => (r.name + ' ' + r.vehicle + ' ' + r.plate).toLowerCase().includes(query.toLowerCase()))" :key="r.id">
+                            <button type="button" @click="selectedRiderId = r.id; open = false; query = ''"
+                                    :class="r.id === selectedRiderId ? 'bg-primary/10 text-primary' : 'hover:bg-surface-container-low text-on-surface'"
+                                    class="w-full text-left px-3.5 py-2.5 border-b border-outline-variant/10 last:border-0 transition-colors flex items-center justify-between cursor-pointer">
+                                <span class="flex flex-col">
+                                    <span class="font-body-md font-medium" x-text="r.name"></span>
+                                    <span class="font-body-sm text-on-surface-variant" x-text="r.vehicle + ' · ' + r.plate"></span>
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-data-mono text-[11px] px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant"
+                                          x-text="r.total_sold + ' sold'"></span>
+                                    <span x-show="r.id === selectedRiderId" class="material-symbols-outlined text-primary text-[20px]">check</span>
+                                </div>
+                            </button>
+                        </template>
+                        <div x-show="riders.filter(r => (r.name + ' ' + r.vehicle + ' ' + r.plate).toLowerCase().includes(query.toLowerCase())).length === 0"
+                             class="px-3 py-4 text-center text-on-surface-variant text-body-sm italic">
+                            No riders match "<span x-text="query"></span>"
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Counter & Prev/Next cycle controls -->
+            <div class="flex items-center gap-3 sm:border-l sm:border-outline-variant/30 sm:pl-4 justify-between sm:justify-end">
+                <div class="flex flex-col sm:items-end">
+                    <span class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase">Rider List</span>
+                    <span class="font-data-mono text-body-sm text-primary font-bold"
+                          x-text="(riders.findIndex(r => r.id === selectedRiderId) + 1) + ' of ' + riders.length"></span>
+                </div>
+                <div class="flex gap-1.5">
+                    <button type="button" @click="cycleRider(-1)"
+                            class="p-2 hover:bg-surface-container-high rounded-lg transition-colors text-on-surface-variant border border-outline-variant/20 cursor-pointer"
+                            title="Previous Rider">
+                        <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                    </button>
+                    <button type="button" @click="cycleRider(1)"
+                            class="p-2 hover:bg-surface-container-high rounded-lg transition-colors text-on-surface-variant border border-outline-variant/20 cursor-pointer"
+                            title="Next Rider">
+                        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <template x-if="selectedRider()">
+            <div class="space-y-6">
+
+                <!-- ============ RIDER KPI SUMMARY STRIP ============ -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3.5 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Containers Sold</p>
+                        <p class="font-data-mono text-[22px] font-bold text-on-surface" x-text="selectedRider().total_sold"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3.5 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-error uppercase mb-1">Containers Credited</p>
+                        <p class="font-data-mono text-[22px] font-bold text-error" x-text="selectedRider().total_credited"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3.5 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-tertiary uppercase mb-1">Containers Repaid</p>
+                        <p class="font-data-mono text-[22px] font-bold text-tertiary" x-text="selectedRider().total_repaid"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3.5 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-primary uppercase mb-1">Total Payable</p>
+                        <p class="font-data-mono text-[18px] font-bold text-primary" x-text="selectedRider().subtotal_payable"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3.5 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Cash Remitted</p>
+                        <p class="font-data-mono text-[18px] font-bold text-on-surface" x-text="selectedRider().remitted"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-3.5 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-[#D97706] uppercase mb-1">Commission</p>
+                        <p class="font-data-mono text-[18px] font-bold text-[#D97706]"
+                           x-text="selectedRider().commission_override ? selectedRider().commission_override + ' (ovr)' : selectedRider().subtotal_commission"></p>
+                    </div>
+                </div>
+
+                <!-- ============ PRODUCT BREAKDOWN TABLE ============ -->
+                <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden shadow-sm">
+                    <div class="px-5 py-3.5 bg-surface-container-low/60 border-b border-outline-variant/20 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">inventory_2</span>
+                            <h3 class="font-label-caps text-label-caps text-on-surface uppercase">Product Breakdown &amp; Containers Sold</h3>
+                        </div>
+                        <span class="font-body-sm text-on-surface-variant" x-text="selectedRider().product_lines.length + ' products'"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-surface-container/50 border-b border-outline-variant/20">
+                                <tr>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant">PRODUCT</th>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant text-right">
+                                        <span class="block leading-tight">PRICE</span>
+                                        <span class="block text-[10px] text-on-surface-variant/60 normal-case font-normal leading-tight">/ comm rate</span>
+                                    </th>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant text-center">SOLD</th>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant text-center">CREDIT</th>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant text-center">REPAID</th>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant text-right">SUBTOTAL</th>
+                                    <th class="py-3 px-5 font-label-caps text-label-caps text-on-surface-variant text-right">COMM. AMOUNT</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-outline-variant/10">
+                                <template x-for="(line, idx) in selectedRider().product_lines" :key="idx">
+                                    <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                        <td class="py-3.5 px-5 font-body-md font-medium text-on-surface" x-text="line.product_name"></td>
+                                        <td class="py-3.5 px-5 text-right">
+                                            <div class="flex flex-col items-end leading-tight">
+                                                <span class="font-data-mono text-body-sm text-on-surface" x-text="line.price"></span>
+                                                <span class="font-data-mono text-[11px] text-[#D97706]/90" x-text="'comm ' + line.commission_rate"></span>
+                                            </div>
+                                        </td>
+                                        <td class="py-3.5 px-5 text-center font-data-mono text-body-md font-bold text-on-surface">
+                                            <span class="px-2.5 py-0.5 rounded bg-surface-container-high" x-text="line.qty_sold"></span>
+                                        </td>
+                                        <td class="py-3.5 px-5 text-center font-data-mono text-body-sm">
+                                            <span :class="line.qty_credited > 0 ? 'text-error font-bold px-2 py-0.5 rounded bg-error/10' : 'text-on-surface-variant/40'"
+                                                  x-text="line.qty_credited"></span>
+                                        </td>
+                                        <td class="py-3.5 px-5 text-center font-data-mono text-body-sm">
+                                            <span :class="line.qty_repaid > 0 ? 'text-tertiary font-bold px-2 py-0.5 rounded bg-tertiary/10' : 'text-on-surface-variant/40'"
+                                                  x-text="line.qty_repaid"></span>
+                                        </td>
+                                        <td class="py-3.5 px-5 text-right font-data-mono text-body-sm font-bold text-primary" x-text="line.subtotal_payable"></td>
+                                        <td class="py-3.5 px-5 text-right font-data-mono text-body-sm font-bold text-[#D97706]" x-text="line.subtotal_commission"></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="selectedRider().product_lines.length === 0">
+                                    <td colspan="7" class="py-8 text-center text-on-surface-variant italic text-body-sm">
+                                        No product lines recorded for this rider.
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot class="bg-surface-container-low/60 border-t border-outline-variant/20 font-bold" x-show="selectedRider().product_lines.length > 0">
+                                <tr>
+                                    <td class="py-3.5 px-5 font-label-caps text-label-caps text-on-surface-variant">TOTALS</td>
+                                    <td class="py-3.5 px-5"></td>
+                                    <td class="py-3.5 px-5 text-center font-data-mono text-body-md text-on-surface" x-text="selectedRider().total_sold"></td>
+                                    <td class="py-3.5 px-5 text-center font-data-mono text-body-md text-error" x-text="selectedRider().total_credited"></td>
+                                    <td class="py-3.5 px-5 text-center font-data-mono text-body-md text-tertiary" x-text="selectedRider().total_repaid"></td>
+                                    <td class="py-3.5 px-5 text-right font-data-mono text-body-md text-primary" x-text="selectedRider().subtotal_payable"></td>
+                                    <td class="py-3.5 px-5 text-right font-data-mono text-body-md text-[#D97706]" x-text="selectedRider().subtotal_commission"></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ============ PER-RIDER REPAYMENTS & CREDITS (AUDIT SECTION) ============ -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- 1. Credit Repayments Collected By This Rider -->
+                    <div class="rounded-xl border border-tertiary/20 bg-surface-container-lowest overflow-hidden shadow-sm flex flex-col">
+                        <div class="px-5 py-3.5 bg-tertiary/10 border-b border-tertiary/20 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-tertiary text-[20px]">payments</span>
+                                <h3 class="font-label-caps text-label-caps text-tertiary uppercase">Collections Handled</h3>
+                            </div>
+                            <span class="font-data-mono text-[12px] bg-tertiary/20 text-tertiary font-bold px-2.5 py-0.5 rounded-full"
+                                  x-text="selectedRider().repayments.length + ' repayments'"></span>
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead class="bg-surface-container-low/40 border-b border-outline-variant/10">
+                                        <tr>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">PAYER</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">PRODUCT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-center">QTY</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-right">AMOUNT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-right">PAID ON</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-outline-variant/10">
+                                        <template x-for="(rp, idx) in selectedRider().repayments" :key="idx">
+                                            <tr class="hover:bg-surface-container-low/40 transition-colors">
+                                                <td class="py-2.5 px-3 font-body-sm font-medium text-on-surface" x-text="rp.payer"></td>
+                                                <td class="py-2.5 px-3 font-body-sm text-on-surface-variant" x-text="rp.product_name"></td>
+                                                <td class="py-2.5 px-3 text-center font-data-mono text-body-sm font-bold text-on-surface" x-text="rp.qty"></td>
+                                                <td class="py-2.5 px-3 text-right font-data-mono text-body-sm font-bold text-tertiary" x-text="rp.amount"></td>
+                                                <td class="py-2.5 px-3 text-right font-data-mono text-[12px] text-on-surface-variant" x-text="rp.date"></td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="selectedRider().repayments.length === 0">
+                                            <td colspan="5" class="py-8 text-center text-on-surface-variant italic text-body-sm">
+                                                <span class="material-symbols-outlined text-2xl text-outline-variant block mb-1">receipt_long</span>
+                                                No credit repayments collected by this rider.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Credit Sales Issued By This Rider -->
+                    <div class="rounded-xl border border-error/20 bg-surface-container-lowest overflow-hidden shadow-sm flex flex-col">
+                        <div class="px-5 py-3.5 bg-error/10 border-b border-error/20 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-error text-[20px]">credit_card</span>
+                                <h3 class="font-label-caps text-label-caps text-error uppercase">Credits Issued</h3>
+                            </div>
+                            <span class="font-data-mono text-[12px] bg-error/20 text-error font-bold px-2.5 py-0.5 rounded-full"
+                                  x-text="selectedRider().credits.length + ' credits'"></span>
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead class="bg-surface-container-low/40 border-b border-outline-variant/10">
+                                        <tr>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">CUSTOMER</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">PRODUCT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-center">QTY</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-right">AMOUNT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-center">STATUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-outline-variant/10">
+                                        <template x-for="(cr, idx) in selectedRider().credits" :key="idx">
+                                            <tr class="hover:bg-surface-container-low/40 transition-colors">
+                                                <td class="py-2.5 px-3 font-body-sm font-medium text-on-surface" x-text="cr.customer_name"></td>
+                                                <td class="py-2.5 px-3 font-body-sm text-on-surface-variant" x-text="cr.product_name"></td>
+                                                <td class="py-2.5 px-3 text-center font-data-mono text-body-sm font-bold text-on-surface" x-text="cr.qty"></td>
+                                                <td class="py-2.5 px-3 text-right font-data-mono text-body-sm font-bold text-error" x-text="cr.amount"></td>
+                                                <td class="py-2.5 px-3 text-center">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase font-data-mono"
+                                                          :class="cr.is_repaid ? 'bg-tertiary/15 text-tertiary' : 'bg-[#D97706]/15 text-[#D97706]'">
+                                                        <span x-text="cr.status"></span>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="selectedRider().credits.length === 0">
+                                            <td colspan="5" class="py-8 text-center text-on-surface-variant italic text-body-sm">
+                                                <span class="material-symbols-outlined text-2xl text-outline-variant block mb-1">credit_score</span>
+                                                No credits issued by this rider.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ============ EXPENSES, DEDUCTIONS & RECONCILIATION ============ -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                    <!-- Left: Expenses & Deductions Lists -->
+                    <div class="lg:col-span-6 space-y-4">
+                        <!-- Rider Expenses -->
+                        <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-sm">
+                            <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-error text-[18px]">receipt_long</span>
+                                    <h4 class="font-label-caps text-label-caps text-error uppercase">Rider Expenses</h4>
+                                </div>
+                                <span class="font-data-mono text-[12px] text-error font-bold"
+                                      x-text="selectedRider().expenses.length + ' item(s)'"></span>
+                            </div>
+                            <template x-if="selectedRider().expenses.length > 0">
+                                <ul class="divide-y divide-outline-variant/10 text-body-sm">
+                                    <template x-for="(exp, idx) in selectedRider().expenses" :key="idx">
+                                        <li class="py-2 flex justify-between items-center">
+                                            <span class="text-on-surface" x-text="exp.description"></span>
+                                            <span class="font-data-mono text-error font-medium" x-text="exp.amount"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template x-if="selectedRider().expenses.length === 0">
+                                <p class="text-body-sm text-on-surface-variant/60 italic py-2">No expenses recorded for this rider.</p>
+                            </template>
+                        </div>
+
+                        <!-- Commission Deductions -->
+                        <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 shadow-sm">
+                            <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20 mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-[#D97706] text-[18px]">remove_circle_outline</span>
+                                    <h4 class="font-label-caps text-label-caps text-[#D97706] uppercase">Commission Deductions</h4>
+                                </div>
+                                <span class="font-data-mono text-[12px] text-[#D97706] font-bold"
+                                      x-text="selectedRider().deductions.length + ' item(s)'"></span>
+                            </div>
+                            <template x-if="selectedRider().deductions.length > 0">
+                                <ul class="divide-y divide-outline-variant/10 text-body-sm">
+                                    <template x-for="(ded, idx) in selectedRider().deductions" :key="idx">
+                                        <li class="py-2 flex justify-between items-center">
+                                            <span class="text-on-surface" x-text="ded.description"></span>
+                                            <span class="font-data-mono text-[#D97706] font-medium" x-text="ded.amount"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <template x-if="selectedRider().deductions.length === 0">
+                                <p class="text-body-sm text-on-surface-variant/60 italic py-2">No deductions recorded for this rider.</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Right: Financial Reconciliation Card -->
+                    <div class="lg:col-span-6">
+                        <div class="rounded-xl border border-outline-variant/30 bg-surface-container-low/40 p-5 shadow-sm space-y-4">
+                            <div class="flex items-center gap-2 pb-2 border-b border-outline-variant/20">
+                                <span class="material-symbols-outlined text-primary text-[20px]">account_balance_wallet</span>
+                                <h4 class="font-label-caps text-label-caps text-on-surface uppercase">Remittance &amp; Commission Reconciliation</h4>
+                            </div>
+                            <div class="space-y-3 text-body-sm">
+                                <div class="flex justify-between items-baseline">
+                                    <span class="text-on-surface-variant">Subtotal Payable:</span>
+                                    <span class="font-data-mono text-body-md font-bold text-primary" x-text="selectedRider().subtotal_payable"></span>
+                                </div>
+                                <div class="flex justify-between items-baseline">
+                                    <span class="text-on-surface-variant">Cash Remitted:</span>
+                                    <span class="font-data-mono text-body-md font-bold text-on-surface" x-text="selectedRider().remitted"></span>
+                                </div>
+                                <div class="flex justify-between items-baseline pt-2 border-t border-outline-variant/20">
+                                    <span class="text-on-surface-variant font-medium">Balance (Lacking):</span>
+                                    <span class="font-data-mono text-body-md font-bold"
+                                          :class="selectedRider().balance !== '₱0.00' ? 'text-error' : 'text-on-surface'"
+                                          x-text="selectedRider().balance"></span>
+                                </div>
+                                <div class="flex justify-between items-baseline pt-2 border-t border-outline-variant/20">
+                                    <span class="text-on-surface-variant font-medium">Commission Earned:</span>
+                                    <span class="font-data-mono text-body-md font-bold text-[#D97706]"
+                                          x-text="selectedRider().commission_override ? selectedRider().commission_override + ' (override)' : selectedRider().subtotal_commission"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </template>
+
+    </div>
+
+</div>

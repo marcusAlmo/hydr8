@@ -198,6 +198,7 @@
                                                     <div class="flex items-center gap-4 text-on-surface-variant">
                                                         <span>Sold: <span class="font-data-mono text-on-surface" x-text="line.qty_sold"></span></span>
                                                         <span x-show="line.qty_credited > 0">Credited: <span class="font-data-mono" x-text="line.qty_credited"></span></span>
+                                                        <span x-show="line.qty_repaid > 0">Repaid: <span class="font-data-mono text-tertiary" x-text="line.qty_repaid"></span></span>
                                                         <span x-show="line.borrowed > 0">Borrowed: <span class="font-data-mono" x-text="line.borrowed"></span></span>
                                                         <span class="font-data-mono text-primary" x-text="peso(line.subtotal_payable)"></span>
                                                     </div>

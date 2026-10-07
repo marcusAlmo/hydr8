@@ -1,0 +1,238 @@
+<!-- =======================================================================
+  detail_staff_tab.html
+  Per-staff audit view for finalized/completed remittances.
+  Displays staff selection dropdown, pay details, deductions,
+  and any credit repayments or credit lines attributed to their care_of.
+  ======================================================================= -->
+<div class="space-y-6">
+
+    <!-- Empty state: No staff -->
+    <div x-show="staff.length === 0" class="py-12 px-4 text-center text-on-surface-variant text-body-sm italic rounded-xl border border-outline-variant/20 bg-surface-container-lowest">
+        <span class="material-symbols-outlined text-4xl text-outline-variant block mb-2">work</span>
+        No staff recorded on duty for this remittance.
+    </div>
+
+    <!-- Active Staff Content -->
+    <div x-show="staff.length > 0" class="space-y-6">
+
+        <!-- ============ STAFF SELECTION COMBOBOX BAR ============ -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm">
+            <div class="flex items-center gap-4 flex-1">
+                <div class="w-10 h-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-[24px]">work</span>
+                </div>
+                <div class="w-full max-w-md relative" x-data="{ open: false, query: '' }">
+                    <label class="font-label-caps text-label-caps text-on-surface-variant mb-1 block">Staff Selection</label>
+                    <!-- Combobox trigger -->
+                    <button type="button" @click="open = !open"
+                            class="w-full flex items-center justify-between bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-md py-2.5 px-3.5 focus:ring-2 focus:ring-primary cursor-pointer hover:border-secondary/40 transition-all">
+                        <span class="truncate font-medium text-on-surface"
+                              x-text="selectedStaff() ? selectedStaff().name + ' — ' + selectedStaff().role_label : 'Select On-Duty Staff...'"></span>
+                        <span class="material-symbols-outlined text-on-surface-variant text-[20px] transition-transform duration-200"
+                              :class="open ? 'rotate-180' : ''">expand_more</span>
+                    </button>
+                    <!-- Dropdown panel -->
+                    <div x-show="open" x-cloak
+                         @click.outside="open = false; query = ''"
+                         @keydown.escape.window="open = false; query = ''"
+                         class="absolute z-50 mt-1 w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg shadow-xl max-h-72 overflow-auto">
+                        <input type="text" x-model="query" @click.stop
+                               placeholder="Search staff name or role..."
+                               class="w-full sticky top-0 bg-surface-container-lowest border-b border-outline-variant/20 px-3.5 py-2.5 text-body-md focus:ring-0 focus:outline-none">
+                        <template x-for="s in staff.filter(s => (s.name + ' ' + s.role_label).toLowerCase().includes(query.toLowerCase()))" :key="s.id">
+                            <button type="button" @click="selectedStaffId = s.id; open = false; query = ''"
+                                    :class="s.id === selectedStaffId ? 'bg-secondary/10 text-secondary' : 'hover:bg-surface-container-low text-on-surface'"
+                                    class="w-full text-left px-3.5 py-2.5 border-b border-outline-variant/10 last:border-0 transition-colors flex items-center justify-between cursor-pointer">
+                                <span class="flex flex-col">
+                                    <span class="font-body-md font-medium" x-text="s.name"></span>
+                                    <span class="font-body-sm text-on-surface-variant" x-text="s.role_label"></span>
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-data-mono text-[11px] px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant"
+                                          x-text="s.net_pay"></span>
+                                    <span x-show="s.id === selectedStaffId" class="material-symbols-outlined text-secondary text-[20px]">check</span>
+                                </div>
+                            </button>
+                        </template>
+                        <div x-show="staff.filter(s => (s.name + ' ' + s.role_label).toLowerCase().includes(query.toLowerCase())).length === 0"
+                             class="px-3 py-4 text-center text-on-surface-variant text-body-sm italic">
+                            No staff match "<span x-text="query"></span>"
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Counter & Prev/Next cycle controls -->
+            <div class="flex items-center gap-3 sm:border-l sm:border-outline-variant/30 sm:pl-4 justify-between sm:justify-end">
+                <div class="flex flex-col sm:items-end">
+                    <span class="font-label-caps text-[10px] text-on-surface-variant/60 uppercase">Staff List</span>
+                    <span class="font-data-mono text-body-sm text-secondary font-bold"
+                          x-text="(staff.findIndex(s => s.id === selectedStaffId) + 1) + ' of ' + staff.length"></span>
+                </div>
+                <div class="flex gap-1.5">
+                    <button type="button" @click="cycleStaff(-1)"
+                            class="p-2 hover:bg-surface-container-high rounded-lg transition-colors text-on-surface-variant border border-outline-variant/20 cursor-pointer"
+                            title="Previous Staff Member">
+                        <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                    </button>
+                    <button type="button" @click="cycleStaff(1)"
+                            class="p-2 hover:bg-surface-container-high rounded-lg transition-colors text-on-surface-variant border border-outline-variant/20 cursor-pointer"
+                            title="Next Staff Member">
+                        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <template x-if="selectedStaff()">
+            <div class="space-y-6">
+
+                <!-- ============ STAFF PAY KPI CARDS ============ -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Base Daily Rate</p>
+                        <p class="font-data-mono text-[20px] font-bold text-on-surface" x-text="selectedStaff().daily_rate"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Salary Override</p>
+                        <p class="font-data-mono text-[20px] font-bold text-on-surface"
+                           x-text="selectedStaff().salary_override ? selectedStaff().salary_override : '—'"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-error uppercase mb-1">Total Deductions</p>
+                        <p class="font-data-mono text-[20px] font-bold text-error" x-text="selectedStaff().total_deductions"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm border-t-2 border-t-secondary">
+                        <p class="font-label-caps text-[10px] text-secondary uppercase mb-1">Net Pay</p>
+                        <p class="font-data-mono text-[20px] font-bold text-secondary" x-text="selectedStaff().net_pay"></p>
+                    </div>
+                </div>
+
+                <!-- ============ DEDUCTIONS DETAIL ============ -->
+                <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-error text-[18px]">remove_circle_outline</span>
+                            <h4 class="font-label-caps text-label-caps text-on-surface uppercase">Staff Deductions</h4>
+                        </div>
+                        <span class="font-data-mono text-[12px] text-error font-bold"
+                              x-text="selectedStaff().deductions.length + ' item(s)'"></span>
+                    </div>
+                    <template x-if="selectedStaff().deductions.length > 0">
+                        <ul class="divide-y divide-outline-variant/10 text-body-sm">
+                            <template x-for="(ded, idx) in selectedStaff().deductions" :key="idx">
+                                <li class="py-2.5 flex justify-between items-center">
+                                    <span class="text-on-surface" x-text="ded.description"></span>
+                                    <span class="font-data-mono text-error font-medium" x-text="ded.amount"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template x-if="selectedStaff().deductions.length === 0">
+                        <p class="text-body-sm text-on-surface-variant/60 italic py-2">No deductions recorded for this staff member.</p>
+                    </template>
+                </div>
+
+                <!-- ============ PER-STAFF REPAYMENTS & CREDITS (AUDIT SECTION) ============ -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- 1. Credit Repayments Collected By This Staff Member -->
+                    <div class="rounded-xl border border-tertiary/20 bg-surface-container-lowest overflow-hidden shadow-sm flex flex-col">
+                        <div class="px-5 py-3.5 bg-tertiary/10 border-b border-tertiary/20 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-tertiary text-[20px]">payments</span>
+                                <h3 class="font-label-caps text-label-caps text-tertiary uppercase">Collections Handled</h3>
+                            </div>
+                            <span class="font-data-mono text-[12px] bg-tertiary/20 text-tertiary font-bold px-2.5 py-0.5 rounded-full"
+                                  x-text="selectedStaff().repayments.length + ' repayments'"></span>
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead class="bg-surface-container-low/40 border-b border-outline-variant/10">
+                                        <tr>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">PAYER</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">PRODUCT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-center">QTY</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-right">AMOUNT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-right">PAID ON</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-outline-variant/10">
+                                        <template x-for="(rp, idx) in selectedStaff().repayments" :key="idx">
+                                            <tr class="hover:bg-surface-container-low/40 transition-colors">
+                                                <td class="py-2.5 px-3 font-body-sm font-medium text-on-surface" x-text="rp.payer"></td>
+                                                <td class="py-2.5 px-3 font-body-sm text-on-surface-variant" x-text="rp.product_name"></td>
+                                                <td class="py-2.5 px-3 text-center font-data-mono text-body-sm font-bold text-on-surface" x-text="rp.qty"></td>
+                                                <td class="py-2.5 px-3 text-right font-data-mono text-body-sm font-bold text-tertiary" x-text="rp.amount"></td>
+                                                <td class="py-2.5 px-3 text-right font-data-mono text-[12px] text-on-surface-variant" x-text="rp.date"></td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="selectedStaff().repayments.length === 0">
+                                            <td colspan="5" class="py-8 text-center text-on-surface-variant italic text-body-sm">
+                                                <span class="material-symbols-outlined text-2xl text-outline-variant block mb-1">receipt_long</span>
+                                                No credit repayments collected under this staff member.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Credit Sales Issued By This Staff Member -->
+                    <div class="rounded-xl border border-error/20 bg-surface-container-lowest overflow-hidden shadow-sm flex flex-col">
+                        <div class="px-5 py-3.5 bg-error/10 border-b border-error/20 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-error text-[20px]">credit_card</span>
+                                <h3 class="font-label-caps text-label-caps text-error uppercase">Credits Issued</h3>
+                            </div>
+                            <span class="font-data-mono text-[12px] bg-error/20 text-error font-bold px-2.5 py-0.5 rounded-full"
+                                  x-text="selectedStaff().credits.length + ' credits'"></span>
+                        </div>
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead class="bg-surface-container-low/40 border-b border-outline-variant/10">
+                                        <tr>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">CUSTOMER</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant">PRODUCT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-center">QTY</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-right">AMOUNT</th>
+                                            <th class="py-2.5 px-3 font-label-caps text-[11px] text-on-surface-variant text-center">STATUS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-outline-variant/10">
+                                        <template x-for="(cr, idx) in selectedStaff().credits" :key="idx">
+                                            <tr class="hover:bg-surface-container-low/40 transition-colors">
+                                                <td class="py-2.5 px-3 font-body-sm font-medium text-on-surface" x-text="cr.customer_name"></td>
+                                                <td class="py-2.5 px-3 font-body-sm text-on-surface-variant" x-text="cr.product_name"></td>
+                                                <td class="py-2.5 px-3 text-center font-data-mono text-body-sm font-bold text-on-surface" x-text="cr.qty"></td>
+                                                <td class="py-2.5 px-3 text-right font-data-mono text-body-sm font-bold text-error" x-text="cr.amount"></td>
+                                                <td class="py-2.5 px-3 text-center">
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase font-data-mono"
+                                                          :class="cr.is_repaid ? 'bg-tertiary/15 text-tertiary' : 'bg-[#D97706]/15 text-[#D97706]'">
+                                                        <span x-text="cr.status"></span>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="selectedStaff().credits.length === 0">
+                                            <td colspan="5" class="py-8 text-center text-on-surface-variant italic text-body-sm">
+                                                <span class="material-symbols-outlined text-2xl text-outline-variant block mb-1">credit_score</span>
+                                                No credits issued under this staff member.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </template>
+
+    </div>
+
+</div>
