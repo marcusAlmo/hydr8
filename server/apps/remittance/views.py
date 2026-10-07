@@ -514,7 +514,7 @@ def clear_draft_view(request):
 
     Called by the "Clear Draft" button on the Add Remittance page.  This
     removes the DB draft (if any) so the user can start fresh.  The
-    client-side localStorage cache is cleared separately by the JS.
+    client-side sessionStorage cache is cleared separately by the JS.
 
     Accepts a JSON body: ``{"remittanceDate": "2026-08-12"}``
 

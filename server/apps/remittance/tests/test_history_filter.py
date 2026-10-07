@@ -1,12 +1,11 @@
 """Tests for remittance history selectors and date filtering logic."""
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from django.core.cache import cache
 from django.test import TestCase
 
 from apps.core.models import Product
-from apps.customers.models import Customer
 from apps.remittance.models import (
     Remittance,
     RemittanceRider,

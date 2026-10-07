@@ -17,7 +17,6 @@ from apps.customers.selectors import (
     get_customer_collect_context,
     get_customer_history_context,
     get_customer_list_context,
-    get_customer_table_context,
     get_record_borrowed_context,
     get_record_debt_context,
 )
@@ -555,7 +554,7 @@ class CareOfTableFilterTests(TestCase):
             performed_by=self.staff,
         )
         # Create another customer without assignments
-        other_customer = Customer.objects.create(name="Unassigned Store")
+        Customer.objects.create(name="Unassigned Store")
 
         # Query with care_of=driver.pk
         response = self.client.get(f"/customers/table/?care_of={self.driver.pk}")

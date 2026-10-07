@@ -7,9 +7,15 @@
 {% endblock %}
 
 {% block content %}
+{{ logs_data|json_script:"audit-logs-json" }}
+{{ action_counts_data|json_script:"action-counts-json" }}
 <!-- Single Alpine scope wraps header + content so the date range filter
      in the header drives the action chips, search, and records table. -->
-<div x-data='auditLogPage({{ logs_json }}, {{ action_counts_json }}, {{ total }})'
+<div x-data='auditLogPage(
+        JSON.parse(document.getElementById("audit-logs-json").textContent),
+        JSON.parse(document.getElementById("action-counts-json").textContent),
+        {{ total }}
+     )'
      class="flex-1 flex flex-col overflow-hidden">
 
     <!-- TopNavBar -->
