@@ -659,6 +659,16 @@ def _build_remittance(
             rr.save(update_fields=["subtotal_commission", "updated_at"])
             total_commission += rider_repayment_commission
 
+    # Link CreditLine records created on this date to the remittance
+    # (symmetric with _unlink_credit_lines).
+    credit_lines_qs = CreditLine.objects.filter(
+        transaction_date=remittance_date,
+        remittance__isnull=True,
+    )
+    if company:
+        credit_lines_qs = credit_lines_qs.filter(company=company)
+    credit_lines_qs.update(remittance=remittance)
+
     # Persist general (unattributed) expenses from the flat expenses_data.
     # Rider-attributed expenses were already persisted in the rider loop.
     for expense in expenses_data:

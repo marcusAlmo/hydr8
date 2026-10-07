@@ -532,9 +532,17 @@ def remittance_detail_view(request, remittance_id: int):
 
     context = {
         "remittance": remittance,
+        "alpine_seed": _safe_json({
+            "riders": remittance["riders"],
+            "staff": remittance["staff"],
+            "selectedRiderId": remittance["riders"][0]["id"] if remittance["riders"] else None,
+            "selectedStaffId": remittance["staff"][0]["id"] if remittance["staff"] else None,
+        }),
         "repayments": repayments_data["repayments"],
         "repayments_count": repayments_data["total"],
         "credits_count": credits_data["total"],
+        "riders_count": remittance["riders_count"],
+        "staff_count": remittance["staff_count"],
         "page": repayments_data["page"],
         "total_pages": repayments_data["total_pages"],
         "page_size": repayments_data["page_size"],

@@ -797,6 +797,15 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
         .order_by("remittance_rider__rider__first_name", "product__name", "product__variation")
     )
 
+    repaid_counts = {
+        (row["credit_line__care_of_id"], row["credit_line__product_id"]): row["total_repaid"]
+        for row in (
+            CreditPayment.objects.filter(remittance=rem)
+            .values("credit_line__care_of_id", "credit_line__product_id")
+            .annotate(total_repaid=Sum("containers_paid"))
+        )
+    }
+
     riders_summary: list[dict] = []
     # Group product lines by rider.
     lines_by_rider: dict[int, list[dict]] = {}
@@ -806,10 +815,12 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
         product_name = product.name
         if product.variation:
             product_name = f"{product_name} - {product.variation}"
+        repaid_qty = repaid_counts.get((rider_id, product.id), 0)
         lines_by_rider.setdefault(rider_id, []).append({
             "product_name": product_name,
             "qty_sold": line.qty_sold,
             "qty_credited": line.qty_credited,
+            "qty_repaid": repaid_qty,
             "borrowed": line.borrowed_items,
             "subtotal_payable": _peso_float(line.subtotal_payable),
             "subtotal_commission": _peso_float(line.subtotal_commission),
@@ -1291,13 +1302,246 @@ def get_remittance_detail(
     remittance_id: int,
     remittance: Remittance | None = None,
 ) -> dict | None:
-    """Returns a single remittance with summary data for the detail view."""
+    """Returns a single remittance with summary data and full rider & employee audit breakdown."""
     if remittance is None:
         try:
             remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
         except Remittance.DoesNotExist:
             return None
     rem = remittance
+
+    # --- Repaid counts mapped by (care_of_id, product_id) ---
+    repaid_counts = {
+        (row["credit_line__care_of_id"], row["credit_line__product_id"]): row["total_repaid"]
+        for row in (
+            CreditPayment.objects.filter(remittance=rem)
+            .values("credit_line__care_of_id", "credit_line__product_id")
+            .annotate(total_repaid=Sum("containers_paid"))
+        )
+    }
+
+    # --- Detailed credit repayments grouped by care_of_id ---
+    repayments_by_care_of: dict[any, list[dict]] = {}
+    for payment in (
+        CreditPayment.objects.filter(remittance=rem)
+        .select_related("credit_line__customer", "credit_line__product", "credit_line__care_of")
+        .order_by("-paid_at", "-created_at")
+    ):
+        care_of_id = payment.credit_line.care_of_id
+        paid_date = payment.paid_at or (
+            timezone.localtime(payment.created_at).date()
+            if payment.created_at
+            else None
+        )
+        repayments_by_care_of.setdefault(care_of_id, []).append({
+            "payer": payment.credit_line.customer.name,
+            "product_name": payment.credit_line.product.name,
+            "qty": payment.containers_paid,
+            "amount": _format_peso(payment.amount),
+            "date": paid_date.strftime("%Y-%m-%d") if paid_date else "—",
+        })
+
+    # --- Detailed credits recorded grouped by care_of_id ---
+    credits_by_care_of: dict[any, list[dict]] = {}
+    for credit in (
+        CreditLine.objects.filter(remittance=rem)
+        .select_related("customer", "product", "care_of")
+        .annotate(total_paid=Coalesce(Sum("payments__amount"), Decimal("0.00")))
+        .order_by("-created_at")
+    ):
+        care_of_id = credit.care_of_id
+        is_repaid = credit.total_paid >= credit.total_credit_amount
+        credits_by_care_of.setdefault(care_of_id, []).append({
+            "customer_name": credit.customer.name,
+            "product_name": credit.product.name,
+            "qty": credit.qty_credited,
+            "amount": _format_peso(credit.total_credit_amount),
+            "is_repaid": is_repaid,
+            "status": "Repaid" if is_repaid else "Pending",
+            "created_at": credit.created_at.strftime("%Y-%m-%d"),
+        })
+
+    # --- Riders + product lines + expenses + deductions ---
+    rider_rows = (
+        RemittanceRider.objects.filter(remittance=rem)
+        .select_related("rider")
+        .prefetch_related(
+            Prefetch("expenses", queryset=Expense.objects.order_by("id")),
+            Prefetch("deductions", queryset=RiderDeduction.objects.order_by("id")),
+        )
+        .order_by("rider__first_name", "rider__last_name")
+    )
+
+    lines = (
+        RemittanceRiderProductLine.objects.filter(remittance_rider__remittance=rem)
+        .select_related("remittance_rider__rider", "product")
+        .order_by("remittance_rider__rider__first_name", "product__name", "product__variation")
+    )
+
+    lines_by_rider: dict[any, list[dict]] = {}
+    for line in lines:
+        rider_id = line.remittance_rider.rider_id
+        product = line.product
+        product_name = product.name
+        if product.variation:
+            product_name = f"{product_name} - {product.variation}"
+        repaid_qty = repaid_counts.get((rider_id, product.id), 0)
+        lines_by_rider.setdefault(rider_id, []).append({
+            "product_name": product_name,
+            "price": _format_peso(line.unit_price_snapshot),
+            "commission_rate": _format_peso(line.commission_rate_snapshot),
+            "qty_sold": line.qty_sold,
+            "qty_credited": line.qty_credited,
+            "qty_repaid": repaid_qty,
+            "subtotal_payable": _format_peso(line.subtotal_payable),
+            "subtotal_commission": _format_peso(line.subtotal_commission),
+        })
+
+    riders_detail: list[dict] = []
+    for rr in rider_rows:
+        rider_lines = lines_by_rider.get(rr.rider_id, [])
+        total_sold = sum(line["qty_sold"] for line in rider_lines)
+        total_credited = sum(line["qty_credited"] for line in rider_lines)
+        total_repaid = sum(line["qty_repaid"] for line in rider_lines)
+        rider_payments = repayments_by_care_of.get(rr.rider_id, [])
+        rider_credits = credits_by_care_of.get(rr.rider_id, [])
+
+        remitted_val = rr.remitted
+        balance_val = max(Decimal("0.00"), rr.subtotal_payable - (remitted_val or Decimal("0.00")))
+
+        riders_detail.append({
+            "id": str(rr.rider_id),
+            "name": rr.rider.full_name,
+            "vehicle": "Rider",
+            "plate": driver_code(rr.rider),
+            "total_sold": total_sold,
+            "total_credited": total_credited,
+            "total_repaid": total_repaid,
+            "subtotal_payable": _format_peso(rr.subtotal_payable),
+            "subtotal_commission": _format_peso(rr.subtotal_commission),
+            "commission_override": _format_peso(rr.commission_override) if rr.commission_override is not None else None,
+            "remitted": _format_peso(remitted_val) if remitted_val is not None else "—",
+            "balance": _format_peso(balance_val),
+            "product_lines": rider_lines,
+            "expenses": [
+                {"description": e.description, "amount": _format_peso(e.amount)}
+                for e in rr.expenses.all()
+            ],
+            "deductions": [
+                {"description": d.description, "amount": _format_peso(d.amount)}
+                for d in rr.deductions.all()
+            ],
+            "repayments": rider_payments,
+            "repayments_count": len(rider_payments),
+            "credits": rider_credits,
+            "credits_count": len(rider_credits),
+        })
+
+    # Sort riders so active riders (with product lines, repayments, or remitted) appear first
+    riders_detail.sort(
+        key=lambda r: (
+            0 if (r["product_lines"] or r["repayments"] or r["credits"] or r["remitted"] != "—") else 1,
+            r["name"],
+        )
+    )
+
+    # --- Staff payments & attributed activity ---
+    staff_detail: list[dict] = []
+    for sp in (
+        RemittanceStaff.objects.filter(remittance=rem)
+        .select_related("staff__role")
+        .prefetch_related(
+            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id"))
+        )
+        .order_by("staff__first_name", "staff__last_name")
+    ):
+        member = sp.staff
+        member_payments = repayments_by_care_of.get(member.id, [])
+        member_credits = credits_by_care_of.get(member.id, [])
+        role_label = member.role.name if getattr(member, "role", None) else "Staff"
+        staff_detail.append({
+            "id": str(member.id),
+            "name": member.full_name,
+            "role_label": role_label,
+            "daily_rate": _format_peso(sp.daily_rate_snapshot),
+            "salary_override": _format_peso(sp.salary_override) if sp.salary_override is not None else None,
+            "effective_salary": _format_peso(sp.effective_salary),
+            "total_deductions": _format_peso(sp.total_deductions),
+            "net_pay": _format_peso(sp.net_pay),
+            "deductions": [
+                {"description": d.description, "amount": _format_peso(d.amount)}
+                for d in sp.deductions.all()
+            ],
+            "repayments": member_payments,
+            "repayments_count": len(member_payments),
+            "credits": member_credits,
+            "credits_count": len(member_credits),
+            "total_repaid": sum(p["qty"] for p in member_payments),
+            "total_credited": sum(c["qty"] for c in member_credits),
+        })
+
+    # Include unattributed or off-duty credit and repayment activity
+    recorded_rider_ids = {rr.rider_id for rr in rider_rows}
+    recorded_staff_ids = {sp.staff_id for sp in RemittanceStaff.objects.filter(remittance=rem)}
+    all_care_of_ids = set(repayments_by_care_of.keys()) | set(credits_by_care_of.keys())
+    unhandled_care_of_ids = all_care_of_ids - recorded_rider_ids - recorded_staff_ids
+
+    # 1. Unattributed / Storefront (care_of is None)
+    if None in unhandled_care_of_ids:
+        station_payments = repayments_by_care_of.get(None, [])
+        station_credits = credits_by_care_of.get(None, [])
+        if station_payments or station_credits:
+            staff_detail.append({
+                "id": "station",
+                "name": "Station (Storefront / Walk-in)",
+                "role_label": "Direct Storefront",
+                "daily_rate": "—",
+                "salary_override": None,
+                "effective_salary": "—",
+                "total_deductions": "—",
+                "net_pay": "—",
+                "deductions": [],
+                "repayments": station_payments,
+                "repayments_count": len(station_payments),
+                "credits": station_credits,
+                "credits_count": len(station_credits),
+                "total_repaid": sum(p["qty"] for p in station_payments),
+                "total_credited": sum(c["qty"] for c in station_credits),
+            })
+
+    # 2. Off-duty staff or managers with attributed activity
+    other_uids = [uid for uid in unhandled_care_of_ids if uid is not None]
+    if other_uids:
+        other_users = User.objects.filter(id__in=other_uids).select_related("role").order_by("first_name", "last_name")
+        for u in other_users:
+            u_payments = repayments_by_care_of.get(u.id, [])
+            u_credits = credits_by_care_of.get(u.id, [])
+            role_label = u.role.name if getattr(u, "role", None) else "Staff"
+            staff_detail.append({
+                "id": str(u.id),
+                "name": u.full_name,
+                "role_label": f"{role_label} (Off-Duty / Other)",
+                "daily_rate": "—",
+                "salary_override": None,
+                "effective_salary": "—",
+                "total_deductions": "—",
+                "net_pay": "—",
+                "deductions": [],
+                "repayments": u_payments,
+                "repayments_count": len(u_payments),
+                "credits": u_credits,
+                "credits_count": len(u_credits),
+                "total_repaid": sum(p["qty"] for p in u_payments),
+                "total_credited": sum(c["qty"] for c in u_credits),
+            })
+
+    # Sort staff so active staff with activity or pay appear first
+    staff_detail.sort(
+        key=lambda s: (
+            0 if (s["repayments"] or s["credits"] or s["net_pay"] != "—") else 1,
+            s["name"],
+        )
+    )
 
     return {
         "id": rem.id,
@@ -1321,6 +1565,10 @@ def get_remittance_detail(
             else rem.updated_at.strftime("%b %d, %Y %I:%M %p")
         ),
         "status_date_label": "Finalized" if rem.status == Remittance.StatusChoices.FINALIZED else "Updated",
+        "riders": riders_detail,
+        "riders_count": len(riders_detail),
+        "staff": staff_detail,
+        "staff_count": len(staff_detail),
     }
 
 
@@ -1353,7 +1601,7 @@ def get_credit_repayments_for_remittance(
             "credit_line__care_of",
             "credit_line__remittance",
         )
-        .order_by("-paid_at")
+        .order_by("-paid_at", "-created_at")
     )
 
     paginator = Paginator(qs, page_size)
@@ -1361,14 +1609,25 @@ def get_credit_repayments_for_remittance(
 
     repayments = []
     for payment in page_obj:
+        paid_date = payment.paid_at or (
+            timezone.localtime(payment.created_at).date()
+            if payment.created_at
+            else None
+        )
+        credit_line = payment.credit_line
+        recorded_date = (
+            credit_line.remittance.date
+            if credit_line and credit_line.remittance
+            else (credit_line.transaction_date if credit_line else None)
+        )
         repayments.append({
             "payer": payment.credit_line.customer.name,
             "product_name": payment.credit_line.product.name,
             "qty": payment.containers_paid,
             "amount": _format_peso(payment.amount),
             "care_of_name": payment.credit_line.care_of.full_name if payment.credit_line.care_of else "—",
-            "date": payment.paid_at.strftime("%Y-%m-%d"),
-            "credit_recorded_on": payment.credit_line.remittance.date.isoformat() if payment.credit_line.remittance else "—",
+            "date": paid_date.strftime("%Y-%m-%d") if paid_date else "—",
+            "credit_recorded_on": recorded_date.isoformat() if recorded_date else "—",
         })
 
     page_range = list(paginator.page_range)

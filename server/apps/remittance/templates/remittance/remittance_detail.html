@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="flex-1 flex flex-col overflow-hidden">
+<div x-data='remittanceDetailData({{ alpine_seed|safe }})' class="flex-1 flex flex-col overflow-hidden">
     
     <!-- Header with back button and remittance info -->
     {% include "remittance/partials/remittance_detail_header.html" %}
@@ -71,11 +71,67 @@
     <!-- Tab Navigation -->
     {% include "remittance/partials/tab_nav.html" %}
     
-    <!-- Tab Content Container (HTMX-driven) -->
-    <div id="tab-content" class="flex-1 overflow-y-auto px-margin-page py-6">
-        <!-- Initial load: Repayments tab -->
-        {% include "remittance/partials/credit_repayments_table.html" with page=1 page_size=5 %}
+    <!-- Tab Content Panes -->
+    <div class="flex-1 overflow-y-auto px-margin-page py-6">
+        <!-- Tab 1: Riders (Default) -->
+        <div x-show="activeTab === 'riders'" class="space-y-6">
+            {% include "remittance/partials/detail_riders_tab.html" %}
+        </div>
+
+        <!-- Tab 2: Staff -->
+        <div x-show="activeTab === 'staff'" x-cloak class="space-y-6">
+            {% include "remittance/partials/detail_staff_tab.html" %}
+        </div>
+
+        <!-- Tab 3: All Repayments -->
+        <div x-show="activeTab === 'repayments'" x-cloak id="tab-repayments-content" class="space-y-4">
+            {% include "remittance/partials/credit_repayments_table.html" with page=1 page_size=5 %}
+        </div>
+
+        <!-- Tab 4: All Credits -->
+        <div x-show="activeTab === 'credits'" x-cloak id="tab-credits-content" class="space-y-4">
+            <div class="flex items-center justify-center py-12 text-on-surface-variant">
+                <span class="material-symbols-outlined text-2xl animate-spin mr-2">progress_activity</span>
+                <span>Loading credits...</span>
+            </div>
+        </div>
     </div>
     
 </div>
+
+<script>
+    function remittanceDetailData(seed) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialTab = urlParams.get('tab') || 'riders';
+
+        return {
+            activeTab: initialTab,
+            riders: (seed && seed.riders) || [],
+            staff: (seed && seed.staff) || [],
+            selectedRiderId: (seed && seed.selectedRiderId) || (seed && seed.riders && seed.riders[0] ? seed.riders[0].id : null),
+            selectedStaffId: (seed && seed.selectedStaffId) || (seed && seed.staff && seed.staff[0] ? seed.staff[0].id : null),
+
+            selectedRider() {
+                if (!this.riders.length) return null;
+                return this.riders.find(r => r.id === this.selectedRiderId) || this.riders[0];
+            },
+            selectedStaff() {
+                if (!this.staff.length) return null;
+                return this.staff.find(s => s.id === this.selectedStaffId) || this.staff[0];
+            },
+            cycleRider(direction) {
+                if (!this.riders.length) return;
+                const currentIndex = this.riders.findIndex(r => r.id === this.selectedRiderId);
+                const nextIndex = (currentIndex + direction + this.riders.length) % this.riders.length;
+                this.selectedRiderId = this.riders[nextIndex].id;
+            },
+            cycleStaff(direction) {
+                if (!this.staff.length) return;
+                const currentIndex = this.staff.findIndex(s => s.id === this.selectedStaffId);
+                const nextIndex = (currentIndex + direction + this.staff.length) % this.staff.length;
+                this.selectedStaffId = this.staff[nextIndex].id;
+            },
+        };
+    }
+</script>
 {% endblock %}
