@@ -79,6 +79,8 @@ def create_user_account(
     """
     if User.objects.filter(username=username, deleted_at__isnull=True).exists():
         raise ValidationError("A user with that username already exists.")
+    if email and User.objects.filter(email__iexact=email, deleted_at__isnull=True).exists():
+        raise ValidationError("A user with that email already exists.")
 
     # Parse and validate the daily rate for Staff users.
     rate_value = Decimal("0.00")

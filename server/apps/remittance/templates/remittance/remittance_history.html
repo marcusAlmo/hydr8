@@ -3,8 +3,6 @@
 {% block title %}Remittance History | Hydr8{% endblock %}
 
 {% block extra_head %}
-    <!-- ApexCharts — lightweight charting for the Performance Trends section -->
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
     <style>
         /* --- Page-load transitions for the Performance Trends section --- */
         /* The section fades + slides in, then each chart card cascades with
@@ -16,8 +14,8 @@
         }
 
         @keyframes chartCardReveal {
-            from { opacity: 0; transform: translateY(8px) scale(0.99); }
-            to   { opacity: 1; transform: translateY(0) scale(1); }
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes skeletonShimmer {
@@ -26,18 +24,18 @@
         }
 
         #trends-section {
-            animation: trendsFadeIn 0.5s ease-out both;
+            animation: trendsFadeIn 0.4s ease-out both;
         }
 
         /* Each chart card cascades in with an increasing delay */
         .chart-card {
             opacity: 0;
-            animation: chartCardReveal 0.45s ease-out both;
+            animation: chartCardReveal 0.35s ease-out both;
         }
-        .chart-card:nth-child(1) { animation-delay: 0.15s; }
-        .chart-card:nth-child(2) { animation-delay: 0.30s; }
-        .chart-card:nth-child(3) { animation-delay: 0.45s; }
-        .chart-card:nth-child(4) { animation-delay: 0.60s; }
+        .chart-card:nth-child(1) { animation-delay: 0.05s; }
+        .chart-card:nth-child(2) { animation-delay: 0.10s; }
+        .chart-card:nth-child(3) { animation-delay: 0.15s; }
+        .chart-card:nth-child(4) { animation-delay: 0.20s; }
 
         /* Skeleton placeholder behind each chart while ApexCharts draws */
         .chart-skeleton {
@@ -74,7 +72,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps the entire page so the banner date filter
      drives the summary cards, performance trends, and records table. -->
-<div x-data='remittancePage({{ trends_seed|safe }}, "{{ initial_range|default:"7d" }}", "{{ custom_from }}", "{{ custom_to }}", {{ default_trends_seed|safe }})' x-init="init()"
+<div x-data='remittancePage({{ trends_seed|safe }}, "{{ initial_range|default:"7d" }}", "{{ custom_from }}", "{{ custom_to }}", {{ default_trends_seed|safe }})'
      class="flex-1 flex flex-col overflow-hidden">
     <!-- Top Navigation Bar -->
     <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
@@ -86,16 +84,34 @@
         <div class="flex items-center gap-4">
             <!-- Global date range filter — drives ALL sections -->
             <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
-                <template x-for="r in dateRanges" :key="r.key">
-                    <button
-                        @click="setDateRange(r.key)"
-                        :class="dateRange === r.key
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant hover:bg-surface-container-high'"
-                        class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
-                        x-text="r.label"
-                    ></button>
-                </template>
+                <button
+                    @click="setDateRange('today')"
+                    :class="dateRange === 'today'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >Today</button>
+                <button
+                    @click="setDateRange('7d')"
+                    :class="dateRange === '7d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >7D</button>
+                <button
+                    @click="setDateRange('14d')"
+                    :class="dateRange === '14d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >14D</button>
+                <button
+                    @click="setDateRange('30d')"
+                    :class="dateRange === '30d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >30D</button>
 
                 <!-- Custom Range trigger -->
                 <button
@@ -387,9 +403,9 @@
             </div>
 
             <!-- 2x2 chart grid -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y divide-outline-variant/20 lg:divide-y-0 lg:divide-x">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 border-t border-outline-variant/20">
                 <!-- Total Sales -->
-                <div class="chart-card p-4">
+                <div class="chart-card p-4 min-w-0 overflow-hidden border-b border-outline-variant/20 lg:border-r">
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-label-caps font-label-caps text-outline uppercase">Total Sales</span>
@@ -409,14 +425,14 @@
                         <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxValue('total_sales'))"></span></span>
                         <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">7D MA overlay</span>
                     </div>
-                    <div class="relative">
-                        <div x-show="!charts['#chart-total-sales']" class="chart-skeleton w-full h-[200px]"></div>
-                        <div id="chart-total-sales" class="w-full h-[200px]"></div>
+                    <div class="relative min-w-0 overflow-hidden min-h-[200px]">
+                        <div x-show="!charts['#chart-total-sales']" class="chart-skeleton absolute inset-0 z-0 pointer-events-none"></div>
+                        <div id="chart-total-sales" class="w-full min-h-[200px] relative z-10 overflow-hidden"></div>
                     </div>
                 </div>
 
                 <!-- Outstanding Debt -->
-                <div class="chart-card p-4">
+                <div class="chart-card p-4 min-w-0 overflow-hidden border-b border-outline-variant/20">
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-label-caps font-label-caps text-outline uppercase">Outstanding Debt</span>
@@ -435,14 +451,14 @@
                         <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxValue('outstanding_debt'))"></span></span>
                         <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">7D MA overlay</span>
                     </div>
-                    <div class="relative">
-                        <div x-show="!charts['#chart-outstanding-debt']" class="chart-skeleton w-full h-[200px]"></div>
-                        <div id="chart-outstanding-debt" class="w-full h-[200px]"></div>
+                    <div class="relative min-w-0 overflow-hidden min-h-[200px]">
+                        <div x-show="!charts['#chart-outstanding-debt']" class="chart-skeleton absolute inset-0 z-0 pointer-events-none"></div>
+                        <div id="chart-outstanding-debt" class="w-full min-h-[200px] relative z-10 overflow-hidden"></div>
                     </div>
                 </div>
 
                 <!-- Commissions Paid -->
-                <div class="chart-card p-4 border-t border-outline-variant/20 lg:border-t-0">
+                <div class="chart-card p-4 min-w-0 overflow-hidden border-b border-outline-variant/20 lg:border-b-0 lg:border-r">
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-label-caps font-label-caps text-outline uppercase">Commissions Paid</span>
@@ -461,14 +477,14 @@
                         <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="formatPesoShort(maxValue('commissions_paid'))"></span></span>
                         <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">7D MA overlay</span>
                     </div>
-                    <div class="relative">
-                        <div x-show="!charts['#chart-commissions']" class="chart-skeleton w-full h-[200px]"></div>
-                        <div id="chart-commissions" class="w-full h-[200px]"></div>
+                    <div class="relative min-w-0 overflow-hidden min-h-[200px]">
+                        <div x-show="!charts['#chart-commissions']" class="chart-skeleton absolute inset-0 z-0 pointer-events-none"></div>
+                        <div id="chart-commissions" class="w-full min-h-[200px] relative z-10 overflow-hidden"></div>
                     </div>
                 </div>
 
                 <!-- Rider Performance (units sold) -->
-                <div class="chart-card p-4 border-t border-outline-variant/20 lg:border-t-0">
+                <div class="chart-card p-4 min-w-0 overflow-hidden">
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <span class="text-label-caps font-label-caps text-outline uppercase">Rider Performance</span>
@@ -487,9 +503,9 @@
                         <span class="text-outline">Max <span class="text-on-surface font-bold" x-text="maxRiderUnits()"></span></span>
                         <span class="ml-auto text-outline-variant text-[10px] uppercase tracking-wider">Per rider</span>
                     </div>
-                    <div class="relative">
-                        <div x-show="!charts['#chart-rider-performance']" class="chart-skeleton w-full h-[200px]"></div>
-                        <div id="chart-rider-performance" class="w-full h-[200px]"></div>
+                    <div class="relative min-w-0 overflow-hidden min-h-[200px]">
+                        <div x-show="!charts['#chart-rider-performance']" class="chart-skeleton absolute inset-0 z-0 pointer-events-none"></div>
+                        <div id="chart-rider-performance" class="w-full min-h-[200px] relative z-10 overflow-hidden"></div>
                     </div>
                 </div>
             </div>
@@ -658,12 +674,11 @@
                         // Only the rider chart depends on the rider filter.
                         this.renderRiderChart();
                     });
-                    // Stagger initial renders so charts cascade in left-to-right
-                    // with a ~180ms gap between each, matching the CSS card reveal.
                     this.renderChart('#chart-total-sales', 'total_sales', '#006591', true);
-                    setTimeout(() => this.renderChart('#chart-outstanding-debt', 'outstanding_debt', '#D97706', true), 180);
-                    setTimeout(() => this.renderChart('#chart-commissions', 'commissions_paid', '#006C4A', true), 360);
-                    setTimeout(() => { this.renderRiderChart(); this._isInitialRender = false; }, 540);
+                    this.renderChart('#chart-outstanding-debt', 'outstanding_debt', '#D97706', true);
+                    this.renderChart('#chart-commissions', 'commissions_paid', '#006C4A', true);
+                    this.renderRiderChart();
+                    this._isInitialRender = false;
                 },
 
                 // --- Global date-range actions -------------------------------------
@@ -898,6 +913,7 @@
                             toolbar: { show: false },
                             fontFamily: 'Geist, sans-serif',
                             animations: this._animConfig(this._isInitialRender),
+                            redrawOnParentResize: true,
                         },
                         series: [
                             { name: 'Daily',        data: series },
@@ -966,10 +982,16 @@
 
                 renderChart(elId, field, color, currency) {
                     const opts = this.baseOptions(this.filteredSeries(field), color, currency, field);
-                    if (this.charts[elId]) {
+                    const el = document.querySelector(elId);
+                    if (!el) return;
+                    if (this.charts[elId] && this.charts[elId].el === el) {
                         this.charts[elId].updateOptions(opts, true, false);
                     } else {
-                        this.charts[elId] = new ApexCharts(document.querySelector(elId), opts);
+                        if (this.charts[elId]) {
+                            try { this.charts[elId].destroy(); } catch (e) {}
+                        }
+                        el.innerHTML = '';
+                        this.charts[elId] = new ApexCharts(el, opts);
                         this.charts[elId].render();
                     }
                 },
@@ -994,6 +1016,7 @@
                             toolbar: { show: false },
                             fontFamily: 'Geist, sans-serif',
                             animations: this._animConfig(this._isInitialRender),
+                            redrawOnParentResize: true,
                         },
                         series,
                         labels,
@@ -1032,12 +1055,16 @@
                         },
                     };
 
-                    if (this.charts['#chart-rider-performance']) {
+                    const el = document.querySelector('#chart-rider-performance');
+                    if (!el) return;
+                    if (this.charts['#chart-rider-performance'] && this.charts['#chart-rider-performance'].el === el) {
                         this.charts['#chart-rider-performance'].updateOptions(opts, true, false);
                     } else {
-                        this.charts['#chart-rider-performance'] = new ApexCharts(
-                            document.querySelector('#chart-rider-performance'), opts
-                        );
+                        if (this.charts['#chart-rider-performance']) {
+                            try { this.charts['#chart-rider-performance'].destroy(); } catch (e) {}
+                        }
+                        el.innerHTML = '';
+                        this.charts['#chart-rider-performance'] = new ApexCharts(el, opts);
                         this.charts['#chart-rider-performance'].render();
                     }
                 },

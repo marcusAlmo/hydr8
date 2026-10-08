@@ -16,8 +16,8 @@ Thumbs.db
 .env.*
 !*.example
 
-# Devin local MCP config (contains secret references)
-.devin/mcp_config.local.json
+# Agent directories
+.devin/
 
 # Python build artifacts
 __pycache__/
@@ -34,4 +34,7 @@ htmlcov/
 # Logs
 *.log
 
-*backups
+# Database backups and local dumps
+backups/
+*.dump
+*.sql

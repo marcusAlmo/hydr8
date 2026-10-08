@@ -52,6 +52,20 @@ class ProductsPricingViewTests(TestCase):
         response = self.client.get("/products/")
         self.assertContains(response, "commission/bulk-set")
 
+    def test_commission_matrix_contains_driver_search_filter(self):
+        """Commission Matrix should render a search input for filtering drivers."""
+        response = self.client.get("/products/")
+        self.assertContains(response, 'x-model="driverSearch"')
+        self.assertContains(response, 'placeholder="Search drivers..."')
+
+    def test_commission_matrix_contains_bulk_set_toolbar(self):
+        """Commission Matrix should render the unified bulk set toolbar."""
+        response = self.client.get("/products/")
+        self.assertContains(response, "Bulk Set:")
+        self.assertContains(response, "Apply to All")
+        self.assertContains(response, 'x-model="bulkProduct"')
+        self.assertContains(response, 'x-model="bulkRate"')
+
     def test_page_contains_inline_add_button(self):
         """The Add Product button should use addNewRow() (inline), not a link to /products/create."""
         response = self.client.get("/products/")

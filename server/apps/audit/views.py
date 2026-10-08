@@ -150,11 +150,12 @@ def audit_log_view(request):
     except (TypeError, ValueError):
         page = 1
     query = request.GET.get("q", "")
-    for_htmx = request.headers.get("HX-Request") == "true"
+    for_htmx = getattr(request, "htmx", False) and not getattr(request.htmx, "boosted", False)
     context = _build_list_context(user=request.user, page=page, query=query, for_htmx=for_htmx)
 
-    # HTMX requests get just the table partial; full loads get the page
-    if request.headers.get("HX-Request") == "true":
+    # Internal HTMX requests (search/pagination) get just the table partial;
+    # full page and boosted navigation requests get the complete page.
+    if for_htmx:
         return render(request, "audit/partials/audit_log_table.html", context)
     return render(request, "audit/audit_log.html", context)
 

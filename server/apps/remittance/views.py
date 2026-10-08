@@ -5,7 +5,7 @@ from datetime import date
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -550,7 +550,7 @@ def clear_draft_view(request):
 @never_cache
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
-def remittance_detail_view(request, remittance_id: int):
+def remittance_detail_view(request: HttpRequest, remittance_id: int) -> HttpResponse:
     """Renders the remittance detail page with summary and initial repayments tab."""
     if not is_admin(request.user):
         return HttpResponse("Forbidden", status=403)
@@ -566,6 +566,7 @@ def remittance_detail_view(request, remittance_id: int):
     repayments_data = get_credit_repayments_for_remittance(
         request.user, remittance_id, page=1, page_size=5, remittance=remittance_obj
     )
+    # Query with page_size=1 to retrieve total credits count for tab badge without loading full page
     credits_data = get_credits_recorded_for_remittance(
         request.user, remittance_id, page=1, page_size=1, remittance=remittance_obj
     )
@@ -599,7 +600,7 @@ def remittance_detail_view(request, remittance_id: int):
 @login_required
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
-def remittance_detail_repayments_view(request, remittance_id: int):
+def remittance_detail_repayments_view(request: HttpRequest, remittance_id: int) -> HttpResponse:
     """HTMX endpoint — returns paginated credit repayments table partial."""
     if not is_admin(request.user):
         return HttpResponse("Forbidden", status=403)
@@ -644,7 +645,7 @@ def remittance_detail_repayments_view(request, remittance_id: int):
 @login_required
 @require_http_methods(["GET"])
 @ratelimit(key='user', rate='120/m', method='GET', block=True)
-def remittance_detail_credits_view(request, remittance_id: int):
+def remittance_detail_credits_view(request: HttpRequest, remittance_id: int) -> HttpResponse:
     """HTMX endpoint — returns paginated credits recorded table partial."""
     if not is_admin(request.user):
         return HttpResponse("Forbidden", status=403)

@@ -206,7 +206,7 @@ class RepaymentSyncTests(TestCase):
         """A rider with repayments but no sales in the payload still gets
         a RemittanceRider row and their repayment commission is counted.
 
-        This tests the separate repayment commission code path (lines 552-587)
+        This tests the separate repayment commission fallback code path
         for riders who collected repayments but are not in the payload."""
         self.credit_line = self._extend_credit(qty=5, care_of=self.rider)
         self._collect_payment(qty_paid=2, amount="80.00")

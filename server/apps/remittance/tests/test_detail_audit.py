@@ -11,6 +11,7 @@ from django.urls import reverse
 from apps.core.models import Product
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.remittance.models import (
+    Expense,
     Remittance,
     RemittanceRider,
     RemittanceRiderProductLine,
@@ -426,5 +427,183 @@ class RemittanceDetailAuditViewTests(TestCase):
         self.assertEqual(rem.total_credit_sales, Decimal("70.00"))
         unlinked_credit.refresh_from_db()
         self.assertEqual(unlinked_credit.remittance, rem)
+
+    def test_expenses_audit_breakdown_per_rider_staff_and_station(self):
+        """get_remittance_detail breaks down expenses across riders, staff, and general station operations."""
+        audit_date = date(2026, 9, 15)
+        rem = Remittance.objects.create(
+            date=audit_date,
+            created_by=self.admin,
+            company=self.company,
+            status=Remittance.StatusChoices.DRAFT,
+            total_sales=Decimal("500.00"),
+            total_expenses=Decimal("870.00"),
+            net_remittance=Decimal("500.00"),
+        )
+        rem_rider = RemittanceRider.objects.create(
+            remittance=rem,
+            rider=self.driver,
+            company=self.company,
+            subtotal_payable=Decimal("500.00"),
+            subtotal_commission=Decimal("50.00"),
+            remitted=Decimal("500.00"),
+        )
+        rem_staff = RemittanceStaff.objects.create(
+            remittance=rem,
+            staff=self.staff,
+            company=self.company,
+            daily_rate_snapshot=Decimal("350.00"),
+            total_deductions=Decimal("0.00"),
+            net_pay=Decimal("350.00"),
+        )
+
+        # 1. Add rider expense
+        Expense.objects.create(
+            remittance=rem,
+            remittance_rider=rem_rider,
+            description="Tire Patch",
+            amount=Decimal("120.00"),
+            company=self.company,
+            recorded_by=self.admin,
+        )
+
+        # 2. Add staff operational expense
+        Expense.objects.create(
+            remittance=rem,
+            remittance_staff=rem_staff,
+            description="Cleaning Supplies",
+            amount=Decimal("250.00"),
+            company=self.company,
+            recorded_by=self.admin,
+        )
+
+        # 3. Add general station expense (no rider, no staff)
+        Expense.objects.create(
+            remittance=rem,
+            remittance_rider=None,
+            remittance_staff=None,
+            description="Electricity Bill",
+            amount=Decimal("500.00"),
+            company=self.company,
+            recorded_by=self.admin,
+        )
+
+        # Finalize remittance after child records exist
+        rem.status = Remittance.StatusChoices.FINALIZED
+        rem.finalized_by = self.admin
+        rem.save(update_fields=["status", "finalized_by", "updated_at"])
+
+        detail = get_remittance_detail(self.admin, rem.id)
+        self.assertIsNotNone(detail)
+
+        # Check expenses_breakdown rollup
+        breakdown = detail.get("expenses_breakdown")
+        self.assertIsNotNone(breakdown)
+        self.assertEqual(breakdown["rider_total"], "₱120.00")
+        self.assertEqual(breakdown["rider_total_raw"], 120.0)
+        self.assertEqual(breakdown["staff_total"], "₱250.00")
+        self.assertEqual(breakdown["staff_total_raw"], 250.0)
+        self.assertEqual(breakdown["general_total"], "₱500.00")
+        self.assertEqual(breakdown["general_total_raw"], 500.0)
+        self.assertEqual(breakdown["grand_total"], "₱870.00")
+        self.assertEqual(breakdown["grand_total_raw"], 870.0)
+        self.assertEqual(len(breakdown["general_items"]), 1)
+        self.assertEqual(breakdown["general_items"][0]["description"], "Electricity Bill")
+        self.assertEqual(breakdown["general_items"][0]["amount"], "₱500.00")
+
+        # Check riders_detail
+        rider_entry = detail["riders"][0]
+        self.assertEqual(rider_entry["total_expenses"], "₱120.00")
+        self.assertEqual(rider_entry["total_expenses_raw"], 120.0)
+        self.assertEqual(len(rider_entry["expenses"]), 1)
+        self.assertEqual(rider_entry["expenses"][0]["description"], "Tire Patch")
+        self.assertEqual(rider_entry["expenses"][0]["amount"], "₱120.00")
+
+        # Check staff_detail
+        staff_entry = next(s for s in detail["staff"] if s["id"] == str(self.staff.id))
+        self.assertEqual(staff_entry["total_expenses"], "₱250.00")
+        self.assertEqual(staff_entry["total_expenses_raw"], 250.0)
+        self.assertEqual(len(staff_entry["expenses"]), 1)
+        self.assertEqual(staff_entry["expenses"][0]["description"], "Cleaning Supplies")
+        self.assertEqual(staff_entry["expenses"][0]["amount"], "₱250.00")
+
+        # View render check
+        self.client.force_login(self.admin)
+        url = reverse("remittance:detail", args=[rem.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Expenses Audit Breakdown:")
+        self.assertContains(response, "Cleaning Supplies")
+        self.assertContains(response, "Electricity Bill")
+        self.assertContains(response, "Tire Patch")
+
+    def test_create_and_draft_remittance_persists_staff_expenses_and_round_trips(self):
+        """create_remittance and save_remittance_draft correctly persist staff expenses and hydrate draft state."""
+        from apps.remittance.selectors import _load_draft_state
+        from apps.remittance.services import create_remittance, save_remittance_draft
+
+        test_date = date(2026, 9, 10)
+        staff_payload = [{
+            "id": self.staff.id,
+            "salary_override": "400.00",
+            "deductions": [{"description": "Uniform", "amount": "50.00"}],
+            "expenses": [
+                {"description": "Soap & Bleach", "amount": "85.00"},
+                {"description": "Receipt Paper", "amount": "45.00"},
+            ],
+        }]
+
+        # 1. Test create_remittance
+        rem = create_remittance(
+            performed_by=self.admin,
+            remittance_date=test_date,
+            riders_data=[],
+            expenses_data=[{"description": "Mineral Salt", "amount": "300.00"}],
+            staff_data=staff_payload,
+            manual_offering=Decimal("0.00"),
+            tithe_rate=Decimal("0.10"),
+            finalize=False,
+        )
+
+        # Total expenses should include general (300) + staff (85 + 45 = 130) = 430.00
+        self.assertEqual(rem.total_expenses, Decimal("430.00"))
+
+        staff_expenses = Expense.objects.filter(remittance_staff__staff=self.staff)
+        self.assertEqual(staff_expenses.count(), 2)
+        descriptions = set(staff_expenses.values_list("description", flat=True))
+        self.assertEqual(descriptions, {"Soap & Bleach", "Receipt Paper"})
+
+        # 2. Test round trip through _load_draft_state
+        state = _load_draft_state(self.admin, test_date)
+        self.assertIsNotNone(state)
+        staff_draft = state["staff_data"].get(str(self.staff.id))
+        self.assertIsNotNone(staff_draft)
+        self.assertEqual(len(staff_draft["expenses"]), 2)
+        self.assertEqual(staff_draft["expenses"][0]["description"], "Soap & Bleach")
+        self.assertEqual(staff_draft["expenses"][0]["amount"], "85.00")
+
+        # 3. Test save_remittance_draft updating the draft
+        updated_staff_payload = [{
+            "id": self.staff.id,
+            "salary_override": "400.00",
+            "deductions": [],
+            "expenses": [
+                {"description": "Soap & Bleach", "amount": "100.00"},
+            ],
+        }]
+        updated_rem = save_remittance_draft(
+            performed_by=self.admin,
+            remittance_date=test_date,
+            riders_data=[],
+            expenses_data=[{"description": "Mineral Salt", "amount": "300.00"}],
+            staff_data=updated_staff_payload,
+            manual_offering=Decimal("0.00"),
+            tithe_rate=Decimal("0.10"),
+        )
+        self.assertEqual(updated_rem.total_expenses, Decimal("400.00"))
+        updated_state = _load_draft_state(self.admin, test_date)
+        self.assertEqual(len(updated_state["staff_data"][str(self.staff.id)]["expenses"]), 1)
+        self.assertEqual(updated_state["staff_data"][str(self.staff.id)]["expenses"][0]["amount"], "100.00")
+
 
 

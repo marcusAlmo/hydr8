@@ -22,7 +22,7 @@ from apps.core.models import Product
 from apps.remittance.models import Remittance
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.models import User
-from apps.users.permissions import is_admin, is_superuser, is_tenant_scoped
+from apps.users.permissions import is_admin, is_superuser
 from apps.users.services import validate_user_pin
 
 from .models import BorrowedContainer, CreditLine, CreditPayment, Customer
@@ -50,12 +50,13 @@ def _resolve_care_of(care_of_id: str, user: UserType) -> UserType | None:
     raw = (care_of_id or "").strip()
     if not raw:
         return None
-    qs = User.objects.filter(
-        deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True
+    care_of = (
+        User.objects.for_user(user)
+        .filter(
+            deleted_at__isnull=True, deactivated_at__isnull=True, is_active=True, pk=raw
+        )
+        .first()
     )
-    if is_tenant_scoped(user):
-        qs = qs.filter(company_id=user.company_id)
-    care_of = qs.filter(pk=raw).first()
     if care_of is None:
         raise ValidationError("Please select a valid user for the care of field.")
     return care_of
@@ -288,6 +289,7 @@ def record_customer_debt(
         # backdated entry must not move it backwards — keep the greater of
         # the existing value and the new transaction date (start of day).
         tx_dt = timezone.make_aware(datetime.combine(tx_date, datetime.min.time()))
+        # Atomic balance increment using F() expression prevents concurrent write race conditions.
         Customer.objects.filter(pk=locked_customer.pk).update(
             debt_balance=F("debt_balance") + total,
             last_credit_at=Greatest(F("last_credit_at"), tx_dt),
@@ -618,6 +620,7 @@ def record_customer_collection(
         payments_recorded += qty_paid
 
     if total_collected > 0:
+        # Atomic balance reduction using F() expression prevents concurrent write race conditions.
         Customer.objects.filter(pk=customer.pk).update(
             debt_balance=F("debt_balance") - total_collected
         )

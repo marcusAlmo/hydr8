@@ -33,11 +33,12 @@ The project is split into a single `apps/` package of domain-driven Django apps 
 
 ### Key patterns
 
+- **Remittance Audit Breakdown**: Remittances feature a 4-tab operational audit (Riders delivery lines, Staff compensation, Debt Repayments, and Date-resolved Credit extensions).
 - **Services / Selectors**: business logic lives in `services.py`; read paths in `selectors.py`.
 - **HTMX partials**: templates are organized under `apps/<app>/templates/<app>/partials/`.
-- **Multi-tenancy**: `apps.core.middleware.TenantMiddleware` scopes requests by company.
+- **Multi-tenancy**: `apps.core.middleware.TenantMiddleware` scopes requests by company (`Company` foreign key).
 - **Authorization**: `Role` is the single source of truth. Use `apps.users.permissions.is_back_office` / `is_admin` instead of `is_staff`. Superusers remain a platform escape hatch.
-- **Rate limiting**: all user-input views are decorated with `django_ratelimit.decorators.ratelimit`. Login also uses a 5-failure lockout in `apps.users.services`.
+- **Rate limiting**: all user-input views are decorated with `django_ratelimit.decorators.ratelimit` (30/m mutations, 120/m reads, 10/m auth, 5/15m PIN). Login also uses a 5-failure lockout in `apps.users.services`.
 - **Audit**: `django-auditlog` records model changes, tagged with a correlation ID from `apps.core.middleware.CorrelationIdMiddleware`.
 - **Caching**: `LocMemCache` in `local.py` / `test.py`; `Redis` in `production.py`.
 
@@ -49,11 +50,10 @@ For a deeper architecture write-up, see `../docs/ARCHITECTURE.md`. For authoring
 server/
 ├── apps/                 # Domain Django apps
 ├── config/               # Settings, URLs, WSGI
-├── requirements/         # base, local, production
-├── templates/            # Shared templates
+├── templates/            # Shared templates & components
 ├── static/               # Static assets
 ├── manage.py
-├── pyproject.toml
+├── pyproject.toml        # uv package configuration
 ├── Dockerfile
 └── entrypoint.sh
 ```
@@ -82,13 +82,11 @@ Production/Docker also needs values from `config/settings/production.py` (e.g., 
 
 ## Running Locally
 
-1. Install dependencies:
+1. Install dependencies using `uv`:
 
 ```bash
 cd server
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements/local.txt
+uv sync
 ```
 
 2. Create a PostgreSQL database and a `.env` file with `SECRET_KEY` and `DATABASE_URL`.
@@ -96,14 +94,14 @@ pip install -r requirements/local.txt
 3. Apply migrations and create an admin user:
 
 ```bash
-python manage.py migrate
-python manage.py createsuperuser
+uv run python manage.py migrate
+uv run python manage.py createsuperuser
 ```
 
 4. Start the dev server:
 
 ```bash
-python manage.py runserver
+uv run python manage.py runserver
 ```
 
 The default settings module is `config.settings.local`, so `manage.py` will pick it up automatically. Open http://127.0.0.1:8000/.
@@ -130,11 +128,11 @@ Make sure `.env` contains all values required by `config/settings/production.py`
 
 ```bash
 # Run the Django test suite
-python manage.py test
+uv run python manage.py test
 
-# Lint / format
-ruff check .
-ruff format .
+# Lint / format with Ruff
+uv run ruff check .
+uv run ruff format --check .
 ```
 
 `ruff`, `coverage`, and `django-stubs` are in the dev dependency group of `pyproject.toml` if you want to install them separately.

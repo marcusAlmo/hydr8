@@ -254,6 +254,9 @@
                                                 <template x-for="(ded, di) in sp.deductions" :key="'sd'+si+di">
                                                     <span class="text-on-surface-variant text-[12px] pl-4">— <span x-text="ded.description"></span>: <span class="font-data-mono text-error" x-text="peso(ded.amount)"></span></span>
                                                 </template>
+                                                <template x-for="(exp, ei) in sp.expenses" :key="'se'+si+ei">
+                                                    <span class="text-on-surface-variant text-[12px] pl-4">— Exp: <span x-text="exp.description"></span>: <span class="font-data-mono text-error" x-text="peso(exp.amount)"></span></span>
+                                                </template>
                                             </div>
                                             <div class="flex items-center gap-3 text-on-surface-variant">
                                                 <span>Salary: <span class="font-data-mono text-on-surface" x-text="peso(sp.salary)"></span></span>
@@ -1011,6 +1014,76 @@
                                         </tr>
                                     </tfoot>
                                 </table>
+
+                                <!-- ===== STAFF OPERATIONAL EXPENSES (Handled by this staff member) ===== -->
+                                <div class="mt-6 rounded-lg border border-outline-variant/30 overflow-hidden bg-surface-container-low/30">
+                                    <div class="px-4 py-3 bg-surface-container-low/60 border-b border-outline-variant/20 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-error text-[18px]">receipt_long</span>
+                                            <span class="font-label-caps text-label-caps text-error">Operational Expenses Handled</span>
+                                            <span x-show="currentStaffExpenses().length > 0"
+                                                  class="font-data-mono text-[11px] px-1.5 py-0.5 rounded-full bg-error/15 text-error"
+                                                  x-text="currentStaffExpenses().length"></span>
+                                        </div>
+                                        <span class="font-data-mono text-data-mono text-error text-body-sm font-medium"
+                                              x-show="staffExpensesTotal(selectedStaffId) > 0"
+                                              x-text="peso(staffExpensesTotal(selectedStaffId))"></span>
+                                    </div>
+                                    <table class="w-full text-left">
+                                        <thead>
+                                            <tr class="bg-error/5 border-b border-error/20">
+                                                <th class="py-2.5 px-4 font-label-caps text-label-caps text-error">PARTICULARS</th>
+                                                <th class="py-2.5 px-4 font-label-caps text-label-caps text-error text-right">AMOUNT</th>
+                                                <th class="py-2.5 px-2"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-outline-variant/10">
+                                            <template x-for="(exp, idx) in currentStaffExpenses()" :key="idx">
+                                                <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                                    <td class="py-4 px-4 min-w-0">
+                                                        <input x-model="exp.description" type="text" placeholder="Expense particulars (e.g. filter parts, cleaning)..."
+                                                               :disabled="isFinalizedView"
+                                                               class="w-full bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-on-surface-variant/60 focus:border-primary focus:border-b-2 font-body-md text-on-surface-variant focus:ring-0 focus:outline-none py-1 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                                                    </td>
+                                                    <td class="py-4 px-4 text-right whitespace-nowrap">
+                                                        <div class="flex items-center justify-end gap-1">
+                                                            <span class="font-data-mono text-data-mono text-error/60 shrink-0">₱</span>
+                                                            <input x-model="exp.amount" type="number" min="0" step="0.01"
+                                                                   :disabled="isFinalizedView"
+                                                                   @input="exp.amount = sanitizeAmount(exp.amount)"
+                                                                   :style="`min-width: 10ch; width: ${Math.max(12, String(exp.amount ?? '').length + 6)}ch`"
+                                                                   class="bg-transparent border-l-0 border-r-0 border-t-0 border-b border-outline-variant/50 hover:border-error/60 focus:border-error focus:border-b-2 text-right font-data-mono text-data-mono text-error focus:ring-0 focus:outline-none py-1 shrink-0 transition-[width] duration-75">
+                                                        </div>
+                                                    </td>
+                                                    <td class="py-4 px-2 text-right">
+                                                        <button type="button" x-show="!isFinalizedView" @click="removeStaffExpense(idx)"
+                                                                class="text-on-surface-variant hover:text-error transition-colors cursor-pointer"
+                                                                title="Remove expense">
+                                                            <span class="material-symbols-outlined text-[20px]">delete</span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                            <tr x-show="!isFinalizedView">
+                                                <td colspan="3" class="py-0">
+                                                    <button type="button" @click="addStaffExpense()"
+                                                            class="flex items-center gap-2 px-4 py-3 w-full text-on-surface-variant font-medium hover:text-primary transition-colors cursor-pointer">
+                                                        <span class="material-symbols-outlined text-[20px]">add</span>
+                                                        Add Staff Expense
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="border-t border-outline-variant/20">
+                                                <td class="py-2.5 px-4 font-body-sm text-on-surface-variant">Total Staff Expenses</td>
+                                                <td class="py-2.5 px-4 text-right font-data-mono text-data-mono text-error font-medium"
+                                                    x-text="peso(staffExpensesTotal(selectedStaffId))"></td>
+                                                <td class="py-2.5 px-2"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
                         </template>
                     </div><!-- /STAFF TAB PANEL -->
@@ -1508,7 +1581,7 @@
                                         <span class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase shrink-0">net comm</span>
                                     </div>
                                     <!-- Mini KPI grid -->
-                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-outline-variant/10">
+                                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-px bg-outline-variant/10">
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Sales</p>
                                             <p class="font-data-mono text-data-mono text-sm text-primary font-medium" x-text="peso(riderTotalSales(r.id))"></p>
@@ -1516,6 +1589,10 @@
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Credit</p>
                                             <p class="font-data-mono text-data-mono text-sm text-error" x-text="peso(riderTotalCredit(r.id))"></p>
+                                        </div>
+                                        <div class="bg-surface-container-lowest px-3 py-2">
+                                            <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Expenses</p>
+                                            <p class="font-data-mono text-data-mono text-sm text-error" x-text="peso(riderExpensesTotal(r.id))"></p>
                                         </div>
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Deductions</p>
@@ -1543,8 +1620,8 @@
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Comm. Ded.</p>
                                             <p class="font-data-mono text-data-mono text-sm text-error" x-text="peso(riderCommissionDeduction(r.id))"></p>
                                         </div>
-                                        <div class="bg-surface-container-lowest px-3 py-2 col-span-2 sm:col-span-1">
-                                            <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Net Commission</p>
+                                        <div class="bg-surface-container-lowest px-3 py-2">
+                                            <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Net Comm</p>
                                             <p class="font-data-mono text-data-mono text-sm font-bold"
                                                :class="riderNetCommission(r.id) < 0 ? 'text-error' : 'text-tertiary'"
                                                x-text="peso(riderNetCommission(r.id))"></p>
@@ -1575,7 +1652,7 @@
                                               x-text="peso(staffNetSalary(s.id))"></span>
                                         <span class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase shrink-0">net pay</span>
                                     </div>
-                                    <div class="grid grid-cols-3 gap-px bg-outline-variant/10">
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-px bg-outline-variant/10">
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Salary</p>
                                             <p class="font-data-mono text-data-mono text-sm text-[#D97706]" x-text="peso(staffSalary(s.id))"></p>
@@ -1583,6 +1660,10 @@
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Deductions</p>
                                             <p class="font-data-mono text-data-mono text-sm text-error" x-text="peso(staffDeductionsTotal(s.id))"></p>
+                                        </div>
+                                        <div class="bg-surface-container-lowest px-3 py-2">
+                                            <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Expenses</p>
+                                            <p class="font-data-mono text-data-mono text-sm text-error" x-text="peso(staffExpensesTotal(s.id))"></p>
                                         </div>
                                         <div class="bg-surface-container-lowest px-3 py-2">
                                             <p class="font-label-caps text-[8px] text-on-surface-variant/50 uppercase">Net Pay</p>
@@ -1836,14 +1917,10 @@
                 empPage: 1,
                 empPageSize: 5,
 
-                // ---- staff salary (UI prototype — mock data) ----
-                // TODO: Replace with real data from the employees/users
-                // directory (active Staff role users with daily_rate).
-                // Each staff has: id, name, role_label, base_rate (daily
-                // rate from the User model), salary_override (editable —
-                // empty string means "use base_rate"), and deductions
-                // (array of {description, amount}).
-                // Hydrated from the backend seed (active staff with daily_rate).
+                // ---- staff compensation panel ----
+                // Hydrated from backend seed data (active Staff users with daily_rate).
+                // Attributes: id, name, role_label, base_rate (User.daily_rate),
+                // salary_override (empty string defaults to base_rate), and deductions.
                 staffs: (seed.staff || []).map(s => ({
                     id: s.id,
                     name: s.name,
@@ -1851,6 +1928,7 @@
                     base_rate: s.daily_rate || 0,
                     salary_override: s.salary_override || '',
                     deductions: s.deductions || [],
+                    expenses: s.expenses || [],
                 })),
                 selectedStaffId: (seed.staff && seed.staff.length > 0) ? seed.staff[0].id : null,
 
@@ -2086,9 +2164,14 @@
                                 description: d.description || '',
                                 amount: d.amount || '',
                             }));
+                            s.expenses = (saved.expenses || []).map(e => ({
+                                description: e.description || '',
+                                amount: e.amount || '',
+                            }));
                         } else {
                             s.salary_override = '';
                             s.deductions = [];
+                            s.expenses = [];
                         }
                     }
                     this.manualOffering = state.offering_amount || '';
@@ -2505,6 +2588,27 @@
                     if (!s || !s.deductions) return 0;
                     return s.deductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
                 },
+                // ---- operational expenses management (per-staff) ----
+                currentStaffExpenses() {
+                    const s = this.selectedStaff();
+                    return s ? (s.expenses || []) : [];
+                },
+                addStaffExpense() {
+                    const s = this.selectedStaff();
+                    if (!s) return;
+                    if (!Array.isArray(s.expenses)) s.expenses = [];
+                    s.expenses.push({ description: '', amount: '' });
+                },
+                removeStaffExpense(idx) {
+                    const s = this.selectedStaff();
+                    if (!s || !s.expenses) return;
+                    s.expenses.splice(idx, 1);
+                },
+                staffExpensesTotal(staffId) {
+                    const s = this.staffs.find(s => s.id === staffId);
+                    if (!s || !s.expenses) return 0;
+                    return s.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                },
                 // Net pay = base salary - total deductions (per staff)
                 staffNetSalary(staffId) {
                     return this.staffSalary(staffId) - this.staffDeductionsTotal(staffId);
@@ -2553,10 +2657,11 @@
                 tithes() {
                     return Math.max(0, this.netRemittance()) * this.titheRate;
                 },
-                // Total expenses = sum of all per-rider expenses
+                // Total expenses = sum of all per-rider expenses + sum of all per-staff expenses
                 totalExpenses() {
-                    return this.riders.reduce((sum, r) =>
-                        sum + this.riderExpensesTotal(r.id), 0);
+                    const riderExp = this.riders.reduce((sum, r) => sum + this.riderExpensesTotal(r.id), 0);
+                    const staffExp = this.staffs.reduce((sum, s) => sum + this.staffExpensesTotal(s.id), 0);
+                    return riderExp + staffExp;
                 },
                 // Net Remittance = sum(rider remitted) + misc sales - salary - net commission
                 netRemittance() {
@@ -2611,6 +2716,10 @@
                             deductions: (s.deductions || []).map(d => ({
                                 description: d.description || '',
                                 amount: d.amount || '',
+                            })),
+                            expenses: (s.expenses || []).map(e => ({
+                                description: e.description || '',
+                                amount: e.amount || '',
                             })),
                         };
                     }
@@ -2688,6 +2797,12 @@
                                 s.deductions = cached.deductions.map(d => ({
                                     description: d.description || '',
                                     amount: d.amount || '',
+                                }));
+                            }
+                            if (Array.isArray(cached.expenses)) {
+                                s.expenses = cached.expenses.map(e => ({
+                                    description: e.description || '',
+                                    amount: e.amount || '',
                                 }));
                             }
                         }

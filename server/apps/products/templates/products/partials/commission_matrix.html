@@ -42,35 +42,77 @@ Expects context:
         </div>
     </div>
 
-    <!-- Per-Product Global Action Bar — half width, right-aligned -->
-    <div class="flex justify-end">
-        <div class="w-full md:w-1/2 bg-secondary-container p-4 rounded-xl flex flex-col sm:flex-row sm:items-center gap-3">
-            <div class="flex items-center gap-2 flex-shrink-0">
-                <span class="material-symbols-outlined text-on-secondary-container">tune</span>
-                <span class="font-label-caps text-label-caps text-on-secondary-container uppercase">Bulk Set:</span>
+    <!-- Table Controls Header: Driver Search & Bulk Set Controls -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <!-- Left: Search drivers -->
+        <div class="relative w-full sm:w-72">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-[18px]">search</span>
+            <input
+                type="text"
+                x-model="driverSearch"
+                @input="currentPage = 1"
+                placeholder="Search drivers..."
+                class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-9 pr-8 py-2 text-sm font-body-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-outline-variant"
+                aria-label="Search drivers by name or code"
+            >
+            <button
+                type="button"
+                x-show="driverSearch"
+                x-cloak
+                @click="driverSearch = ''; currentPage = 1"
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline-variant hover:text-on-surface transition-colors"
+                title="Clear search"
+            >
+                <span class="material-symbols-outlined text-[16px]">close</span>
+            </button>
+        </div>
+
+        <!-- Right: Bulk Set Controls Group -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3 bg-surface-container-low/60 border border-outline-variant/30 px-3.5 py-1.5 rounded-xl">
+            <div class="flex items-center gap-1.5 text-on-surface-variant shrink-0">
+                <span class="material-symbols-outlined text-[18px] text-outline-variant">tune</span>
+                <span class="text-xs font-bold uppercase tracking-wider font-label-caps text-on-surface-variant">Bulk Set:</span>
             </div>
-            <!-- Product selector -->
-            <select x-model="bulkProduct"
-                    class="flex-1 min-w-0 h-9 px-3 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface font-body-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
-                <option value="">Select a product…</option>
-                <template x-for="col in productColumns" :key="col.id">
-                    <option :value="col.id" x-text="col.label"></option>
-                </template>
-            </select>
-            <!-- Rate input -->
-            <div class="flex items-center gap-2 flex-shrink-0">
-                <div class="relative">
-                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant font-data-mono">₱</span>
-                    <input type="number" step="0.01" min="0" placeholder="0.00" x-model="bulkRate"
-                           class="w-28 h-9 pl-6 pr-2 rounded-lg border border-outline-variant text-sm font-data-mono bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
-                </div>
-                <button @click="applyBulkToProduct()"
-                        :disabled="!bulkProduct || bulkRate === ''"
-                        class="bg-primary text-on-primary px-3 h-9 rounded-lg text-xs font-bold uppercase hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap">
-                    <span class="material-symbols-outlined text-[16px]">done_all</span>
-                    Apply to All
-                </button>
+
+            <!-- Product selector with custom chevron -->
+            <div class="relative min-w-[160px] sm:min-w-[180px] flex-1 sm:flex-initial">
+                <select
+                    x-model="bulkProduct"
+                    aria-label="Select product for bulk rate"
+                    class="w-full appearance-none bg-surface-container-lowest border border-outline-variant rounded-lg pl-3 pr-8 py-1.5 text-sm font-body-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all cursor-pointer"
+                >
+                    <option value="">Select a product…</option>
+                    <template x-for="col in productColumns" :key="col.id">
+                        <option :value="col.id" x-text="col.label"></option>
+                    </template>
+                </select>
+                <span class="material-symbols-outlined text-[16px] text-outline-variant pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">expand_more</span>
             </div>
+
+            <!-- Rate input with currency prefix -->
+            <div class="relative w-28 shrink-0">
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant font-data-mono">₱</span>
+                <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    x-model="bulkRate"
+                    aria-label="Bulk commission rate"
+                    class="w-full pl-6 pr-2.5 py-1.5 rounded-lg border border-outline-variant text-sm font-data-mono bg-surface-container-lowest text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                >
+            </div>
+
+            <!-- Apply button -->
+            <button
+                type="button"
+                @click="applyBulkToProduct()"
+                :disabled="!bulkProduct || bulkRate === ''"
+                class="bg-primary text-on-primary px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 whitespace-nowrap shadow-sm shrink-0"
+            >
+                <span class="material-symbols-outlined text-[16px]">done_all</span>
+                Apply to All
+            </button>
         </div>
     </div>
 
@@ -136,6 +178,14 @@ Expects context:
                                 </td>
                             </tr>
                         </template>
+                        <template x-if="riders.length > 0 && filteredRiders.length === 0">
+                            <tr>
+                                <td :colspan="productColumns.length + 1" class="py-12 px-6 text-center text-on-surface-variant font-body-sm">
+                                    <span class="material-symbols-outlined text-3xl text-outline-variant block mb-2">search_off</span>
+                                    No drivers matching "<span class="font-semibold text-on-surface" x-text="driverSearch"></span>".
+                                </td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
@@ -155,7 +205,10 @@ Expects context:
             <p class="font-body-sm text-body-sm text-on-surface-variant">
                 Showing
                 <span class="font-data-mono text-on-surface" x-text="showingStart()"></span>–<span class="font-data-mono text-on-surface" x-text="showingEnd()"></span>
-                of <span class="font-data-mono text-on-surface" x-text="totalCount"></span> drivers
+                of <span class="font-data-mono text-on-surface" x-text="filteredRiders.length"></span> drivers
+                <span x-show="driverSearch" x-cloak class="text-xs text-on-surface-variant/70">
+                    (filtered from <span class="font-data-mono" x-text="totalCount"></span>)
+                </span>
             </p>
             <div class="flex items-center gap-2">
                 <button @click="prevPage()" :disabled="currentPage === 1"
@@ -302,6 +355,8 @@ function commissionMatrix(cfg) {
         verifyPinUrl: cfg.verifyPinUrl,
         csrfToken: cfg.csrfToken,
         currentPage: 1,
+        // Search query for driver rows
+        driverSearch: '',
         // Per-product bulk action
         bulkProduct: '',
         bulkRate: '',
@@ -321,13 +376,22 @@ function commissionMatrix(cfg) {
         // Pending action: 'save' | { bulk: { productId, rate } }
         pendingAction: null,
 
-        // --- Pagination ---
+        // --- Filtering & Pagination ---
+        get filteredRiders() {
+            if (!this.driverSearch || !this.driverSearch.trim()) return this.riders;
+            const q = this.driverSearch.toLowerCase().trim();
+            return this.riders.filter(r =>
+                (r.name && r.name.toLowerCase().includes(q)) ||
+                (r.driver_code && r.driver_code.toLowerCase().includes(q))
+            );
+        },
         get paginatedRiders() {
+            const list = this.filteredRiders;
             const start = (this.currentPage - 1) * this.pageSize;
-            return this.riders.slice(start, start + this.pageSize);
+            return list.slice(start, start + this.pageSize);
         },
         totalPages() {
-            return Math.max(1, Math.ceil(this.totalCount / this.pageSize));
+            return Math.max(1, Math.ceil(this.filteredRiders.length / this.pageSize));
         },
         nextPage() {
             if (this.currentPage < this.totalPages()) this.currentPage++;
@@ -339,10 +403,11 @@ function commissionMatrix(cfg) {
             this.currentPage = p;
         },
         showingStart() {
-            return Math.min((this.currentPage - 1) * this.pageSize + 1, this.totalCount);
+            if (this.filteredRiders.length === 0) return 0;
+            return Math.min((this.currentPage - 1) * this.pageSize + 1, this.filteredRiders.length);
         },
         showingEnd() {
-            return Math.min(this.currentPage * this.pageSize, this.totalCount);
+            return Math.min(this.currentPage * this.pageSize, this.filteredRiders.length);
         },
 
         // --- Snapshot original rates on init for discard restore ---

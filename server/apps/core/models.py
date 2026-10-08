@@ -27,7 +27,7 @@ class Product(models.Model):
         null=True,
         blank=True,
         related_name='products',
-        db_index=True,
+        db_index=False,
     )
     deactivated_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -99,7 +99,7 @@ class SystemConfig(models.Model):
         null=True,
         blank=True,
         related_name='system_configs',
-        db_index=True,
+        db_index=False,
     )
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)

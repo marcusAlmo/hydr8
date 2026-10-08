@@ -12,87 +12,169 @@
     <!-- Header with back button and remittance info -->
     {% include "remittance/partials/remittance_detail_header.html" %}
     
-    <!-- Summary KPI Cards (Revenue, Deductions, Summary, Obligations) -->
-    <section class="px-margin-page py-6 border-b border-outline-variant/10">
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
-            <!-- Revenue Card -->
-            <div class="md:col-span-6 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-primary">
-                <p class="font-label-caps text-label-caps text-primary uppercase mb-3">Revenue</p>
-                <div class="space-y-2">
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Total Cash Sales</span>
-                        <span class="font-data-mono text-[18px] font-bold text-primary">{{ remittance.total_sales }}</span>
+    <!-- Scrollable Canvas: Details cards, audit strip, and tab content scroll together -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <!-- Summary KPI Cards (Revenue, Deductions, Summary, Obligations) -->
+        <section class="px-margin-page py-6 border-b border-outline-variant/10">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
+                <!-- Revenue Card -->
+                <div class="md:col-span-6 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-primary">
+                    <p class="font-label-caps text-label-caps text-primary uppercase mb-3">Revenue</p>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-on-surface-variant text-body-sm">Total Cash Sales</span>
+                            <span class="font-data-mono text-[18px] font-bold text-primary">{{ remittance.total_sales }}</span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-on-surface-variant text-body-sm">Total Repayments</span>
+                            <span class="font-data-mono text-[18px] font-bold text-tertiary">{{ remittance.total_repayments_received }}</span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-on-surface-variant text-body-sm">Drivers Remittance</span>
+                            <span class="font-data-mono text-[18px] font-bold text-primary">{{ remittance.drivers_remittance }}</span>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Total Repayments</span>
-                        <span class="font-data-mono text-[18px] font-bold text-tertiary">{{ remittance.total_repayments_received }}</span>
+                </div>
+                
+                <!-- Deductions Card -->
+                <div class="md:col-span-3 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-error">
+                    <p class="font-label-caps text-label-caps text-error uppercase mb-3">Deductions</p>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-on-surface-variant text-body-sm">Total Credits</span>
+                            <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_credit_sales }}</span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-on-surface-variant text-body-sm">Total Expenses</span>
+                                {% if remittance.expenses_breakdown.general_count > 0 %}
+                                <button type="button" @click="showGeneralExpensesModal = true" class="text-error/70 hover:text-error transition-colors text-[14px] cursor-pointer" title="View Station Items">
+                                    <span class="material-symbols-outlined text-[15px] align-middle">info</span>
+                                </button>
+                                {% endif %}
+                            </div>
+                            <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_expenses }}</span>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Drivers Remittance</span>
-                        <span class="font-data-mono text-[18px] font-bold text-primary">{{ remittance.drivers_remittance }}</span>
+                </div>
+                
+                <!-- Summary Card -->
+                <div class="md:col-span-3 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-tertiary">
+                    <p class="font-label-caps text-label-caps text-tertiary uppercase mb-3">Summary</p>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-on-surface-variant text-body-sm">Net Remittance</span>
+                            <span class="font-data-mono text-[16px] font-bold text-tertiary">{{ remittance.net_remittance }}</span>
+                        </div>
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-on-surface-variant text-body-sm">Status</span>
+                            <span class="px-2 py-0.5 rounded-full {% if remittance.is_draft %}bg-[#FFBF00]/15 text-[#B45309]{% else %}bg-tertiary/15 text-tertiary{% endif %} text-[12px] font-bold uppercase">
+                                {{ remittance.status }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Deductions Card -->
-            <div class="md:col-span-3 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-error">
-                <p class="font-label-caps text-label-caps text-error uppercase mb-3">Deductions</p>
-                <div class="space-y-2">
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Total Credits</span>
-                        <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_credit_sales }}</span>
+        </section>
+
+        <!-- Audit Expense Reconciliation Strip -->
+        {% if remittance.total_expenses != "₱0.00" %}
+        <section class="px-margin-page pb-1 pt-3">
+            <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/30 px-4 py-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-error text-[18px]">receipt_long</span>
+                    <span class="font-label-caps text-[11px] text-on-surface-variant uppercase font-medium">Expenses Audit Breakdown:</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 md:gap-3 text-body-sm">
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+                        <span class="material-symbols-outlined text-[14px] text-primary">electric_rickshaw</span>
+                        <span class="text-on-surface-variant text-[12px]">Riders:</span>
+                        <span class="font-data-mono text-[12px] font-bold text-primary">{{ remittance.expenses_breakdown.rider_total }}</span>
                     </div>
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Total Expenses</span>
-                        <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_expenses }}</span>
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+                        <span class="material-symbols-outlined text-[14px] text-secondary">work</span>
+                        <span class="text-on-surface-variant text-[12px]">Staff:</span>
+                        <span class="font-data-mono text-[12px] font-bold text-secondary">{{ remittance.expenses_breakdown.staff_total }}</span>
                     </div>
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+                        <span class="material-symbols-outlined text-[14px] text-tertiary">storefront</span>
+                        <span class="text-on-surface-variant text-[12px]">Station (General):</span>
+                        <span class="font-data-mono text-[12px] font-bold text-tertiary">{{ remittance.expenses_breakdown.general_total }}</span>
+                    </div>
+                    {% if remittance.expenses_breakdown.general_count > 0 %}
+                    <button type="button" @click="showGeneralExpensesModal = true"
+                            class="text-[12px] text-primary hover:underline font-medium cursor-pointer inline-flex items-center gap-1 ml-auto md:ml-0">
+                        <span>View Station Items ({{ remittance.expenses_breakdown.general_count }})</span>
+                        <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+                    </button>
+                    {% endif %}
                 </div>
             </div>
-            
-            <!-- Summary Card -->
-            <div class="md:col-span-3 rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm p-4 border-t-2 border-t-tertiary">
-                <p class="font-label-caps text-label-caps text-tertiary uppercase mb-3">Summary</p>
-                <div class="space-y-2">
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Net Remittance</span>
-                        <span class="font-data-mono text-[16px] font-bold text-tertiary">{{ remittance.net_remittance }}</span>
-                    </div>
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Status</span>
-                        <span class="px-2 py-0.5 rounded-full {% if remittance.is_draft %}bg-[#FFBF00]/15 text-[#B45309]{% else %}bg-tertiary/15 text-tertiary{% endif %} text-[12px] font-bold uppercase">
-                            {{ remittance.status }}
-                        </span>
-                    </div>
+        </section>
+        {% endif %}
+        
+        <!-- Tab Navigation -->
+        {% include "remittance/partials/tab_nav.html" %}
+        
+        <!-- Tab Content Panes -->
+        <div class="px-margin-page py-6 pb-12">
+            <!-- Tab 1: Riders (Default) -->
+            <div x-show="activeTab === 'riders'" class="space-y-6">
+                {% include "remittance/partials/detail_riders_tab.html" %}
+            </div>
+
+            <!-- Tab 2: Staff -->
+            <div x-show="activeTab === 'staff'" x-cloak class="space-y-6">
+                {% include "remittance/partials/detail_staff_tab.html" %}
+            </div>
+
+            <!-- Tab 3: All Repayments -->
+            <div x-show="activeTab === 'repayments'" x-cloak id="tab-repayments-content" class="space-y-4">
+                {% include "remittance/partials/credit_repayments_table.html" with page=1 page_size=5 %}
+            </div>
+
+            <!-- Tab 4: All Credits -->
+            <div x-show="activeTab === 'credits'" x-cloak id="tab-credits-content" class="space-y-4">
+                <div class="flex items-center justify-center py-12 text-on-surface-variant">
+                    <span class="material-symbols-outlined text-2xl animate-spin mr-2">progress_activity</span>
+                    <span>Loading credits...</span>
                 </div>
             </div>
         </div>
-    </section>
-    
-    <!-- Tab Navigation -->
-    {% include "remittance/partials/tab_nav.html" %}
-    
-    <!-- Tab Content Panes -->
-    <div class="flex-1 overflow-y-auto px-margin-page py-6">
-        <!-- Tab 1: Riders (Default) -->
-        <div x-show="activeTab === 'riders'" class="space-y-6">
-            {% include "remittance/partials/detail_riders_tab.html" %}
-        </div>
+    </div>
 
-        <!-- Tab 2: Staff -->
-        <div x-show="activeTab === 'staff'" x-cloak class="space-y-6">
-            {% include "remittance/partials/detail_staff_tab.html" %}
-        </div>
-
-        <!-- Tab 3: All Repayments -->
-        <div x-show="activeTab === 'repayments'" x-cloak id="tab-repayments-content" class="space-y-4">
-            {% include "remittance/partials/credit_repayments_table.html" with page=1 page_size=5 %}
-        </div>
-
-        <!-- Tab 4: All Credits -->
-        <div x-show="activeTab === 'credits'" x-cloak id="tab-credits-content" class="space-y-4">
-            <div class="flex items-center justify-center py-12 text-on-surface-variant">
-                <span class="material-symbols-outlined text-2xl animate-spin mr-2">progress_activity</span>
-                <span>Loading credits...</span>
+    <!-- General Station Expenses Modal -->
+    <div x-show="showGeneralExpensesModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+         @keydown.escape.window="showGeneralExpensesModal = false">
+        <div class="bg-surface-container-lowest rounded-2xl max-w-lg w-full p-6 border border-outline-variant/30 shadow-2xl space-y-4"
+             @click.outside="showGeneralExpensesModal = false">
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-tertiary text-[22px]">storefront</span>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">General Station Expenses</h3>
+                </div>
+                <button type="button" @click="showGeneralExpensesModal = false" class="text-on-surface-variant hover:text-on-surface cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+            <p class="text-body-sm text-on-surface-variant">Station-level operational expenses not attributed to a specific rider or staff member.</p>
+            <div class="max-h-60 overflow-y-auto divide-y divide-outline-variant/10">
+                {% for exp in remittance.general_expenses %}
+                <div class="py-2.5 flex items-center justify-between text-body-sm">
+                    <div>
+                        <p class="font-medium text-on-surface">{{ exp.description }}</p>
+                        <p class="text-[11px] text-on-surface-variant">Recorded by: {{ exp.recorded_by }}</p>
+                    </div>
+                    <span class="font-data-mono font-bold text-error">{{ exp.amount }}</span>
+                </div>
+                {% empty %}
+                <p class="py-4 text-center text-on-surface-variant italic text-body-sm">No general station expenses recorded.</p>
+                {% endfor %}
+            </div>
+            <div class="pt-3 border-t border-outline-variant/20 flex justify-between items-center">
+                <span class="font-label-caps text-label-caps text-on-surface-variant">Total Station Expenses:</span>
+                <span class="font-data-mono text-body-md font-bold text-error">{{ remittance.expenses_breakdown.general_total }}</span>
             </div>
         </div>
     </div>
@@ -106,6 +188,7 @@
 
         return {
             activeTab: initialTab,
+            showGeneralExpensesModal: false,
             riders: (seed && seed.riders) || [],
             staff: (seed && seed.staff) || [],
             selectedRiderId: (seed && seed.selectedRiderId) || (seed && seed.riders && seed.riders[0] ? seed.riders[0].id : null),

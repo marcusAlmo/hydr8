@@ -36,7 +36,7 @@ class Remittance(models.Model):
         null=True,
         blank=True,
         related_name='remittances',
-        db_index=True,
+        db_index=False,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -82,7 +82,7 @@ class RemittanceRider(models.Model):
         null=True,
         blank=True,
         related_name='remittance_riders',
-        db_index=True,
+        db_index=False,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -124,7 +124,7 @@ class RemittanceRiderProductLine(models.Model):
         null=True,
         blank=True,
         related_name='remittance_rider_product_lines',
-        db_index=True,
+        db_index=False,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -159,6 +159,14 @@ class Expense(models.Model):
         related_name='expenses',
         help_text='When set, this expense is attributed to a specific rider.',
     )
+    remittance_staff = models.ForeignKey(
+        'RemittanceStaff',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='expenses',
+        help_text='When set, this expense is attributed to a specific staff member.',
+    )
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     company = models.ForeignKey(
@@ -167,7 +175,7 @@ class Expense(models.Model):
         null=True,
         blank=True,
         related_name='expenses',
-        db_index=True,
+        db_index=False,
     )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -180,6 +188,7 @@ class Expense(models.Model):
         indexes = [
             models.Index(fields=['company', 'remittance']),
             models.Index(fields=['company', 'remittance_rider']),
+            models.Index(fields=['company', 'remittance_staff']),
         ]
 
     def __str__(self) -> str:
@@ -200,7 +209,7 @@ class RiderCredit(models.Model):
         null=True,
         blank=True,
         related_name='rider_credits',
-        db_index=True,
+        db_index=False,
     )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_rider_credits')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -233,7 +242,7 @@ class RiderCreditRepayment(models.Model):
         null=True,
         blank=True,
         related_name='rider_credit_repayments',
-        db_index=True,
+        db_index=False,
     )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='recorded_repayments')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -272,7 +281,7 @@ class RiderDeduction(models.Model):
         null=True,
         blank=True,
         related_name='rider_deductions',
-        db_index=True,
+        db_index=False,
     )
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -315,7 +324,7 @@ class RemittanceStaff(models.Model):
         null=True,
         blank=True,
         related_name='remittance_staff',
-        db_index=True,
+        db_index=False,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -365,7 +374,7 @@ class StaffDeduction(models.Model):
         null=True,
         blank=True,
         related_name='staff_deductions',
-        db_index=True,
+        db_index=False,
     )
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
