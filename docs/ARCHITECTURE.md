@@ -171,20 +171,36 @@ HTMX fragments are returned for swaps. Shared reusable components live in `serve
 
 ---
 
-## 9. Financial Data Integrity
+## 9. Financial Data Integrity & Remittance Auditing
 
 Hydr8 handles sales, commissions, credits, repayments, and tithes. These rules are non-negotiable:
 
-1. **Snapshot pattern** — Financial records snapshot mutable values (`unit_price_snapshot`, `commission_rate_snapshot`) at creation time.
-2. **Atomic updates** — Debt balances update with `F()` expressions to prevent race conditions.
-3. **PROTECT on financial FKs** — Prevent accidental cascading deletes.
-4. **Immutable after finalize** — Once a `Remittance` is `FINALIZED`, child records cannot be added, modified, or deleted.
-5. **PIN-protected operations** — Finalizing a remittance requires a verified PIN.
+1. **Snapshot pattern** — Financial records snapshot mutable values (`unit_price_snapshot`, `commission_rate_snapshot`) at creation time. Historical records never recompute from live product prices.
+2. **Atomic updates** — Customer debt balances and container inventories update strictly with PostgreSQL `F()` expressions (`debt_balance = F('debt_balance') - amount`) to prevent concurrency race conditions.
+3. **PROTECT on financial FKs** — Child records use `on_delete=models.PROTECT` to prevent accidental cascading deletes.
+4. **Immutable after finalize** — Once a `Remittance` reaches `FINALIZED` status, child records cannot be added, modified, or deleted. This is enforced by PostgreSQL triggers.
+5. **PIN-protected operations** — Finalizing a remittance requires administrative authorization via an Argon2/PBKDF2-hashed PIN with progressive lockout (5 failed attempts locks for 15 minutes).
+6. **Remittance 4-Tab Audit Breakdown**:
+   - **Tab 1: Riders** — Comprehensive per-driver audit detailing bottles sold, credited to customers, debt repayments recovered, gross payable, rider-specific expenses, deductions, net commissions, remitted cash, and balance shortfalls.
+   - **Tab 2: Staff** — Station employee payroll reconciliation displaying base daily rates, salary overrides, attendance, deductions, and net pay.
+   - **Tab 3: Repayments** — Granular customer debt collections with container quantities, amounts, payer, collector (`care_of`), and initial credit issue date.
+   - **Tab 4: Credits** — Customer credit extensions issued on the remittance operational date, tracking product, quantity, total credit amount, and real-time settlement status (`Repaid` vs `Pending`).
+7. **Storefront & Date-Based Credit Resolution**:
+   - Credit lines and repayments collected without a driver assignment (`care_of=None`, representing storefront counter collections) or by off-duty staff are resolved by operational date (`transaction_date` or `paid_at`) matching the remittance date.
+8. **Repayment Commission Attribution**:
+   - Active drivers earn delivery commission when customer debt is repaid for their delivery lines. Repayments collected by station staff or counter storefront do not accrue driver commission.
 
 ---
 
-## 10. Authorization
+## 10. Multi-Tenancy & Authorization
 
+### Multi-Tenant Scoping
+Hydr8 isolates tenant data using a shared database with discriminator columns:
+- All tenant-owned records have a `company` foreign key (`Company` model).
+- `apps.core.middleware.TenantMiddleware` resolves the authenticated user's company and binds it to `request.company`.
+- Selectors and services scope queries using `Model.objects.for_user(request.user)` or explicit `company_id` filters, guaranteeing absolute data isolation between stations.
+
+### Role-Based Access Control (RBAC)
 The `Role` model in `apps.users` is the single source of truth for authorization. Do not use `user.is_staff` or `user.is_superuser` for permission checks.
 
 Use the canonical helpers in `apps.users.permissions`:
@@ -196,12 +212,12 @@ if not is_back_office(request.user):
     return HttpResponse("Forbidden", status=403)
 ```
 
-| Helper | True for |
-|--------|---------|
-| `is_back_office` | Admin, Staff, or superuser |
-| `is_admin` | Admin or superuser |
+| Helper | True for | Use Cases |
+|---|---|---|
+| `is_back_office` | Admin, Staff, or superuser | Accessing counter POS, customer directory, product catalog |
+| `is_admin` | Admin or superuser | Company settings, user roles, final financial remittance settlement |
 
-Canonical roles are **Admin**, **Staff**, and **Driver**.
+Canonical roles are **Admin**, **Staff**, and **Driver**. Driver users do not have access to back-office endpoints.
 
 ---
 

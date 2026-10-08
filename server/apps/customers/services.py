@@ -288,6 +288,7 @@ def record_customer_debt(
         # backdated entry must not move it backwards — keep the greater of
         # the existing value and the new transaction date (start of day).
         tx_dt = timezone.make_aware(datetime.combine(tx_date, datetime.min.time()))
+        # Atomic balance increment using F() expression prevents concurrent write race conditions.
         Customer.objects.filter(pk=locked_customer.pk).update(
             debt_balance=F("debt_balance") + total,
             last_credit_at=Greatest(F("last_credit_at"), tx_dt),
@@ -618,6 +619,7 @@ def record_customer_collection(
         payments_recorded += qty_paid
 
     if total_collected > 0:
+        # Atomic balance reduction using F() expression prevents concurrent write race conditions.
         Customer.objects.filter(pk=customer.pk).update(
             debt_balance=F("debt_balance") - total_collected
         )

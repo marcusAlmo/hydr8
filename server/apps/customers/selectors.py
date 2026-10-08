@@ -704,8 +704,7 @@ def get_customer_table_context(
     if query:
         qs = qs.filter(name__ilike=query)
 
-    # Apply status/category chip filter — applied exactly once
-    # FIXME: was duplicated 3x in a previous version; keep this single block.
+    # Apply status/category chip filter
     active_filter = (active_filter or "all").lower()
     if active_filter == "has_debt":
         qs = qs.filter(debt_balance__gt=0)

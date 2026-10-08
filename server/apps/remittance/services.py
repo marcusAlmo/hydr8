@@ -523,12 +523,10 @@ def _build_remittance(
             total_borrowed_items += borrowed
             gross_sales += line_gross
 
-        # Repayment commission is already included in line_commission above
-        # because the form populates line.repaid from _credit_and_repaid_counts,
-        # and paid = sold - credited + repaid (line 431), so repaid units
-        # earn commission via line_commission = paid x rate (line 443).
-        # The separate repayment commission loop (lines 552-587 below) handles
-        # riders NOT in the payload who have repayments but no product lines.
+        # Repayment commission is accounted for within line_commission because
+        # paid units formula is (sold - credited + repaid), ensuring repaid units
+        # accrue commission at the product line rate. Unlisted riders with active
+        # repayments are handled in the subsequent non-payload rider pass below.
 
         # Apply a rider-level commission override if provided.
         override = rider_payload.get("commission_override")
@@ -595,52 +593,42 @@ def _build_remittance(
             )
             rider_deductions_total += ded_amount
 
-        # Compute balance deduction (lacking amount) to match the
-        # frontend's riderBalanceDeduction().  When a rider remits
-        # less than their net remittable (payable - expenses), the
-        # shortfall reduces their commission.
+        # Compute balance deduction (shortfall) to enforce commission reconciliation.
+        # When a rider remits less than their net payable amount (payable minus expenses),
+        # the unremitted balance reduces payable commission.
         rider_remitted = remittance_rider.remitted or Decimal("0.00")
         net_remittable = rider_payable - rider_expenses_total
         balance = net_remittable - rider_remitted
         balance_deduction = max(Decimal("0.00"), balance)
 
-        # total_commission tracks the NET commission (gross minus
-        # balance deduction and rider deductions) to match the
-        # frontend's totalCommission() which sums:
-        #   riderNetCommission = riderCommission
-        #                        - riderBalanceDeduction
-        #                        - riderDeductions
+        # Total commission accumulates net commission (gross minus balance shortfall
+        # and rider deductions):
         net_commission = max(
             Decimal("0.00"),
             rider_commission - balance_deduction - rider_deductions_total,
         )
         total_commission += net_commission
 
-    # Link ALL CreditPayments to this remittance and accumulate total
-    # repayments.  Payments attributed to active riders (via care_of)
-    # earn commission; payments attributed to staff or with no care_of
-    # are still linked and counted in total_repayments but earn no
-    # commission.  Rider-attributed payments for riders not in the
-    # payload get a lightweight RemittanceRider row.
+    # Link all eligible CreditPayment records to this remittance. Payments attributed
+    # to active drivers (care_of) accrue commission; payments collected by station
+    # staff or storefront do not accrue driver commission.
     for care_of_id, entries in repayments_by_care_of.items():
-        # Link the payments regardless of who care_of is.
+        # Link payments regardless of collector attribution
         payment_ids = [cp.id for cp, _p, _r in entries]
         CreditPayment.objects.filter(id__in=payment_ids).update(remittance=remittance)
         for cp, _p, _r in entries:
             total_repayments += cp.amount
 
-        # Only active drivers earn repayment commission.  Skip staff/None.
+        # Only active drivers earn repayment commission
         if care_of_id not in rider_id_set:
             continue
 
         rr = rider_rows.get(care_of_id)
         if rr is None:
-            # Rider not in the payload — create a lightweight row to hold
-            # their repayment commission.  These rows have no deductions
-            # (the operator didn't enter any for a rider they didn't
-            # include), so the gross commission is added directly to
-            # total_commission without the max(0, ...) deduction guard
-            # used for payload riders above.
+            # Driver has attributed repayments but was not included in payload.
+            # Instantiate a lightweight RemittanceRider record to preserve commission
+            # attribution. Because no operator deductions apply to unlisted riders,
+            # gross repayment commission contributes directly to total_commission.
             rider = next((r for r in active_rider_list if r.id == care_of_id), None)
             if rider is None:
                 continue
@@ -754,15 +742,12 @@ def _build_remittance(
         total_salary_dec += effective_salary
 
     # Net Remittance = total cash remitted by riders + misc sales
-    #                  - net commissions - total salary
-    # Net Remittance IS Net Profit — commissions and salary are already
-    # deducted because the staff has given the salary away and then remits
-    # the remaining cash.
-    # Tithes = net_profit * tithe_rate  (computed FROM net profit)
-    #
-    # Tithes are floored at zero — when the business operates at a loss
-    # (negative net profit) no tithe is owed, so we must not record a
-    # negative tithe_amount.
+    #                  - net commissions - total staff salary.
+    # Represents the net cash balance for the operational period.
+    # Tithe calculation:
+    # Tithes = max(0, net_profit) * tithe_rate_snapshot.
+    # Contributions are strictly non-negative; when net revenue is zero or negative
+    # (operating at a deficit), tithe liability resolves to 0.00.
     net_remittance = total_remitted + other_sales_dec - total_commission - total_salary_dec
     net_profit = net_remittance
     tithe_amount = max(Decimal("0.00"), net_profit) * remittance.tithe_rate_snapshot

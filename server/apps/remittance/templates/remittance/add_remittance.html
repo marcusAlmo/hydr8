@@ -1836,14 +1836,10 @@
                 empPage: 1,
                 empPageSize: 5,
 
-                // ---- staff salary (UI prototype — mock data) ----
-                // TODO: Replace with real data from the employees/users
-                // directory (active Staff role users with daily_rate).
-                // Each staff has: id, name, role_label, base_rate (daily
-                // rate from the User model), salary_override (editable —
-                // empty string means "use base_rate"), and deductions
-                // (array of {description, amount}).
-                // Hydrated from the backend seed (active staff with daily_rate).
+                // ---- staff compensation panel ----
+                // Hydrated from backend seed data (active Staff users with daily_rate).
+                // Attributes: id, name, role_label, base_rate (User.daily_rate),
+                // salary_override (empty string defaults to base_rate), and deductions.
                 staffs: (seed.staff || []).map(s => ({
                     id: s.id,
                     name: s.name,

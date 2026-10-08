@@ -1336,7 +1336,13 @@ def get_remittance_detail(
     remittance_id: int,
     remittance: Remittance | None = None,
 ) -> dict | None:
-    """Returns a single remittance with summary data and full rider & employee audit breakdown."""
+    """Compiles comprehensive audit details for a specific remittance.
+
+    Aggregates summary totals, driver delivery product lines, staff compensations,
+    rider/staff credit extensions, and debt repayment collections. Supports
+    date-based operational attribution for credit lines and repayments collected
+    on the remittance date while preserving multi-tenant isolation.
+    """
     if remittance is None:
         try:
             remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
@@ -1374,7 +1380,7 @@ def get_remittance_detail(
         .select_related("credit_line__customer", "credit_line__product", "credit_line__care_of")
         .order_by("-paid_at", "-created_at")
     )
-    repayments_by_care_of: dict[any, list[dict]] = {}
+    repayments_by_care_of: dict[int | None, list[dict]] = {}
     for payment in payments_list:
         care_of_id = payment.credit_line.care_of_id
         paid_date = payment.paid_at or (
@@ -1417,7 +1423,7 @@ def get_remittance_detail(
         .order_by("-transaction_date", "-created_at")
     )
 
-    credits_by_care_of: dict[any, list[dict]] = {}
+    credits_by_care_of: dict[int | None, list[dict]] = {}
     for credit in credit_lines_list:
         care_of_id = credit.care_of_id
         is_repaid = credit.total_paid >= credit.total_credit_amount
@@ -1458,7 +1464,7 @@ def get_remittance_detail(
         .order_by("remittance_rider__rider__first_name", "product__name", "product__variation")
     )
 
-    lines_by_rider: dict[any, list[dict]] = {}
+    lines_by_rider: dict[int | None, list[dict]] = {}
     for line in lines:
         rider_id = line.remittance_rider.rider_id
         product = line.product
@@ -1659,7 +1665,13 @@ def get_credit_repayments_for_remittance(
     page_size: int = 5,
     remittance: Remittance | None = None,
 ) -> dict:
-    """Returns paginated customer credit repayments for a remittance."""
+    """Returns paginated customer credit repayments attributed to a remittance.
+
+    Queries repayments explicitly linked via foreign key linkage as well as
+    unlinked payments collected on the remittance operational date within the
+    same tenant company. Formats individual payment records with product, payer,
+    collector (care of), and initial credit issuance date.
+    """
     if remittance is None:
         try:
             remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
@@ -1742,7 +1754,12 @@ def get_credits_recorded_for_remittance(
     page_size: int = 5,
     remittance: Remittance | None = None,
 ) -> dict:
-    """Returns paginated customer credit lines recorded for a remittance."""
+    """Returns paginated customer credit lines recorded for a remittance.
+
+    Includes credit lines explicitly linked to the remittance or extended on the
+    remittance operational date within the tenant organization. Annotates
+    cumulative repayment collections to derive settlement status (Repaid vs Pending).
+    """
     if remittance is None:
         try:
             remittance = Remittance.objects.for_user(user).get(pk=remittance_id)
