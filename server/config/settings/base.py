@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     # Third-party apps
     'django_htmx',
     'auditlog',
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'apps.core.middleware.CorrelationIdMiddleware',
+    'apps.core.middleware.ProcessPerformanceMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -65,6 +67,11 @@ MIDDLEWARE = [
 # browser requests (which don't send the header). CorrelationIdMiddleware
 # runs before AuditlogMiddleware, so the contextvar is always set first.
 AUDITLOG_CID_GETTER = 'apps.core.middleware.get_correlation_id'
+
+AUTHENTICATION_BACKENDS = [
+    'apps.users.backends.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 ROOT_URLCONF = 'config.urls'
 
@@ -109,6 +116,10 @@ CACHES = {
 # Login is the most abuse-prone endpoint; other endpoints use these as a baseline.
 RATELIMIT_ENABLE = env.bool('RATELIMIT_ENABLE', default=True)
 RATELIMIT_USE_CACHE = 'default'
+
+# Performance Monitoring
+# Requests with execution duration exceeding this threshold (in milliseconds) log as WARNING
+PERFORMANCE_SLOW_THRESHOLD_MS = env.float('PERFORMANCE_SLOW_THRESHOLD_MS', default=500.0)
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

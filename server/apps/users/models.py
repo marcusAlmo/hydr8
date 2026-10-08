@@ -3,8 +3,9 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.hashers import check_password, make_password
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+from django.db.models.functions import Lower
 from django.utils import timezone
 
 from apps.core.managers import TenantManager, TenantQuerySet
@@ -36,7 +37,7 @@ class Role(models.Model):
         null=True,
         blank=True,
         related_name='roles',
-        db_index=True,
+        db_index=False,
         help_text='NULL = platform-default role template shared across tenants.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -89,6 +90,17 @@ class Permission(models.Model):
         return f"{self.role.name} - {self.action}"
 
 
+class UserQuerySet(TenantQuerySet):
+    def active(self):
+        """Returns non-deleted, active users."""
+        return self.filter(deleted_at__isnull=True, is_active=True)
+
+
+class TenantUserManager(UserManager.from_queryset(UserQuerySet)):
+    """User manager combining standard Django UserManager auth methods with TenantQuerySet scoping."""
+    pass
+
+
 class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     pin = models.CharField(max_length=128, null=True, blank=True)
@@ -99,9 +111,10 @@ class User(AbstractUser):
         null=True,
         blank=True,
         related_name='users',
-        db_index=True,
+        db_index=False,
         help_text='NULL = platform superuser (sees all tenants).',
     )
+    objects = TenantUserManager()
     daily_rate = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -142,6 +155,8 @@ class User(AbstractUser):
                 name='idx_user_company_active',
                 condition=models.Q(deleted_at__isnull=True),
             ),
+            models.Index(Lower('username'), name='idx_user_lower_username'),
+            models.Index(Lower('email'), name='idx_user_lower_email'),
         ]
 
     def set_password(self, raw_password: str) -> None:
@@ -214,7 +229,7 @@ class DriverCommission(models.Model):
         null=True,
         blank=True,
         related_name='driver_commissions',
-        db_index=True,
+        db_index=False,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

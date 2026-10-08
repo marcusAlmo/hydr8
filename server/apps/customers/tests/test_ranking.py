@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.models import Product
 from apps.customers.models import (
@@ -171,6 +172,147 @@ class RankingSelectorTests(TestCase):
 
         with self.assertNumQueries(1):
             _ = get_prompt_returners(self.user, limit=None)
+
+    def test_top_payers_computes_on_time_ratio_and_avg_days(self):
+        """On-time ratio and average payment days are computed from payment history."""
+        # Setup customer with 2 payments: 1 on-time (2 days), 1 late (10 days)
+        customer = Customer.objects.create(name="Mixed Payer")
+        line1 = CreditLine.objects.create(
+            customer=customer,
+            product=self.product,
+            qty_credited=1,
+            qty_remaining=0,
+            unit_price_snapshot=Decimal("40.00"),
+            total_credit_amount=Decimal("40.00"),
+            transaction_date=date.today() - timedelta(days=20),
+        )
+        line2 = CreditLine.objects.create(
+            customer=customer,
+            product=self.product,
+            qty_credited=1,
+            qty_remaining=0,
+            unit_price_snapshot=Decimal("40.00"),
+            total_credit_amount=Decimal("40.00"),
+            transaction_date=date.today() - timedelta(days=10),
+        )
+        # Payment 1: 10 days turnaround (late)
+        CreditPayment.objects.create(
+            credit_line=line1,
+            amount=Decimal("40.00"),
+            containers_paid=1,
+            paid_at=date.today() - timedelta(days=10),
+            recorded_by=self.user,
+        )
+        # Payment 2: 2 days turnaround (on-time)
+        CreditPayment.objects.create(
+            credit_line=line2,
+            amount=Decimal("40.00"),
+            containers_paid=1,
+            paid_at=date.today() - timedelta(days=8),
+            recorded_by=self.user,
+        )
+
+        payers = {p["name"]: p for p in get_top_payers(self.user, limit=None)}
+        mixed = payers["Mixed Payer"]
+        # 1 on-time out of 2 = 50%
+        self.assertEqual(mixed["on_time_ratio"], "50%")
+        # (10 + 2) / 2 = 6 days average
+        self.assertEqual(mixed["avg_payment_days"], 6)
+        self.assertEqual(mixed["payment_count"], 2)
+        self.assertEqual(mixed["tier"], "Bronze")
+
+    def test_top_payers_tier_qualification_gold_and_silver(self):
+        """Customers with consistent fast payments qualify for Gold or Silver tiers."""
+        gold_cust = Customer.objects.create(name="Gold Customer")
+        # 3 payments, all settled within 2 days -> Gold
+        for i in range(3):
+            line = CreditLine.objects.create(
+                customer=gold_cust,
+                product=self.product,
+                qty_credited=1,
+                qty_remaining=0,
+                unit_price_snapshot=Decimal("40.00"),
+                total_credit_amount=Decimal("40.00"),
+                transaction_date=date.today() - timedelta(days=10 - i * 2),
+            )
+            CreditPayment.objects.create(
+                credit_line=line,
+                amount=Decimal("40.00"),
+                containers_paid=1,
+                paid_at=date.today() - timedelta(days=9 - i * 2),  # 1 day latency
+                recorded_by=self.user,
+            )
+
+        silver_cust = Customer.objects.create(name="Silver Customer")
+        # 2 payments, settled within 5 days -> Silver
+        for i in range(2):
+            line = CreditLine.objects.create(
+                customer=silver_cust,
+                product=self.product,
+                qty_credited=1,
+                qty_remaining=0,
+                unit_price_snapshot=Decimal("40.00"),
+                total_credit_amount=Decimal("40.00"),
+                transaction_date=date.today() - timedelta(days=10 - i * 5),
+            )
+            CreditPayment.objects.create(
+                credit_line=line,
+                amount=Decimal("40.00"),
+                containers_paid=1,
+                paid_at=date.today() - timedelta(days=5 - i * 5),  # 5 days latency
+                recorded_by=self.user,
+            )
+
+        payers = {p["name"]: p for p in get_top_payers(self.user, limit=None)}
+        self.assertEqual(payers["Gold Customer"]["tier"], "Gold")
+        self.assertEqual(payers["Gold Customer"]["on_time_ratio"], "100%")
+        self.assertEqual(payers["Gold Customer"]["avg_payment_days"], 1)
+
+        self.assertEqual(payers["Silver Customer"]["tier"], "Silver")
+        self.assertEqual(payers["Silver Customer"]["on_time_ratio"], "100%")
+        self.assertEqual(payers["Silver Customer"]["avg_payment_days"], 5)
+
+    def test_top_payers_active_debt_disqualifies_higher_tiers(self):
+        """Active overdue debt caps customer tier at Standard even with high on-time ratio."""
+        debtor = Customer.objects.create(
+            name="Delinquent Customer",
+            debt_balance=Decimal("500.00"),
+            last_credit_at=timezone.now() - timedelta(days=15),  # 15 days ago > 7 days threshold
+        )
+        # Has 3 past on-time payments
+        for i in range(3):
+            line = CreditLine.objects.create(
+                customer=debtor,
+                product=self.product,
+                qty_credited=1,
+                qty_remaining=0,
+                unit_price_snapshot=Decimal("40.00"),
+                total_credit_amount=Decimal("40.00"),
+                transaction_date=date.today() - timedelta(days=30 + i),
+            )
+            CreditPayment.objects.create(
+                credit_line=line,
+                amount=Decimal("40.00"),
+                containers_paid=1,
+                paid_at=date.today() - timedelta(days=29 + i),  # 1 day latency
+                recorded_by=self.user,
+            )
+
+        payers = {p["name"]: p for p in get_top_payers(self.user, limit=None)}
+        self.assertEqual(payers["Delinquent Customer"]["on_time_ratio"], "100%")
+        # Overdue debt downgrades them to Standard
+        self.assertEqual(payers["Delinquent Customer"]["tier"], "Standard")
+
+    def test_ranking_context_includes_station_turnaround(self):
+        """The ranking context computes station-wide turnaround days for the summary card."""
+        from apps.customers.selectors import _ranking_context
+
+        ctx = _ranking_context(self.user)
+        stat = next(s for s in ctx["ranking_stats"] if s["key"] == "avg_pay_time")
+        # In setUp, big_payer and small_payer both paid in 0 days (same-day)
+        self.assertEqual(stat["raw_value"], 0)
+        self.assertEqual(stat["value"], "0d")
+
 
 
 class RankingViewTests(TestCase):

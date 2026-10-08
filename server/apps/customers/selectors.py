@@ -488,35 +488,134 @@ def get_top_payer_count(user: UserType) -> int:
     )
 
 
-def get_top_payers(user: UserType, limit: int | None = 5) -> list[dict]:
-    """Returns the top-paying customers, optionally limited to the first N."""
-    qs = (
-        Customer.objects.for_user(user)
-        .filter(deleted_at__isnull=True, credit_lines__payments__isnull=False)
-        .annotate(
-            total_paid=Sum("credit_lines__payments__amount"),
-            payment_count=Count("credit_lines__payments", distinct=True),
+def _calculate_payer_tier(
+    *,
+    on_time_ratio: int,
+    avg_payment_days: int,
+    payment_count: int,
+    is_overdue: bool,
+    is_active: bool,
+) -> tuple[str, str]:
+    """Returns (tier_label, tier_class) for a customer based on payment history and ledger health.
+
+    Tiers:
+      Gold:     on_time_ratio >= 90%, avg_payment_days <= 4, >= 3 payments, active, no overdue debt
+      Silver:   on_time_ratio >= 75%, avg_payment_days <= 7, >= 2 payments, active, no overdue debt
+      Bronze:   on_time_ratio >= 50%, avg_payment_days <= 14, >= 1 payment, active
+      Standard: Below bronze, or has active overdue debt, or not active
+    """
+    if not is_active or is_overdue:
+        return (
+            "Standard",
+            "bg-surface-container-high text-on-surface-variant",
         )
-        .order_by("-total_paid")
+
+    if on_time_ratio >= 90 and avg_payment_days <= 4 and payment_count >= 3:
+        return (
+            "Gold",
+            "bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-700/50",
+        )
+    if on_time_ratio >= 75 and avg_payment_days <= 7 and payment_count >= 2:
+        return (
+            "Silver",
+            "bg-slate-100 text-slate-800 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600",
+        )
+    if on_time_ratio >= 50 and avg_payment_days <= 14 and payment_count >= 1:
+        return (
+            "Bronze",
+            "bg-orange-100 text-orange-900 border border-orange-300 dark:bg-orange-950/50 dark:text-orange-200 dark:border-orange-800/50",
+        )
+
+    return (
+        "Standard",
+        "bg-surface-container-high text-on-surface-variant",
     )
-    if limit is not None:
-        qs = qs[:limit]
+
+
+def get_top_payers(user: UserType, limit: int | None = 5, threshold: int = 7) -> list[dict]:
+    """Returns the top-paying customers sorted by on-time reliability, speed, and volume.
+
+    Orders primarily by on-time payment ratio (descending), secondary by average
+    payment days (ascending), and tertiary by total amount paid (descending).
+    """
+    payments = (
+        CreditPayment.objects.for_user(user)
+        .filter(credit_line__customer__deleted_at__isnull=True)
+        .select_related("credit_line", "credit_line__customer")
+    )
+    by_customer: dict[int, dict] = {}
+    for payment in payments:
+        cl = payment.credit_line
+        customer = cl.customer
+        if customer.id not in by_customer:
+            by_customer[customer.id] = {
+                "customer": customer,
+                "total_paid": Decimal("0.00"),
+                "payment_count": 0,
+                "payment_days_sum": 0,
+                "on_time_count": 0,
+            }
+        data = by_customer[customer.id]
+        data["total_paid"] += payment.amount
+        data["payment_count"] += 1
+
+        pay_date = payment.paid_at or payment.created_at.date()
+        credit_date = cl.transaction_date
+        days = max(0, (pay_date - credit_date).days)
+        data["payment_days_sum"] += days
+        if days <= threshold:
+            data["on_time_count"] += 1
+
+    today = timezone.localdate()
     top_payers: list[dict] = []
-    for idx, customer in enumerate(qs, start=1):
-        rank_class = _ranking_row_class(idx)
+    for data in by_customer.values():
+        if data["payment_count"] == 0:
+            continue
+        customer = data["customer"]
+        payment_count = data["payment_count"]
+        avg_days = round(data["payment_days_sum"] / payment_count)
+        on_time_ratio = round((data["on_time_count"] / payment_count) * 100)
+
+        is_active = (customer.status == Customer.Status.ACTIVE)
+        is_overdue = False
+        if customer.debt_balance > Decimal("0.00") and customer.last_credit_at:
+            days_since_credit = (today - customer.last_credit_at.date()).days
+            is_overdue = days_since_credit > threshold
+
+        tier, tier_class = _calculate_payer_tier(
+            on_time_ratio=on_time_ratio,
+            avg_payment_days=avg_days,
+            payment_count=payment_count,
+            is_overdue=is_overdue,
+            is_active=is_active,
+        )
+
         top_payers.append({
-            "rank": idx,
-            "rank_class": rank_class,
+            "rank": 0,
+            "rank_class": "",
             "id": _display_id(customer),
             "name": customer.name,
             "initials": _customer_initials(customer.name),
-            "on_time_ratio": "—",
-            "avg_payment_days": "—",
-            "payment_count": customer.payment_count,
-            "total_paid": _format_peso(customer.total_paid),
-            "tier": "—",
-            "tier_class": "bg-surface-container-high text-on-surface-variant",
+            "on_time_ratio": f"{on_time_ratio}%",
+            "avg_payment_days": avg_days,
+            "payment_count": payment_count,
+            "total_paid": _format_peso(data["total_paid"]),
+            "tier": tier,
+            "tier_class": tier_class,
+            "_days_sum": data["payment_days_sum"],
+            "_on_time_num": on_time_ratio,
+            "_total_paid_num": data["total_paid"],
         })
+
+    top_payers.sort(
+        key=lambda r: (-r["_on_time_num"], r["avg_payment_days"], -r["_total_paid_num"])
+    )
+    for idx, row in enumerate(top_payers, start=1):
+        row["rank"] = idx
+        row["rank_class"] = _ranking_row_class(idx)
+
+    if limit is not None:
+        return top_payers[:limit]
     return top_payers
 
 
@@ -585,15 +684,23 @@ def get_prompt_returners(user: UserType, limit: int | None = 5) -> list[dict]:
     return prompt_returners
 
 
-def get_top_payers_paginated(user: UserType, page: int = 1, per_page: int = RANKING_PER_PAGE) -> dict:
+def get_top_payers_paginated(
+    user: UserType, page: int = 1, per_page: int = RANKING_PER_PAGE, threshold: int = 7
+) -> dict:
     """Returns a paginated page of top-paying customers."""
-    all_payers = get_top_payers(user, limit=None)
+    all_payers = get_top_payers(user, limit=None, threshold=threshold)
     paginator = Paginator(all_payers, per_page)
     page_obj = paginator.get_page(page)
+
+    total_days = sum(p.get("_days_sum", 0) for p in all_payers)
+    total_count = sum(p.get("payment_count", 0) for p in all_payers)
+    avg_turnaround = round(total_days / total_count) if total_count > 0 else None
+
     return {
         "top_payers": page_obj.object_list,
         "payer_count": paginator.count,
         "pagination": _pagination_from_page(page_obj),
+        "avg_turnaround_days": avg_turnaround,
     }
 
 
@@ -612,6 +719,7 @@ def get_prompt_returners_paginated(user: UserType, page: int = 1, per_page: int 
 def _ranking_context(user: UserType) -> dict:
     payer_data = get_top_payers_paginated(user, page=1)
     returner_data = get_prompt_returners_paginated(user, page=1)
+    avg_turnaround = payer_data.get("avg_turnaround_days")
     stats = [
         {
             "key": "top_payers",
@@ -642,12 +750,12 @@ def _ranking_context(user: UserType) -> dict:
         {
             "key": "avg_pay_time",
             "label": "Avg Pay Turnaround",
-            "value": "—",
-            "raw_value": None,
+            "value": f"{avg_turnaround}d" if avg_turnaround is not None else "—",
+            "raw_value": avg_turnaround,
             "value_prefix": "",
             "value_decimals": 0,
             "value_size": "4xl",
-            "subtitle": "Across all debtors",
+            "subtitle": "No payment data yet" if avg_turnaround is None else "Average days to settle credit",
             "icon": "timer",
             "accent": "primary",
             "col_span": "md:col-span-3",

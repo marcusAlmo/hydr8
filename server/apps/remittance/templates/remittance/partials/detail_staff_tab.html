@@ -87,49 +87,83 @@
             <div class="space-y-6">
 
                 <!-- ============ STAFF PAY KPI CARDS ============ -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
                     <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
                         <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Base Daily Rate</p>
-                        <p class="font-data-mono text-[20px] font-bold text-on-surface" x-text="selectedStaff().daily_rate"></p>
+                        <p class="font-data-mono text-[18px] font-bold text-on-surface" x-text="selectedStaff().daily_rate"></p>
                     </div>
                     <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
                         <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Salary Override</p>
-                        <p class="font-data-mono text-[20px] font-bold text-on-surface"
+                        <p class="font-data-mono text-[18px] font-bold text-on-surface"
                            x-text="selectedStaff().salary_override ? selectedStaff().salary_override : '—'"></p>
                     </div>
                     <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
                         <p class="font-label-caps text-[10px] text-error uppercase mb-1">Total Deductions</p>
-                        <p class="font-data-mono text-[20px] font-bold text-error" x-text="selectedStaff().total_deductions"></p>
+                        <p class="font-data-mono text-[18px] font-bold text-error" x-text="selectedStaff().total_deductions"></p>
                     </div>
-                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm border-t-2 border-t-secondary">
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
+                        <p class="font-label-caps text-[10px] text-error uppercase mb-1">Expenses Handled</p>
+                        <p class="font-data-mono text-[18px] font-bold text-error" x-text="selectedStaff().total_expenses || '₱0.00'"></p>
+                    </div>
+                    <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm border-t-2 border-t-secondary col-span-2 sm:col-span-1">
                         <p class="font-label-caps text-[10px] text-secondary uppercase mb-1">Net Pay</p>
-                        <p class="font-data-mono text-[20px] font-bold text-secondary" x-text="selectedStaff().net_pay"></p>
+                        <p class="font-data-mono text-[18px] font-bold text-secondary" x-text="selectedStaff().net_pay"></p>
                     </div>
                 </div>
 
-                <!-- ============ DEDUCTIONS DETAIL ============ -->
-                <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-sm space-y-3">
-                    <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
-                        <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-error text-[18px]">remove_circle_outline</span>
-                            <h4 class="font-label-caps text-label-caps text-on-surface uppercase">Staff Deductions</h4>
+                <!-- ============ DEDUCTIONS & EXPENSES DETAIL ============ -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Deductions Detail -->
+                    <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-error text-[18px]">remove_circle_outline</span>
+                                <h4 class="font-label-caps text-label-caps text-on-surface uppercase">Staff Deductions</h4>
+                            </div>
+                            <span class="font-data-mono text-[12px] text-error font-bold"
+                                  x-text="(selectedStaff().deductions ? selectedStaff().deductions.length : 0) + ' item(s)'"></span>
                         </div>
-                        <span class="font-data-mono text-[12px] text-error font-bold"
-                              x-text="selectedStaff().deductions.length + ' item(s)'"></span>
+                        <template x-if="selectedStaff().deductions && selectedStaff().deductions.length > 0">
+                            <ul class="divide-y divide-outline-variant/10 text-body-sm">
+                                <template x-for="(ded, idx) in selectedStaff().deductions" :key="idx">
+                                    <li class="py-2.5 flex justify-between items-center">
+                                        <span class="text-on-surface" x-text="ded.description"></span>
+                                        <span class="font-data-mono text-error font-medium" x-text="ded.amount"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template x-if="!selectedStaff().deductions || selectedStaff().deductions.length === 0">
+                            <p class="text-body-sm text-on-surface-variant/60 italic py-2">No deductions recorded for this staff member.</p>
+                        </template>
                     </div>
-                    <template x-if="selectedStaff().deductions.length > 0">
-                        <ul class="divide-y divide-outline-variant/10 text-body-sm">
-                            <template x-for="(ded, idx) in selectedStaff().deductions" :key="idx">
-                                <li class="py-2.5 flex justify-between items-center">
-                                    <span class="text-on-surface" x-text="ded.description"></span>
-                                    <span class="font-data-mono text-error font-medium" x-text="ded.amount"></span>
-                                </li>
-                            </template>
-                        </ul>
-                    </template>
-                    <template x-if="selectedStaff().deductions.length === 0">
-                        <p class="text-body-sm text-on-surface-variant/60 italic py-2">No deductions recorded for this staff member.</p>
-                    </template>
+
+                    <!-- Operational Expenses Detail -->
+                    <div class="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-error text-[18px]">receipt_long</span>
+                                <h4 class="font-label-caps text-label-caps text-on-surface uppercase">Operational Expenses Handled</h4>
+                            </div>
+                            <span class="font-data-mono text-[12px] text-error font-bold"
+                                  x-text="(selectedStaff().expenses ? selectedStaff().expenses.length : 0) + ' item(s)'"></span>
+                        </div>
+                        <template x-if="selectedStaff().expenses && selectedStaff().expenses.length > 0">
+                            <ul class="divide-y divide-outline-variant/10 text-body-sm">
+                                <template x-for="(exp, idx) in selectedStaff().expenses" :key="idx">
+                                    <li class="py-2.5 flex justify-between items-center">
+                                        <span class="text-on-surface" x-text="exp.description"></span>
+                                        <span class="font-data-mono text-error font-medium" x-text="exp.amount"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template x-if="!selectedStaff().expenses || selectedStaff().expenses.length === 0">
+                            <p class="text-body-sm text-on-surface-variant/60 italic py-2">No expenses recorded for this staff member.</p>
+                        </template>
+                    </div>
+
                 </div>
 
                 <!-- ============ PER-STAFF REPAYMENTS & CREDITS (AUDIT SECTION) ============ -->

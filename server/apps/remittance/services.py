@@ -732,6 +732,24 @@ def _build_remittance(
             )
             staff_deductions_total += ded_amount
 
+        # Persist staff-attributed operational expenses.
+        for exp in staff_entry.get("expenses", []) or []:
+            exp_amount = _to_decimal(exp.get("amount"))
+            exp_desc = (exp.get("description") or "").strip()
+            if not exp_desc and exp_amount == 0:
+                continue
+            if exp_amount < 0:
+                raise ValidationError("Staff expense amounts cannot be negative.")
+            Expense.objects.create(
+                remittance=remittance,
+                remittance_staff=remittance_staff,
+                description=exp_desc or "(unnamed)",
+                amount=exp_amount,
+                company=company,
+                recorded_by=performed_by,
+            )
+            total_expenses += exp_amount
+
         net_pay = effective_salary - staff_deductions_total
         remittance_staff.total_deductions = staff_deductions_total
         remittance_staff.net_pay = net_pay

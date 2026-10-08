@@ -43,7 +43,14 @@
                         <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_credit_sales }}</span>
                     </div>
                     <div class="flex justify-between items-baseline">
-                        <span class="text-on-surface-variant text-body-sm">Total Expenses</span>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-on-surface-variant text-body-sm">Total Expenses</span>
+                            {% if remittance.expenses_breakdown.general_count > 0 %}
+                            <button type="button" @click="showGeneralExpensesModal = true" class="text-error/70 hover:text-error transition-colors text-[14px] cursor-pointer" title="View Station Items">
+                                <span class="material-symbols-outlined text-[15px] align-middle">info</span>
+                            </button>
+                            {% endif %}
+                        </div>
                         <span class="font-data-mono text-[16px] font-bold text-error">{{ remittance.total_expenses }}</span>
                     </div>
                 </div>
@@ -67,6 +74,42 @@
             </div>
         </div>
     </section>
+
+    <!-- Audit Expense Reconciliation Strip -->
+    {% if remittance.total_expenses != "₱0.00" %}
+    <section class="px-margin-page pb-1 pt-3">
+        <div class="rounded-xl bg-surface-container-low/40 border border-outline-variant/30 px-4 py-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-error text-[18px]">receipt_long</span>
+                <span class="font-label-caps text-[11px] text-on-surface-variant uppercase font-medium">Expenses Audit Breakdown:</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 md:gap-3 text-body-sm">
+                <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+                    <span class="material-symbols-outlined text-[14px] text-primary">electric_rickshaw</span>
+                    <span class="text-on-surface-variant text-[12px]">Riders:</span>
+                    <span class="font-data-mono text-[12px] font-bold text-primary">{{ remittance.expenses_breakdown.rider_total }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+                    <span class="material-symbols-outlined text-[14px] text-secondary">work</span>
+                    <span class="text-on-surface-variant text-[12px]">Staff:</span>
+                    <span class="font-data-mono text-[12px] font-bold text-secondary">{{ remittance.expenses_breakdown.staff_total }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+                    <span class="material-symbols-outlined text-[14px] text-tertiary">storefront</span>
+                    <span class="text-on-surface-variant text-[12px]">Station (General):</span>
+                    <span class="font-data-mono text-[12px] font-bold text-tertiary">{{ remittance.expenses_breakdown.general_total }}</span>
+                </div>
+                {% if remittance.expenses_breakdown.general_count > 0 %}
+                <button type="button" @click="showGeneralExpensesModal = true"
+                        class="text-[12px] text-primary hover:underline font-medium cursor-pointer inline-flex items-center gap-1 ml-auto md:ml-0">
+                    <span>View Station Items ({{ remittance.expenses_breakdown.general_count }})</span>
+                    <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
     
     <!-- Tab Navigation -->
     {% include "remittance/partials/tab_nav.html" %}
@@ -96,6 +139,42 @@
             </div>
         </div>
     </div>
+
+    <!-- General Station Expenses Modal -->
+    <div x-show="showGeneralExpensesModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+         @keydown.escape.window="showGeneralExpensesModal = false">
+        <div class="bg-surface-container-lowest rounded-2xl max-w-lg w-full p-6 border border-outline-variant/30 shadow-2xl space-y-4"
+             @click.outside="showGeneralExpensesModal = false">
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-tertiary text-[22px]">storefront</span>
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface">General Station Expenses</h3>
+                </div>
+                <button type="button" @click="showGeneralExpensesModal = false" class="text-on-surface-variant hover:text-on-surface cursor-pointer">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+            <p class="text-body-sm text-on-surface-variant">Station-level operational expenses not attributed to a specific rider or staff member.</p>
+            <div class="max-h-60 overflow-y-auto divide-y divide-outline-variant/10">
+                {% for exp in remittance.general_expenses %}
+                <div class="py-2.5 flex items-center justify-between text-body-sm">
+                    <div>
+                        <p class="font-medium text-on-surface">{{ exp.description }}</p>
+                        <p class="text-[11px] text-on-surface-variant">Recorded by: {{ exp.recorded_by }}</p>
+                    </div>
+                    <span class="font-data-mono font-bold text-error">{{ exp.amount }}</span>
+                </div>
+                {% empty %}
+                <p class="py-4 text-center text-on-surface-variant italic text-body-sm">No general station expenses recorded.</p>
+                {% endfor %}
+            </div>
+            <div class="pt-3 border-t border-outline-variant/20 flex justify-between items-center">
+                <span class="font-label-caps text-label-caps text-on-surface-variant">Total Station Expenses:</span>
+                <span class="font-data-mono text-body-md font-bold text-error">{{ remittance.expenses_breakdown.general_total }}</span>
+            </div>
+        </div>
+    </div>
     
 </div>
 
@@ -106,6 +185,7 @@
 
         return {
             activeTab: initialTab,
+            showGeneralExpensesModal: false,
             riders: (seed && seed.riders) || [],
             staff: (seed && seed.staff) || [],
             selectedRiderId: (seed && seed.selectedRiderId) || (seed && seed.riders && seed.riders[0] ? seed.riders[0].id : null),

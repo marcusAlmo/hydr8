@@ -122,9 +122,12 @@
         })();
     </script>
 
+    <!-- ApexCharts (pre-warmed for Remittance History & Employees Directory) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
+
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-background text-on-surface font-body-md overflow-hidden h-dvh flex flex-row">
+<body class="bg-background text-on-surface font-body-md overflow-hidden h-dvh flex flex-row" hx-ext="head-support">
     <!-- Dynamic Ambient Backgrounds -->
     <div class="ambient-glow"></div>
     <div class="ambient-glow-alt"></div>
@@ -145,8 +148,9 @@
     <!-- Idle lock-screen overlay (blurred backdrop + PIN prompt) -->
     {% include "components/lock_screen_overlay.html" %}
 
-    <!-- HTMX Base -->
+    <!-- HTMX Base & Head Support Extension -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/head-support.js"></script>
     
     <!-- Alpine.js (Ephemeral Client State) -->
     <!-- $persist plugin MUST load before core so persisted state is
@@ -262,7 +266,7 @@
 
     <!-- Global HTMX Config (e.g. CSRF tokens for all requests) -->
     <script>
-        document.body.addEventListener('htmx:configRequest', (event) => {
+        document.addEventListener('htmx:configRequest', (event) => {
             event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
         })
     </script>
@@ -282,7 +286,7 @@
         (function () {
             var savedFocus = null;
 
-            document.body.addEventListener('htmx:beforeRequest', function (e) {
+            document.addEventListener('htmx:beforeRequest', function (e) {
                 var active = document.activeElement;
                 if (
                     active
@@ -300,7 +304,7 @@
                 }
             });
 
-            document.body.addEventListener('htmx:afterSwap', function (e) {
+            document.addEventListener('htmx:afterSwap', function (e) {
                 if (!savedFocus) return;
                 // Defer to the next tick so any Alpine MutationObserver
                 // or other afterSwap handlers on the page run first —
@@ -326,7 +330,7 @@
          without relying on OOB swaps (which don't always work reliably
          when the main swap target is inside a modal that closes itself). -->
     <script>
-        document.body.addEventListener('showToast', function (e) {
+        document.addEventListener('showToast', function (e) {
             var d = e.detail || {};
             window.hydr8ShowToast(d.msg || d.message || '', {
                 type: d.type || 'success',

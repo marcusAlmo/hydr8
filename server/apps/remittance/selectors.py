@@ -358,6 +358,7 @@ def list_staff_for_remittance(user: UserType) -> list[dict]:
             "daily_rate": float(member.daily_rate or 0),
             "salary_override": "",
             "deductions": [],
+            "expenses": [],
         })
     return staff
 
@@ -474,7 +475,7 @@ def _load_draft_state(
         if rr.remitted is not None:
             rider_remittances[rider_id] = str(rr.remitted)
 
-    # Load unattributed (general) expenses — those without a remittance_rider.
+    # Load unattributed (general) expenses — those without a rider or staff.
     expenses = [
         {
             "description": exp.description,
@@ -483,7 +484,7 @@ def _load_draft_state(
         }
         for exp in (
             Expense.objects
-            .filter(remittance=draft, remittance_rider__isnull=True)
+            .filter(remittance=draft, remittance_rider__isnull=True, remittance_staff__isnull=True)
             .select_related("recorded_by")
             .order_by("id")
         )
@@ -495,7 +496,8 @@ def _load_draft_state(
         .filter(remittance=draft)
         .select_related("staff")
         .prefetch_related(
-            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id"))
+            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id")),
+            Prefetch("expenses", queryset=Expense.objects.order_by("id")),
         )
     )
     staff_data: dict[str, dict] = {}
@@ -505,9 +507,14 @@ def _load_draft_state(
             {"description": d.description, "amount": str(d.amount)}
             for d in sp.deductions.all()
         ]
+        staff_expenses = [
+            {"description": e.description, "amount": str(e.amount)}
+            for e in sp.expenses.all()
+        ]
         staff_data[staff_id] = {
             "salary_override": str(sp.salary_override) if sp.salary_override is not None else "",
             "deductions": deductions,
+            "expenses": staff_expenses,
         }
 
     return {
@@ -609,6 +616,7 @@ def get_add_remittance_context(
             if saved:
                 member["salary_override"] = saved.get("salary_override", "")
                 member["deductions"] = saved.get("deductions", [])
+                member["expenses"] = saved.get("expenses", [])
 
     return {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
@@ -849,7 +857,7 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
         {"description": exp.description, "amount": _peso_float(exp.amount)}
         for exp in (
             Expense.objects
-            .filter(remittance=rem, remittance_rider__isnull=True)
+            .filter(remittance=rem, remittance_rider__isnull=True, remittance_staff__isnull=True)
             .order_by("id")
         )
     ]
@@ -861,7 +869,8 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
         .filter(remittance=rem)
         .select_related("staff")
         .prefetch_related(
-            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id"))
+            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id")),
+            Prefetch("expenses", queryset=Expense.objects.order_by("id")),
         )
         .order_by("staff__first_name", "staff__last_name")
     ):
@@ -872,6 +881,10 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
             "deductions": [
                 {"description": d.description, "amount": _peso_float(d.amount)}
                 for d in sp.deductions.all()
+            ],
+            "expenses": [
+                {"description": e.description, "amount": _peso_float(e.amount)}
+                for e in sp.expenses.all()
             ],
         })
 
@@ -1494,6 +1507,7 @@ def get_remittance_detail(
 
         remitted_val = rr.remitted
         balance_val = max(Decimal("0.00"), rr.subtotal_payable - (remitted_val or Decimal("0.00")))
+        rider_exp_total = sum((e.amount for e in rr.expenses.all()), Decimal("0.00"))
 
         riders_detail.append({
             "id": str(rr.rider_id),
@@ -1508,6 +1522,8 @@ def get_remittance_detail(
             "commission_override": _format_peso(rr.commission_override) if rr.commission_override is not None else None,
             "remitted": _format_peso(remitted_val) if remitted_val is not None else "—",
             "balance": _format_peso(balance_val),
+            "total_expenses": _format_peso(rider_exp_total),
+            "total_expenses_raw": float(rider_exp_total),
             "product_lines": rider_lines,
             "expenses": [
                 {"description": e.description, "amount": _format_peso(e.amount)}
@@ -1532,19 +1548,22 @@ def get_remittance_detail(
     )
 
     # --- Staff payments & attributed activity ---
-    staff_detail: list[dict] = []
-    for sp in (
+    staff_rows = (
         RemittanceStaff.objects.filter(remittance=rem)
         .select_related("staff__role")
         .prefetch_related(
-            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id"))
+            Prefetch("deductions", queryset=StaffDeduction.objects.order_by("id")),
+            Prefetch("expenses", queryset=Expense.objects.order_by("id")),
         )
         .order_by("staff__first_name", "staff__last_name")
-    ):
+    )
+    staff_detail: list[dict] = []
+    for sp in staff_rows:
         member = sp.staff
         member_payments = repayments_by_care_of.get(member.id, [])
         member_credits = credits_by_care_of.get(member.id, [])
         role_label = member.role.name if getattr(member, "role", None) else "Staff"
+        staff_exp_total = sum((e.amount for e in sp.expenses.all()), Decimal("0.00"))
         staff_detail.append({
             "id": str(member.id),
             "name": member.full_name,
@@ -1554,9 +1573,15 @@ def get_remittance_detail(
             "effective_salary": _format_peso(sp.effective_salary),
             "total_deductions": _format_peso(sp.total_deductions),
             "net_pay": _format_peso(sp.net_pay),
+            "total_expenses": _format_peso(staff_exp_total),
+            "total_expenses_raw": float(staff_exp_total),
             "deductions": [
                 {"description": d.description, "amount": _format_peso(d.amount)}
                 for d in sp.deductions.all()
+            ],
+            "expenses": [
+                {"description": e.description, "amount": _format_peso(e.amount)}
+                for e in sp.expenses.all()
             ],
             "repayments": member_payments,
             "repayments_count": len(member_payments),
@@ -1568,7 +1593,7 @@ def get_remittance_detail(
 
     # Include unattributed or off-duty credit and repayment activity
     recorded_rider_ids = {rr.rider_id for rr in rider_rows}
-    recorded_staff_ids = {sp.staff_id for sp in RemittanceStaff.objects.filter(remittance=rem)}
+    recorded_staff_ids = {sp.staff_id for sp in staff_rows}
     all_care_of_ids = set(repayments_by_care_of.keys()) | set(credits_by_care_of.keys())
     unhandled_care_of_ids = all_care_of_ids - recorded_rider_ids - recorded_staff_ids
 
@@ -1586,7 +1611,10 @@ def get_remittance_detail(
                 "effective_salary": "—",
                 "total_deductions": "—",
                 "net_pay": "—",
+                "total_expenses": "—",
+                "total_expenses_raw": 0.0,
                 "deductions": [],
+                "expenses": [],
                 "repayments": station_payments,
                 "repayments_count": len(station_payments),
                 "credits": station_credits,
@@ -1612,7 +1640,10 @@ def get_remittance_detail(
                 "effective_salary": "—",
                 "total_deductions": "—",
                 "net_pay": "—",
+                "total_expenses": "—",
+                "total_expenses_raw": 0.0,
                 "deductions": [],
+                "expenses": [],
                 "repayments": u_payments,
                 "repayments_count": len(u_payments),
                 "credits": u_credits,
@@ -1621,13 +1652,45 @@ def get_remittance_detail(
                 "total_credited": sum(c["qty"] for c in u_credits),
             })
 
-    # Sort staff so active staff with activity or pay appear first
+    # Sort staff so active staff with activity, pay, or expenses appear first
     staff_detail.sort(
         key=lambda s: (
-            0 if (s["repayments"] or s["credits"] or s["net_pay"] != "—") else 1,
+            0 if (s["repayments"] or s["credits"] or s["expenses"] or s["net_pay"] != "—") else 1,
             s["name"],
         )
     )
+
+    # General (station-level) operational expenses
+    general_expenses_qs = (
+        Expense.objects
+        .filter(remittance=rem, remittance_rider__isnull=True, remittance_staff__isnull=True)
+        .select_related("recorded_by")
+        .order_by("id")
+    )
+    general_expenses_list = [
+        {
+            "description": exp.description,
+            "amount": _format_peso(exp.amount),
+            "recorded_by": exp.recorded_by.full_name if exp.recorded_by else "—",
+        }
+        for exp in general_expenses_qs
+    ]
+    general_expenses_total = sum((exp.amount for exp in general_expenses_qs), Decimal("0.00"))
+
+    total_rider_expenses = sum((e.amount for rr in rider_rows for e in rr.expenses.all()), Decimal("0.00"))
+    total_staff_expenses = sum((e.amount for sp in staff_rows for e in sp.expenses.all()), Decimal("0.00"))
+    expenses_breakdown = {
+        "rider_total": _format_peso(total_rider_expenses),
+        "rider_total_raw": float(total_rider_expenses),
+        "staff_total": _format_peso(total_staff_expenses),
+        "staff_total_raw": float(total_staff_expenses),
+        "general_total": _format_peso(general_expenses_total),
+        "general_total_raw": float(general_expenses_total),
+        "grand_total": _format_peso(rem.total_expenses),
+        "grand_total_raw": float(rem.total_expenses),
+        "general_items": general_expenses_list,
+        "general_count": len(general_expenses_list),
+    }
 
     return {
         "id": rem.id,
@@ -1638,6 +1701,8 @@ def get_remittance_detail(
         "total_repayments_received": _format_peso(effective_total_repayments),
         "total_credit_sales": _format_peso(effective_total_credits),
         "total_expenses": _format_peso(rem.total_expenses),
+        "expenses_breakdown": expenses_breakdown,
+        "general_expenses": general_expenses_list,
         "net_remittance": _format_peso(rem.net_remittance),
         "drivers_remittance": _format_peso(rem.total_sales - rem.total_commission),
         "handler_name": (

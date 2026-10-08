@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from apps.users.models import Role, User
-from apps.users.permissions import is_tenant_scoped
 
 if TYPE_CHECKING:
     from apps.users.models import User as UserType
@@ -15,12 +14,12 @@ if TYPE_CHECKING:
 
 def get_user_by_id(request_user: UserType, user_id: str) -> User | None:
     """Returns an active user by UUID, scoped to the requester's tenant."""
-    qs = User.objects.select_related('role', 'company').filter(
-        deleted_at__isnull=True, pk=user_id
+    return (
+        User.objects.for_user(request_user)
+        .select_related('role', 'company')
+        .filter(deleted_at__isnull=True, pk=user_id)
+        .first()
     )
-    if is_tenant_scoped(request_user):
-        qs = qs.filter(company_id=request_user.company_id)
-    return qs.first()
 
 
 def get_roles_for_user(request_user: UserType):

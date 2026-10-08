@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -48,7 +49,7 @@ class Customer(models.Model):
         null=True,
         blank=True,
         related_name='customers',
-        db_index=True,
+        db_index=False,
     )
 
     # --- Anomaly / blacklist tracking ---
@@ -84,6 +85,16 @@ class Customer(models.Model):
                 fields=['deleted_at'],
                 condition=models.Q(deleted_at__isnull=True),
                 name='idx_customer_active',
+            ),
+            models.Index(
+                fields=['company', 'debt_balance'],
+                condition=models.Q(deleted_at__isnull=True, debt_balance__gt=0),
+                name='idx_customer_active_debtors',
+            ),
+            GinIndex(
+                OpClass('name', name='gin_trgm_ops'),
+                condition=models.Q(deleted_at__isnull=True),
+                name='idx_customer_name_trgm',
             ),
         ]
         constraints = [
@@ -176,14 +187,14 @@ class CreditLine(models.Model):
         null=True,
         blank=True,
         related_name='credit_lines',
-        db_index=True,
+        db_index=False,
     )
     # Business date of the credit extension — defaults to today but can be
     # backdated when recording backlog entries. ``created_at`` below remains
     # the immutable audit timestamp of when the row was actually inserted.
     transaction_date = models.DateField(
         default=timezone.localdate,
-        db_index=True,
+        db_index=False,
         help_text='Date the credit was actually extended (may be backdated for backlog).',
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -195,6 +206,7 @@ class CreditLine(models.Model):
         verbose_name_plural = 'credit lines'
         indexes = [
             models.Index(fields=['customer', 'qty_remaining']),
+            models.Index(fields=['customer', '-created_at'], name='idx_creditline_cust_created'),
             models.Index(fields=['company', 'transaction_date']),
             # Supports the driver-detail drawer's "outstanding debts
             # handled" query: ``for_user()`` filters by company, then
@@ -275,14 +287,14 @@ class BorrowedContainer(models.Model):
         null=True,
         blank=True,
         related_name='borrowed_containers',
-        db_index=True,
+        db_index=False,
     )
     # Business date of the lending event — defaults to today but can be
     # backdated when recording backlog entries. ``created_at`` below remains
     # the immutable audit timestamp of when the row was actually inserted.
     transaction_date = models.DateField(
         default=timezone.localdate,
-        db_index=True,
+        db_index=False,
         help_text='Date the containers were actually lent (may be backdated for backlog).',
     )
     returned_at = models.DateField(
@@ -301,7 +313,13 @@ class BorrowedContainer(models.Model):
         verbose_name_plural = 'borrowed containers'
         indexes = [
             models.Index(fields=['company', 'customer']),
+            models.Index(fields=['customer', '-created_at'], name='idx_borrowed_cust_created'),
             models.Index(fields=['company', 'care_of']),
+            models.Index(
+                fields=['company', 'care_of'],
+                condition=models.Q(qty_returned__lt=models.F('qty_borrowed')),
+                name='idx_borrowed_open_by_care_of',
+            ),
             models.Index(fields=['company', 'transaction_date']),
         ]
         constraints = [
@@ -356,13 +374,13 @@ class CreditPayment(models.Model):
         null=True,
         blank=True,
         related_name='credit_payments',
-        db_index=True,
+        db_index=False,
     )
     recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     paid_at = models.DateField(
         null=True,
         blank=True,
-        db_index=True,
+        db_index=False,
         help_text='Date the payment was made (may be backdated for past collections).',
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -374,7 +392,9 @@ class CreditPayment(models.Model):
         verbose_name_plural = 'credit payments'
         indexes = [
             models.Index(fields=['company', 'credit_line']),
+            models.Index(fields=['credit_line', '-created_at'], name='idx_payment_cl_created'),
             models.Index(fields=['company', 'remittance']),
+            models.Index(fields=['company', 'paid_at'], name='idx_payment_company_paid_at'),
         ]
         constraints = [
             models.CheckConstraint(

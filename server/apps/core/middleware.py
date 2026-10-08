@@ -1,6 +1,12 @@
 import contextvars
 import logging
+import time
 import uuid
+
+from django.conf import settings
+from django.db import connection
+
+perf_logger = logging.getLogger('apps.performance')
 
 # Create a context variable to hold the correlation ID for the current thread/async task
 correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar('correlation_id', default=None)
@@ -47,6 +53,82 @@ class CorrelationIdFilter(logging.Filter):
     def filter(self, record):
         record.correlation_id = get_correlation_id() or 'no-id'
         return True
+
+
+class ProcessPerformanceMiddleware:
+    """Measures and logs server request duration, view processing time,
+    and PostgreSQL query metrics per request.
+
+    Adheres to RA 10173 & ISO 27001 logging rules:
+    - Never logs query strings, request bodies, or user PII.
+    - Logs actor ID, HTTP method, sanitized path, status code, and latencies.
+    - Emits W3C Server-Timing headers for client visibility.
+    - Automatically flags slow requests exceeding PERFORMANCE_SLOW_THRESHOLD_MS.
+    """
+
+    _BYPASS_PREFIXES = ('/static/', '/media/', '/health/', '/healthz/', '/up/')
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        path = getattr(request, 'path', '')
+        for prefix in self._BYPASS_PREFIXES:
+            if path.startswith(prefix):
+                return self.get_response(request)
+
+        db_queries = 0
+        db_time_ms = 0.0
+
+        def db_timing_wrapper(execute, sql, params, many, context):
+            nonlocal db_queries, db_time_ms
+            t_start = time.perf_counter()
+            try:
+                return execute(sql, params, many, context)
+            finally:
+                db_queries += 1
+                db_time_ms += (time.perf_counter() - t_start) * 1000.0
+
+        start_time = time.perf_counter()
+
+        with connection.execute_wrapper(db_timing_wrapper):
+            response = self.get_response(request)
+
+        total_duration_ms = (time.perf_counter() - start_time) * 1000.0
+        view_duration_ms = max(0.0, total_duration_ms - db_time_ms)
+
+        user = getattr(request, 'user', None)
+        actor_id = getattr(user, 'id', 'anon') if (user and user.is_authenticated) else 'anon'
+
+        slow_threshold_ms = getattr(settings, 'PERFORMANCE_SLOW_THRESHOLD_MS', 500.0)
+
+        log_payload = (
+            "[%s] HTTP %s %s -> %s | total=%.2fms | view=%.2fms | db=%.2fms (queries=%d)"
+        )
+        log_args = (
+            actor_id,
+            getattr(request, 'method', 'UNKNOWN'),
+            path,
+            getattr(response, 'status_code', 200),
+            total_duration_ms,
+            view_duration_ms,
+            db_time_ms,
+            db_queries,
+        )
+
+        if total_duration_ms >= slow_threshold_ms:
+            perf_logger.warning(log_payload, *log_args)
+        else:
+            perf_logger.info(log_payload, *log_args)
+
+        if hasattr(response, '__setitem__'):
+            response['Server-Timing'] = (
+                f"total;dur={total_duration_ms:.2f}, "
+                f"db;dur={db_time_ms:.2f}, "
+                f"view;dur={view_duration_ms:.2f}"
+            )
+
+        return response
 
 
 class ScreenLockMiddleware:

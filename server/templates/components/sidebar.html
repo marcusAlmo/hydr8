@@ -13,6 +13,7 @@
             mq.addEventListener('change', handler);
         }
      }"
+       hx-boost="true"
        :style="{ width: expanded ? '240px' : '80px' }"
        style="width: var(--sidebar-width, 240px)"
        class="relative h-full bg-inverse-surface flex flex-col py-4 px-3 shadow-md z-50 transition-all duration-300 flex-shrink-0 overflow-hidden">
@@ -120,7 +121,7 @@
                 </div>
                 <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap truncate">{{ user.username }}</span>
             </a>
-            <form method="post" action="{% url 'users:logout' %}">
+            <form method="post" action="{% url 'users:logout' %}" hx-boost="false">
                 {% csrf_token %}
                 <button type="submit"
                         class="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded text-secondary-fixed-dim hover:bg-error-container/20 hover:text-error-container transition-colors duration-200"
