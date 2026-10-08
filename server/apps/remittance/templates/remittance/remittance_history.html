@@ -3,8 +3,6 @@
 {% block title %}Remittance History | Hydr8{% endblock %}
 
 {% block extra_head %}
-    <!-- ApexCharts — lightweight charting for the Performance Trends section -->
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.49.1/dist/apexcharts.min.js"></script>
     <style>
         /* --- Page-load transitions for the Performance Trends section --- */
         /* The section fades + slides in, then each chart card cascades with
@@ -74,7 +72,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps the entire page so the banner date filter
      drives the summary cards, performance trends, and records table. -->
-<div x-data='remittancePage({{ trends_seed|safe }}, "{{ initial_range|default:"7d" }}", "{{ custom_from }}", "{{ custom_to }}", {{ default_trends_seed|safe }})' x-init="init()"
+<div x-data='remittancePage({{ trends_seed|safe }}, "{{ initial_range|default:"7d" }}", "{{ custom_from }}", "{{ custom_to }}", {{ default_trends_seed|safe }})'
      class="flex-1 flex flex-col overflow-hidden">
     <!-- Top Navigation Bar -->
     <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
@@ -86,16 +84,34 @@
         <div class="flex items-center gap-4">
             <!-- Global date range filter — drives ALL sections -->
             <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
-                <template x-for="r in dateRanges" :key="r.key">
-                    <button
-                        @click="setDateRange(r.key)"
-                        :class="dateRange === r.key
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant hover:bg-surface-container-high'"
-                        class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
-                        x-text="r.label"
-                    ></button>
-                </template>
+                <button
+                    @click="setDateRange('today')"
+                    :class="dateRange === 'today'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >Today</button>
+                <button
+                    @click="setDateRange('7d')"
+                    :class="dateRange === '7d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >7D</button>
+                <button
+                    @click="setDateRange('14d')"
+                    :class="dateRange === '14d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >14D</button>
+                <button
+                    @click="setDateRange('30d')"
+                    :class="dateRange === '30d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >30D</button>
 
                 <!-- Custom Range trigger -->
                 <button

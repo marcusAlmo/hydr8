@@ -157,6 +157,23 @@ class RemittanceHistoryViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["initial_range"], "7d")
 
+    def test_history_date_range_filter_buttons_rendered_statically(self):
+        """Date range buttons are rendered statically to prevent duplicating under Alpine/HTMX."""
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("remittance:history"))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        # Ensure static buttons exist
+        self.assertIn("@click=\"setDateRange('today')\"", content)
+        self.assertIn("@click=\"setDateRange('7d')\"", content)
+        self.assertIn("@click=\"setDateRange('14d')\"", content)
+        self.assertIn("@click=\"setDateRange('30d')\"", content)
+        # Ensure no dynamic x-for loop for dateRanges in template
+        self.assertNotIn("x-for=\"r in dateRanges\"", content)
+        # Ensure root element does not call redundant x-init="init()" on remittancePage
+        self.assertNotIn("remittancePage", content.split('x-init="init()"')[0].split("<div ")[-1])
+        self.assertNotIn('x-data=\'remittancePage\' x-init="init()"', content)
+
 
 class CheckRemittanceDateViewTests(TestCase):
     """Tests for the check-date JSON endpoint."""

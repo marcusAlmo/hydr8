@@ -28,16 +28,34 @@
         <div class="flex items-center gap-4">
             <!-- Date range filter — drives the records table -->
             <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
-                <template x-for="r in dateRanges" :key="r.key">
-                    <button
-                        @click="setDateRange(r.key)"
-                        :class="dateRange === r.key
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant hover:bg-surface-container-high'"
-                        class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
-                        x-text="r.label"
-                    ></button>
-                </template>
+                <button
+                    @click="setDateRange('today')"
+                    :class="dateRange === 'today'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >Today</button>
+                <button
+                    @click="setDateRange('7d')"
+                    :class="dateRange === '7d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >7D</button>
+                <button
+                    @click="setDateRange('30d')"
+                    :class="dateRange === '30d'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >30D</button>
+                <button
+                    @click="setDateRange('all')"
+                    :class="dateRange === 'all'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >All</button>
 
                 <!-- Custom Range trigger -->
                 <button
