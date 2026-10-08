@@ -28,7 +28,10 @@ def _tenant_filter(qs, user):
     """Scope to the user's company. Platform superusers (company_id is None) see all."""
     if user.company_id is None:
         return qs
-    return qs.filter(actor__company_id=user.company_id)
+    return qs.filter(
+        Q(actor__company_id=user.company_id)
+        | Q(additional_data__company_id=user.company_id)
+    )
 
 
 def _enrich_entry(entry):
@@ -117,9 +120,9 @@ def get_log_entry(*, entry_id: int, user):
     return entry
 
 
-def build_logs_json(entries) -> str:
-    """Serializes enriched LogEntry entries to JSON for Alpine.js client-side filtering."""
-    return json.dumps([
+def build_logs_data(entries) -> list[dict]:
+    """Returns serializable dict projections of enriched LogEntry entries."""
+    return [
         {
             "id": e.pk,
             "timestamp": e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
@@ -137,4 +140,10 @@ def build_logs_json(entries) -> str:
             "cid": e.cid,
         }
         for e in entries
-    ])
+    ]
+
+
+def build_logs_json(entries) -> str:
+    """Serializes enriched LogEntry entries to JSON for backwards compatibility."""
+    return json.dumps(build_logs_data(entries))
+

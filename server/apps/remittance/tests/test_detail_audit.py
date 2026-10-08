@@ -1,15 +1,15 @@
 """Tests for the remittance detail audit view and HTMX tab endpoints."""
-from datetime import date
-from decimal import Decimal
 import html
 import json
+from datetime import date
+from decimal import Decimal
 
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
 from apps.core.models import Product
-from apps.customers.models import Customer, CreditLine, CreditPayment
+from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.remittance.models import (
     Remittance,
     RemittanceRider,
@@ -327,4 +327,104 @@ class RemittanceDetailAuditViewTests(TestCase):
 
         off_duty_entry = next(s for s in detail["staff"] if s["id"] == str(off_duty_user.id))
         self.assertEqual(len(off_duty_entry["credits"]), 1)
+
+    def test_total_credits_shows_date_credits_even_if_already_repaid_and_unlinked(self):
+        """Total credits in remittance detail reflects credit loans based on credit date,
+        even if the remittance DB row had 0.00, credit_line.remittance is None, and
+        loans are already fully repaid."""
+        from apps.remittance.selectors import get_credits_recorded_for_remittance
+
+        target_date = date(2026, 8, 30)
+        # Remittance with 0 total_credit_sales in the DB
+        rem = Remittance.objects.create(
+            date=target_date,
+            created_by=self.admin,
+            company=self.company,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("500.00"),
+            total_credit_sales=Decimal("0.00"),
+            total_repayments_received=Decimal("0.00"),
+            net_remittance=Decimal("500.00"),
+        )
+
+        # Credit line on that date, unlinked (remittance=None), but already fully repaid
+        cl = CreditLine.objects.create(
+            customer=self.customer,
+            product=self.product,
+            remittance=None,
+            care_of=self.driver,
+            company=self.company,
+            qty_credited=4,
+            unit_price_snapshot=Decimal("35.00"),
+            total_credit_amount=Decimal("140.00"),
+            qty_remaining=0,  # fully repaid!
+            transaction_date=target_date,
+        )
+
+        # Payment that fully paid the credit line
+        CreditPayment.objects.create(
+            credit_line=cl,
+            remittance=None,
+            containers_paid=4,
+            amount=Decimal("140.00"),
+            paid_at=target_date,
+            recorded_by=self.admin,
+            company=self.company,
+        )
+
+        # 1. Detail selector must dynamically resolve total credits from the credit date
+        detail = get_remittance_detail(self.admin, rem.id)
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail["total_credit_sales"], "₱140.00")
+        self.assertEqual(detail["total_repayments_received"], "₱140.00")
+
+        # 2. Credits recorded selector must return the credit line with Repaid status
+        credits_data = get_credits_recorded_for_remittance(self.admin, rem.id)
+        self.assertEqual(credits_data["total"], 1)
+        self.assertEqual(credits_data["credits"][0]["customer_name"], "Audit Customer")
+        self.assertEqual(credits_data["credits"][0]["amount"], "₱140.00")
+        self.assertEqual(credits_data["credits"][0]["status"], "Repaid")
+        self.assertTrue(credits_data["credits"][0]["is_repaid"])
+
+        # 3. View render must display ₱140.00 in the Deductions KPI card
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("remittance:detail", args=[rem.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "₱140.00")
+        self.assertEqual(response.context["credits_count"], 1)
+
+    def test_create_remittance_incorporates_unlinked_date_credits_into_total_credit_sales(self):
+        """create_remittance calculates total_credit_sales including existing credit lines
+        on that transaction date, even when rider product lines have 0 credited."""
+        from apps.remittance.services import create_remittance
+
+        tx_date = date(2026, 9, 1)
+        unlinked_credit = CreditLine.objects.create(
+            customer=self.customer,
+            product=self.product,
+            care_of=self.driver,
+            company=self.company,
+            qty_credited=2,
+            unit_price_snapshot=Decimal("35.00"),
+            total_credit_amount=Decimal("70.00"),
+            qty_remaining=0,  # already paid
+            transaction_date=tx_date,
+        )
+        self.assertIsNone(unlinked_credit.remittance)
+
+        rem = create_remittance(
+            performed_by=self.admin,
+            remittance_date=tx_date,
+            riders_data=[],  # no credited lines entered manually
+            expenses_data=[],
+            staff_data=[],
+            manual_offering=Decimal("0.00"),
+            tithe_rate=Decimal("0.10"),
+            finalize=False,
+        )
+
+        self.assertEqual(rem.total_credit_sales, Decimal("70.00"))
+        unlinked_credit.refresh_from_db()
+        self.assertEqual(unlinked_credit.remittance, rem)
+
 

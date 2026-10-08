@@ -549,3 +549,24 @@ class ValidateUserPinTests(TestCase):
         with self.assertRaises(ValidationError) as ctx:
             validate_user_pin(user=self.user, pin="1234")
         self.assertIn("No PIN is configured for your account", str(ctx.exception.message))
+
+    def test_pin_lockout_after_five_failed_attempts(self):
+        from django.core.cache import cache
+        cache.clear()
+
+        # 4 wrong attempts
+        for _ in range(4):
+            with self.assertRaises(ValidationError) as ctx:
+                validate_user_pin(user=self.user, pin="9999")
+            self.assertEqual(ctx.exception.message, "Incorrect PIN.")
+
+        # 5th wrong attempt raises Incorrect PIN
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(user=self.user, pin="9999")
+        self.assertEqual(ctx.exception.message, "Incorrect PIN.")
+
+        # 6th attempt (even with CORRECT PIN) raises lockout error
+        with self.assertRaises(ValidationError) as ctx:
+            validate_user_pin(user=self.user, pin="1234")
+        self.assertIn("Too many failed attempts. Try again in 15 minutes.", str(ctx.exception.message))
+

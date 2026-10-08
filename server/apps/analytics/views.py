@@ -40,9 +40,9 @@ def _apply_accent_classes(stats: list[dict]) -> None:
         stat["icon_class"] = accent["icon"]
 
 
+@login_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
-@login_required
 def dashboard_view(request: HttpRequest) -> HttpResponse:
     """Renders the dashboard shell with skeletons.
 
@@ -72,9 +72,9 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 # these endpoints on load.  Each endpoint only runs its own selector queries.
 # ---------------------------------------------------------------------------
 
+@login_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
-@login_required
 def dashboard_stats_partial(request: HttpRequest) -> HttpResponse:
     """Returns the stats row (3 KPI cards) as an HTMX partial."""
     if not user_is_admin(request.user):
@@ -84,9 +84,9 @@ def dashboard_stats_partial(request: HttpRequest) -> HttpResponse:
     return render(request, "analytics/partials/stats_row.html", {"stats": stats})
 
 
+@login_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
-@login_required
 def dashboard_recent_remittances_partial(request: HttpRequest) -> HttpResponse:
     """Returns the recent remittances table as an HTMX partial."""
     if not user_is_admin(request.user):
@@ -99,9 +99,9 @@ def dashboard_recent_remittances_partial(request: HttpRequest) -> HttpResponse:
     )
 
 
+@login_required
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
-@login_required
 def dashboard_outstanding_debts_partial(request: HttpRequest) -> HttpResponse:
     """Returns the outstanding debts table as an HTMX partial."""
     if not user_is_admin(request.user):

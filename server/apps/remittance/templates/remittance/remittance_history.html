@@ -74,7 +74,7 @@
 {% block content %}
 <!-- Single Alpine scope wraps the entire page so the banner date filter
      drives the summary cards, performance trends, and records table. -->
-<div x-data='remittancePage({{ trends_seed|safe }})' x-init="init()"
+<div x-data='remittancePage({{ trends_seed|safe }}, "{{ initial_range|default:"7d" }}", "{{ custom_from }}", "{{ custom_to }}", {{ default_trends_seed|safe }})' x-init="init()"
      class="flex-1 flex flex-col overflow-hidden">
     <!-- Top Navigation Bar -->
     <header class="flex justify-between items-center w-full px-margin-page py-4 bg-background z-10 border-b border-outline-variant/10">
@@ -144,8 +144,11 @@
                             </div>
                         </div>
                         <div class="flex justify-end gap-2 pt-1">
-                            <button @click="customRangeOpen = false" class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors">Cancel</button>
-                            <button @click="applyCustomRange()" class="px-3 py-1.5 bg-primary text-on-primary text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all">Apply</button>
+                            <button @click="customRangeOpen = false" :disabled="loadingCustom" class="px-3 py-1.5 text-body-sm text-outline hover:bg-surface-container-high rounded-lg transition-colors">Cancel</button>
+                            <button @click="applyCustomRange()" :disabled="loadingCustom" class="px-3 py-1.5 bg-primary text-on-primary text-body-sm font-bold rounded-lg hover:bg-primary/90 transition-all flex items-center gap-1.5 disabled:opacity-50">
+                                <span x-show="loadingCustom" x-cloak class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                                <span x-text="loadingCustom ? 'Loading…' : 'Apply'">Apply</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -627,14 +630,16 @@
          * and the records table.  Rider selection is also held here so the
          * rider dropdown popover (inside the trends section) can mutate it.
          */
-        function remittancePage(seed) {
+        function remittancePage(seed, initialRange = '7d', initFrom = '', initTo = '', defaultSeed = null) {
             return {
                 seed,
+                _defaultSeed: defaultSeed || JSON.parse(JSON.stringify(seed)),
                 // --- Global date range (banner) ---
-                dateRange: '7d',
+                dateRange: initialRange,
                 customRangeOpen: false,
-                customFrom: '',
-                customTo: '',
+                customFrom: initFrom,
+                customTo: initTo,
+                loadingCustom: false,
                 dateRanges: [
                     { key: 'today', label: 'Today' },
                     { key: '7d',  label: '7D'  },
@@ -663,17 +668,44 @@
 
                 // --- Global date-range actions -------------------------------------
                 setDateRange(key) {
+                    if (this.dateRange === 'custom') {
+                        // Restore default seed for preset slicing
+                        this.seed = JSON.parse(JSON.stringify(this._defaultSeed));
+                        if (window.history && window.history.pushState) {
+                            window.history.pushState(null, '', window.location.pathname);
+                        }
+                    }
                     this.dateRange = key;
                     this.customRangeOpen = false;
                 },
-                applyCustomRange() {
+                async applyCustomRange() {
                     if (this.customFrom && this.customTo) {
-                        this.dateRange = 'custom';
-                        this.customRangeOpen = false;
-                        // For the prototype, custom range slices the 30-day
-                        // seed to the requested window.  Real backend would
-                        // re-query with the actual date boundaries.
-                        this.renderAll();
+                        this.loadingCustom = true;
+                        try {
+                            const url = `{% url 'remittance:history' %}?format=json&from=${encodeURIComponent(this.customFrom)}&to=${encodeURIComponent(this.customTo)}`;
+                            const res = await fetch(url, {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data.ok && data.trends) {
+                                    this.seed = data.trends;
+                                    this.dateRange = 'custom';
+                                    this.customRangeOpen = false;
+                                    if (window.history && window.history.pushState) {
+                                        window.history.pushState(null, '', `?from=${encodeURIComponent(this.customFrom)}&to=${encodeURIComponent(this.customTo)}`);
+                                    }
+                                    this.renderAll();
+                                    return;
+                                }
+                            }
+                        } catch (err) {
+                            console.error('Error fetching custom date range:', err);
+                        } finally {
+                            this.loadingCustom = false;
+                        }
+                        // Fallback navigation
+                        window.location.href = `?from=${encodeURIComponent(this.customFrom)}&to=${encodeURIComponent(this.customTo)}`;
                     }
                 },
                 // Human-readable label for the active range, shown in context
@@ -689,26 +721,22 @@
 
                 // --- Filter helpers -------------------------------------------------
                 rangeLength() {
-                    if (this.dateRange === 'custom') {
-                        // Compute day count from the custom date inputs.
-                        if (this.customFrom && this.customTo) {
-                            const from = new Date(this.customFrom);
-                            const to = new Date(this.customTo);
-                            const diff = Math.round((to - from) / 86400000) + 1;
-                            return Math.max(1, Math.min(diff, this.seed.labels.length));
-                        }
-                        return this.seed.labels.length;
-                    }
                     return { 'today': 1, '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] ?? 30;
                 },
                 sliceStart() {
-                    return this.seed.labels.length - this.rangeLength();
+                    return Math.max(0, this.seed.labels.length - this.rangeLength());
                 },
                 filteredLabels() {
+                    if (this.dateRange === 'custom') {
+                        return this.seed.labels;
+                    }
                     return this.seed.labels.slice(this.sliceStart());
                 },
                 filteredSeries(field) {
-                    return this.seed[field].slice(this.sliceStart());
+                    if (this.dateRange === 'custom') {
+                        return this.seed[field] || [];
+                    }
+                    return (this.seed[field] || []).slice(this.sliceStart());
                 },
 
                 toggleRider(name) {
@@ -761,11 +789,15 @@
                     return Math.round(((last - first) / first) * 100);
                 },
                 totalRiderUnits() {
+                    const isCustom = this.dateRange === 'custom';
                     const start = this.sliceStart();
                     return this.seed.riders
                         .filter(r => this.selectedRiders.includes(r.name))
                         .reduce(
-                            (sum, r) => sum + r.units_sold.slice(start).reduce((a, b) => a + (Number(b) || 0), 0),
+                            (sum, r) => {
+                                const units = isCustom ? r.units_sold : r.units_sold.slice(start);
+                                return sum + units.reduce((a, b) => a + (Number(b) || 0), 0);
+                            },
                             0,
                         );
                 },
@@ -798,14 +830,15 @@
                 },
                 // Rider unit aggregates across all selected riders, per day
                 _riderDailyTotals() {
+                    const isCustom = this.dateRange === 'custom';
                     const start = this.sliceStart();
-                    const len = this.rangeLength();
+                    const len = isCustom ? this.filteredLabels().length : this.rangeLength();
                     const totals = new Array(len).fill(0);
                     this.seed.riders
                         .filter(r => this.selectedRiders.includes(r.name))
                         .forEach(r => {
-                            const slice = r.units_sold.slice(start);
-                            slice.forEach((v, i) => { totals[i] += v; });
+                            const slice = isCustom ? r.units_sold : r.units_sold.slice(start);
+                            slice.forEach((v, i) => { totals[i] = (totals[i] || 0) + (Number(v) || 0); });
                         });
                     return totals;
                 },
@@ -948,7 +981,7 @@
                         .filter(r => this.selectedRiders.includes(r.name))
                         .map(r => ({
                             name: r.name,
-                            data: r.units_sold.slice(start),
+                            data: this.dateRange === 'custom' ? r.units_sold : r.units_sold.slice(start),
                         }));
                     const colors = this.seed.riders
                         .filter(r => this.selectedRiders.includes(r.name))

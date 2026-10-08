@@ -101,6 +101,12 @@ def _log_login_failed(sender, request, username, ip, **kwargs):
     try:
         ct = ContentType.objects.get_for_model(User)
         meta = _get_request_meta(request)
+
+        # Resolve target user's company to support tenant admin visibility
+        raw_user = (username or "").strip()
+        target_user = User.objects.filter(username__iexact=raw_user).select_related("company").first()
+        company_id = target_user.company_id if target_user else None
+
         LogEntry.objects.create(
             content_type=ct,
             object_pk="unknown",
@@ -115,6 +121,7 @@ def _log_login_failed(sender, request, username, ip, **kwargs):
                 "event": "login_failed",
                 "username": username,
                 "ip_address": ip or meta["remote_addr"],
+                "company_id": company_id,
             },
         )
     except Exception:

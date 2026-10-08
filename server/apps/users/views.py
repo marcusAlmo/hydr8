@@ -263,6 +263,7 @@ class PasswordChangeForm(forms.Form):
 
 @login_required
 @require_http_methods(["GET"])
+@ratelimit(key='user', rate='120/m', method='GET', block=True)
 def password_change_view(request):
     """
     Renders the forced password change page.

@@ -1292,7 +1292,7 @@
                         form data on this page. This action cannot be undone.
                     </p>
                     <p class="text-body-sm text-on-surface-variant">
-                        The localStorage cache and any database draft record will be removed.
+                        The session cache and any database draft record will be removed.
                     </p>
                 </div>
                 <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/20 flex justify-end gap-3">
@@ -1914,11 +1914,11 @@
                         return;
                     }
                     if (wasFinalized) this._resetFormFields();
-                    // Clear the previous date's localStorage cache so stale
+                    // Clear the previous date's sessionStorage cache so stale
                     // entries don't accumulate when the user switches dates.
                     if (this._previousRemittanceDate && this._previousRemittanceDate !== iso) {
                         try {
-                            localStorage.removeItem('hydr8:remittance:draft:' + this._previousRemittanceDate);
+                            sessionStorage.removeItem('hydr8:remittance:draft:' + this._previousRemittanceDate);
                         } catch (err) { /* ignore */ }
                         this._lastSnapshot = null;
                     }
@@ -1961,11 +1961,11 @@
                                     this.applyDraftState(draftState);
                                 }
                                 // The DB draft is the source of truth for
-                                // this date — clear any stale localStorage
+                                // this date — clear any stale sessionStorage
                                 // so auto-save doesn't overwrite it with
                                 // leftover form data from a previous date.
                                 try {
-                                    localStorage.removeItem(this._cacheKey());
+                                    sessionStorage.removeItem(this._cacheKey());
                                 } catch (e) { /* ignore */ }
                                 this._lastSnapshot = JSON.stringify(this._extractCacheState());
                             } else {
@@ -2102,7 +2102,7 @@
                     this._initialSnapshot = JSON.stringify(this._extractCacheState());
                     this.remittance_has_changes = false;
                     try {
-                        localStorage.setItem('remittance_has_changes', 'false');
+                        sessionStorage.setItem('remittance_has_changes', 'false');
                     } catch (err) { /* ignore */ }
                     this.showToast('Draft loaded into the form.', 'success');
                 },
@@ -2573,7 +2573,7 @@
                     window.hydr8ShowToast(message, { type: type });
                 },
 
-                // ---- draft cache (localStorage auto-save / restore) ----
+                // ---- draft cache (sessionStorage auto-save / restore) ----
                 _cacheKey() {
                     return 'hydr8:remittance:draft:' + this.remittanceDate;
                 },
@@ -2695,16 +2695,16 @@
                 },
                 initCache() {
                     // Track the initial date so checkDate() can detect a
-                    // date change and clear the old date's localStorage.
+                    // date change and clear the old date's sessionStorage.
                     this._previousRemittanceDate = this.remittanceDate;
                     // If a DB draft was loaded by the server, mark hasCache
                     // so the "Clear Draft" button is visible even without
-                    // a localStorage entry.
+                    // a sessionStorage entry.
                     if (this.hasDraft) {
                         this.hasCache = true;
                     }
                     try {
-                        const raw = localStorage.getItem(this._cacheKey());
+                        const raw = sessionStorage.getItem(this._cacheKey());
                         if (!raw) {
                             this._lastSnapshot = JSON.stringify(this._extractCacheState());
                             this._startAutoSave();
@@ -2719,7 +2719,7 @@
                         // Only restore a browser-cached draft when the server
                         // did NOT already load a persisted DB draft.  When a
                         // DB draft exists, its seed is the source of truth;
-                        // otherwise stale localStorage values (e.g. an old
+                        // otherwise stale sessionStorage values (e.g. an old
                         // unsaved admin session) overwrite the real numbers.
                         if (!this.hasDraft) {
                             this._applyCacheState(cache);
@@ -2734,10 +2734,10 @@
                             }, 300);
                         } else {
                             // DB draft is the source of truth — discard any
-                            // stale localStorage for this date so it can't
+                            // stale sessionStorage for this date so it can't
                             // resurface on a future visit.
                             try {
-                                localStorage.removeItem(this._cacheKey());
+                                sessionStorage.removeItem(this._cacheKey());
                             } catch (e) { /* ignore */ }
                         }
                         this._lastSnapshot = JSON.stringify(this._extractCacheState());
@@ -2771,9 +2771,9 @@
                     try {
                         const currentSnapshot = JSON.stringify(this._extractCacheState());
                         this.remittance_has_changes = currentSnapshot !== this._initialSnapshot;
-                        // Update localStorage with the remittance_has_changes flag
+                        // Update sessionStorage with the remittance_has_changes flag
                         try {
-                            localStorage.setItem('remittance_has_changes', this.remittance_has_changes ? 'true' : 'false');
+                            sessionStorage.setItem('remittance_has_changes', this.remittance_has_changes ? 'true' : 'false');
                         } catch (err) { /* ignore */ }
                     } catch (err) {
                         console.warn('Error checking for changes:', err);
@@ -2789,12 +2789,12 @@
                         try {
                             const snapshot = JSON.stringify(this._extractCacheState());
                             if (snapshot !== this._lastSnapshot) {
-                                localStorage.setItem(this._cacheKey(), snapshot);
+                                sessionStorage.setItem(this._cacheKey(), snapshot);
                                 this._lastSnapshot = snapshot;
                                 this.hasCache = true;
                             }
                         } catch (err) {
-                            // localStorage might be full or disabled — silently skip
+                            // sessionStorage might be full or disabled — silently skip
                         }
                     }, 2000);
                 },
@@ -2804,7 +2804,7 @@
                         this._autoSaveTimer = null;
                     }
                     try {
-                        localStorage.removeItem(this._cacheKey());
+                        sessionStorage.removeItem(this._cacheKey());
                     } catch (err) { /* ignore */ }
                     this._lastSnapshot = null;
                     this.hasCache = false;
@@ -2864,7 +2864,7 @@
                         this.showToast('Network error: ' + err, 'error');
                         return;
                     }
-                    // Clear the localStorage cache
+                    // Clear the sessionStorage cache
                     this._clearCache();
                     // Reset the form to its initial seed state
                     this._resetFormFields();
@@ -2872,7 +2872,7 @@
                     this._initialSnapshot = JSON.stringify(this._extractCacheState());
                     this.remittance_has_changes = false;
                     try {
-                        localStorage.setItem('remittance_has_changes', 'false');
+                        sessionStorage.setItem('remittance_has_changes', 'false');
                     } catch (err) { /* ignore */ }
                     // Re-fetch the date's credit data so the live
                     // credited/repaid counts and repayments reflect the
@@ -2937,7 +2937,7 @@
                             this._initialSnapshot = JSON.stringify(this._extractCacheState());
                             this.remittance_has_changes = false;
                             try {
-                                localStorage.setItem('remittance_has_changes', 'false');
+                                sessionStorage.setItem('remittance_has_changes', 'false');
                             } catch (err) { /* ignore */ }
                             this.showExitModal = false;
                             window.location.href = this.pendingExitUrl || data.redirect_url || '{% url 'remittance:history' %}';
@@ -2991,7 +2991,7 @@
                         });
                         const data = await response.json();
                         if (response.ok && data.ok) {
-                            // Clear the localStorage cache so the DB draft
+                            // Clear the sessionStorage cache so the DB draft
                             // (now the source of truth) is loaded on the
                             // next visit instead of a stale snapshot.
                             this._clearCache();
@@ -2999,7 +2999,7 @@
                             this._initialSnapshot = JSON.stringify(this._extractCacheState());
                             this.remittance_has_changes = false;
                             try {
-                                localStorage.setItem('remittance_has_changes', 'false');
+                                sessionStorage.setItem('remittance_has_changes', 'false');
                             } catch (err) { /* ignore */ }
                             // Staff get a draft_saved confirmation (they
                             // cannot access Remittance History).  Admins
@@ -3052,13 +3052,13 @@
                         });
                         const data = await response.json();
                         if (response.ok && data.ok) {
-                            // Finalize succeeded — clear the localStorage cache
+                            // Finalize succeeded — clear the sessionStorage cache
                             // so the next visit starts fresh.
                             this._clearCache();
                             // Reset the change detection flag
                             this.remittance_has_changes = false;
                             try {
-                                localStorage.setItem('remittance_has_changes', 'false');
+                                sessionStorage.setItem('remittance_has_changes', 'false');
                             } catch (err) { /* ignore */ }
                             window.location.href = data.redirect_url || '{% url 'remittance:history' %}';
                         } else {

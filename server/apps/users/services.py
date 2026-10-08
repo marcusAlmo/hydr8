@@ -99,7 +99,7 @@ def create_user_account(
             role=role,
             company_id=company_id,
             is_active=True,
-            is_staff=(role.name in ("Admin", "Staff")),
+            is_staff=(role.name == "Admin"),
             daily_rate=rate_value if role.name == "Staff" else Decimal("0.00"),
         )
         user.set_unusable_password()
@@ -204,15 +204,16 @@ def validate_user_pin(
     required_message: str = "PIN is required.",
 ) -> None:
     """
-    Standardized, reusable PIN validator for sensitive operations.
+    Standardized, reusable PIN validator for sensitive operations with rate-limiting.
 
     Verifies that:
       1. The user has an active, configured PIN.
       2. The PIN input is non-empty.
-      3. The provided PIN matches the stored hash via user.check_pin.
+      3. The user has not exceeded 5 failed attempts in the last 15 minutes.
+      4. The provided PIN matches the stored hash via user.check_pin.
 
     Raises:
-        ValidationError: If PIN is unconfigured, missing, or incorrect.
+        ValidationError: If PIN is unconfigured, missing, rate-limited, or incorrect.
     """
     raw_pin = (pin or "").strip()
     if not getattr(user, "pin", None):
@@ -221,8 +222,17 @@ def validate_user_pin(
         )
     if not raw_pin:
         raise ValidationError(required_message)
+
+    cache_key = f"pin_attempts:{user.id}"
+    attempts = cache.get(cache_key, 0)
+    if attempts >= 5:
+        raise ValidationError("Too many failed attempts. Try again in 15 minutes.")
+
     if not user.check_pin(raw_pin):
+        cache.set(cache_key, attempts + 1, timeout=900)
         raise ValidationError("Incorrect PIN.")
+
+    cache.delete(cache_key)
 
 
 # ---------------------------------------------------------------------------

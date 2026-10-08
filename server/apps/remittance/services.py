@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
@@ -668,6 +668,13 @@ def _build_remittance(
     if company:
         credit_lines_qs = credit_lines_qs.filter(company=company)
     credit_lines_qs.update(remittance=remittance)
+
+    # Incorporate all credit lines extended on this date into total_credit_sales
+    date_credits_qs = CreditLine.objects.filter(transaction_date=remittance_date)
+    if company:
+        date_credits_qs = date_credits_qs.filter(company=company)
+    date_credits_total = date_credits_qs.aggregate(total=Sum("total_credit_amount"))["total"] or Decimal("0.00")
+    total_credit_sales = max(total_credit_sales, date_credits_total)
 
     # Persist general (unattributed) expenses from the flat expenses_data.
     # Rider-attributed expenses were already persisted in the rider loop.

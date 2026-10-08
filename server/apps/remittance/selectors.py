@@ -891,7 +891,10 @@ def get_remittance_summary_for_date(user: UserType, target_date: date) -> dict |
         "staff": staff_summary,
         "totals": {
             "total_sales": _peso_float(rem.total_sales),
-            "total_credits": _peso_float(rem.total_credit_sales),
+            "total_credits": max(
+                _peso_float(rem.total_credit_sales),
+                _credit_sales_for_date(user, rem.date),
+            ),
             "total_commission": _peso_float(rem.total_commission),
             "total_salary": _peso_float(rem.total_salary),
             "total_expenses": _peso_float(rem.total_expenses),
@@ -1030,14 +1033,22 @@ def _remittance_row(rem: Remittance) -> dict:
     }
 
 
-def get_recent_remittances(user: UserType, limit: int = 25) -> dict:
+def get_recent_remittances(
+    user: UserType,
+    limit: int = 25,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     """Returns recent remittance rows and the total count for pagination."""
     qs = _apply_kpi_annotations(
         Remittance.objects
         .for_user(user)
         .select_related("created_by")
-        .order_by("-date")
     )
+    if start_date and end_date:
+        qs = qs.filter(date__range=(start_date, end_date))
+    qs = qs.order_by("-date")
 
     rows: list[dict] = [_remittance_row(rem) for rem in qs[:limit]]
     return {"remittances": rows, "total": qs.count()}
@@ -1089,16 +1100,27 @@ def _rider_trend_color(index: int) -> str:
     return _RIDER_TREND_COLORS[index % len(_RIDER_TREND_COLORS)]
 
 
-def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
+def get_remittance_history_context(
+    user: UserType,
+    days: int = 30,
+    *,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     """Build the full page context for the Remittance History page from live DB data."""
     today = timezone.localdate()
-    start = today - timedelta(days=days - 1)
-    dates = [start + timedelta(days=i) for i in range(days)]
-    labels = [d.strftime("%b %d") for d in dates]
+    if start_date and end_date:
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        start = start_date
+        end = end_date
+    else:
+        end = today
+        start = today - timedelta(days=days - 1)
 
     remit_rows = (
         Remittance.objects.for_user(user)
-        .filter(date__range=(start, today))
+        .filter(date__range=(start, end))
         .values("date")
         .annotate(
             total_sales=Sum("total_sales"),
@@ -1111,6 +1133,18 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
         )
     )
     remit_by_date: dict[date, dict] = {row["date"]: row for row in remit_rows}
+
+    day_span = (end - start).days + 1
+    if day_span <= 90:
+        dates = [start + timedelta(days=i) for i in range(day_span)]
+    else:
+        active_dates = sorted(remit_by_date.keys())
+        dates = active_dates if active_dates else [start, end]
+
+    labels = [
+        d.strftime("%b %d") if d.year == today.year else d.strftime("%b %d '%y")
+        for d in dates
+    ]
 
     total_sales: list[float] = []
     commissions_paid: list[float] = []
@@ -1136,7 +1170,7 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
         .aggregate(Sum("debt_balance"))["debt_balance__sum"]
         or Decimal("0.00")
     )
-    outstanding_debt = [float(current_debt)] * days
+    outstanding_debt = [float(current_debt)] * len(dates)
 
     # Per-rider units sold over the date range
     # NOTE: history must show every rider (active or deactivated) so
@@ -1153,7 +1187,7 @@ def get_remittance_history_context(user: UserType, days: int = 30) -> dict:
     unit_rows = (
         RemittanceRiderProductLine.objects.for_user(user)
         .filter(
-            remittance_rider__remittance__date__range=(start, today),
+            remittance_rider__remittance__date__range=(start, end),
             remittance_rider__rider_id__in=rider_ids,
         )
         .values(
@@ -1310,23 +1344,38 @@ def get_remittance_detail(
             return None
     rem = remittance
 
+    # Repayment filter: match payments explicitly linked to this remittance OR
+    # payments made on this remittance's date for this tenant that are unlinked or linked to it.
+    payment_filter = Q(remittance=rem)
+    if rem.company_id:
+        payment_filter |= (
+            Q(paid_at=rem.date, company_id=rem.company_id)
+            & (Q(remittance__isnull=True) | Q(remittance=rem))
+        )
+    else:
+        payment_filter |= (
+            Q(paid_at=rem.date)
+            & (Q(remittance__isnull=True) | Q(remittance=rem))
+        )
+
     # --- Repaid counts mapped by (care_of_id, product_id) ---
     repaid_counts = {
         (row["credit_line__care_of_id"], row["credit_line__product_id"]): row["total_repaid"]
         for row in (
-            CreditPayment.objects.filter(remittance=rem)
+            CreditPayment.objects.filter(payment_filter)
             .values("credit_line__care_of_id", "credit_line__product_id")
             .annotate(total_repaid=Sum("containers_paid"))
         )
     }
 
     # --- Detailed credit repayments grouped by care_of_id ---
-    repayments_by_care_of: dict[any, list[dict]] = {}
-    for payment in (
-        CreditPayment.objects.filter(remittance=rem)
+    payments_list = list(
+        CreditPayment.objects.filter(payment_filter)
         .select_related("credit_line__customer", "credit_line__product", "credit_line__care_of")
         .order_by("-paid_at", "-created_at")
-    ):
+    )
+    repayments_by_care_of: dict[any, list[dict]] = {}
+    for payment in payments_list:
         care_of_id = payment.credit_line.care_of_id
         paid_date = payment.paid_at or (
             timezone.localtime(payment.created_at).date()
@@ -1341,16 +1390,42 @@ def get_remittance_detail(
             "date": paid_date.strftime("%Y-%m-%d") if paid_date else "—",
         })
 
+    effective_total_repayments = max(
+        rem.total_repayments_received or Decimal("0.00"),
+        sum(p.amount for p in payments_list),
+    )
+
+    # Credit line filter: match credits explicitly reported on this remittance OR
+    # extended on this remittance's date for this tenant that are unlinked or linked to it.
+    credit_filter = Q(remittance=rem)
+    if rem.company_id:
+        credit_filter |= (
+            Q(transaction_date=rem.date, company_id=rem.company_id)
+            & (Q(remittance__isnull=True) | Q(remittance=rem))
+        )
+    else:
+        credit_filter |= (
+            Q(transaction_date=rem.date)
+            & (Q(remittance__isnull=True) | Q(remittance=rem))
+        )
+
     # --- Detailed credits recorded grouped by care_of_id ---
-    credits_by_care_of: dict[any, list[dict]] = {}
-    for credit in (
-        CreditLine.objects.filter(remittance=rem)
-        .select_related("customer", "product", "care_of")
+    credit_lines_list = list(
+        CreditLine.objects.filter(credit_filter)
+        .select_related("customer", "product", "care_of", "remittance")
         .annotate(total_paid=Coalesce(Sum("payments__amount"), Decimal("0.00")))
-        .order_by("-created_at")
-    ):
+        .order_by("-transaction_date", "-created_at")
+    )
+
+    credits_by_care_of: dict[any, list[dict]] = {}
+    for credit in credit_lines_list:
         care_of_id = credit.care_of_id
         is_repaid = credit.total_paid >= credit.total_credit_amount
+        tx_date = credit.transaction_date or (
+            timezone.localtime(credit.created_at).date()
+            if credit.created_at
+            else None
+        )
         credits_by_care_of.setdefault(care_of_id, []).append({
             "customer_name": credit.customer.name,
             "product_name": credit.product.name,
@@ -1358,8 +1433,13 @@ def get_remittance_detail(
             "amount": _format_peso(credit.total_credit_amount),
             "is_repaid": is_repaid,
             "status": "Repaid" if is_repaid else "Pending",
-            "created_at": credit.created_at.strftime("%Y-%m-%d"),
+            "created_at": tx_date.strftime("%Y-%m-%d") if tx_date else "—",
         })
+
+    effective_total_credits = max(
+        rem.total_credit_sales or Decimal("0.00"),
+        sum(c.total_credit_amount for c in credit_lines_list),
+    )
 
     # --- Riders + product lines + expenses + deductions ---
     rider_rows = (
@@ -1401,10 +1481,10 @@ def get_remittance_detail(
     for rr in rider_rows:
         rider_lines = lines_by_rider.get(rr.rider_id, [])
         total_sold = sum(line["qty_sold"] for line in rider_lines)
-        total_credited = sum(line["qty_credited"] for line in rider_lines)
-        total_repaid = sum(line["qty_repaid"] for line in rider_lines)
         rider_payments = repayments_by_care_of.get(rr.rider_id, [])
         rider_credits = credits_by_care_of.get(rr.rider_id, [])
+        total_credited = max(sum(line["qty_credited"] for line in rider_lines), sum(c["qty"] for c in rider_credits))
+        total_repaid = max(sum(line["qty_repaid"] for line in rider_lines), sum(p["qty"] for p in rider_payments))
 
         remitted_val = rr.remitted
         balance_val = max(Decimal("0.00"), rr.subtotal_payable - (remitted_val or Decimal("0.00")))
@@ -1549,8 +1629,8 @@ def get_remittance_detail(
         "status": rem.status,
         "is_draft": rem.status == Remittance.StatusChoices.DRAFT,
         "total_sales": _format_peso(rem.total_sales),
-        "total_repayments_received": _format_peso(rem.total_repayments_received),
-        "total_credit_sales": _format_peso(rem.total_credit_sales),
+        "total_repayments_received": _format_peso(effective_total_repayments),
+        "total_credit_sales": _format_peso(effective_total_credits),
         "total_expenses": _format_peso(rem.total_expenses),
         "net_remittance": _format_peso(rem.net_remittance),
         "drivers_remittance": _format_peso(rem.total_sales - rem.total_commission),
@@ -1593,8 +1673,20 @@ def get_credit_repayments_for_remittance(
                 "page_range": [],
             }
 
+    payment_filter = Q(remittance=remittance)
+    if remittance.company_id:
+        payment_filter |= (
+            Q(paid_at=remittance.date, company_id=remittance.company_id)
+            & (Q(remittance__isnull=True) | Q(remittance=remittance))
+        )
+    else:
+        payment_filter |= (
+            Q(paid_at=remittance.date)
+            & (Q(remittance__isnull=True) | Q(remittance=remittance))
+        )
+
     qs = (
-        CreditPayment.objects.filter(remittance=remittance)
+        CreditPayment.objects.filter(payment_filter)
         .select_related(
             "credit_line__customer",
             "credit_line__product",
@@ -1664,11 +1756,23 @@ def get_credits_recorded_for_remittance(
                 "page_range": [],
             }
 
+    credit_filter = Q(remittance=remittance)
+    if remittance.company_id:
+        credit_filter |= (
+            Q(transaction_date=remittance.date, company_id=remittance.company_id)
+            & (Q(remittance__isnull=True) | Q(remittance=remittance))
+        )
+    else:
+        credit_filter |= (
+            Q(transaction_date=remittance.date)
+            & (Q(remittance__isnull=True) | Q(remittance=remittance))
+        )
+
     qs = (
-        CreditLine.objects.filter(remittance=remittance)
+        CreditLine.objects.filter(credit_filter)
         .select_related("customer", "product", "care_of", "remittance")
         .annotate(total_paid=Coalesce(Sum("payments__amount"), Decimal("0.00")))
-        .order_by("-created_at")
+        .order_by("-transaction_date", "-created_at")
     )
 
     paginator = Paginator(qs, page_size)
@@ -1677,16 +1781,21 @@ def get_credits_recorded_for_remittance(
     credits = []
     for credit in page_obj:
         is_repaid = credit.total_paid >= credit.total_credit_amount
+        tx_date = credit.transaction_date or (
+            timezone.localtime(credit.created_at).date()
+            if credit.created_at
+            else None
+        )
 
         credits.append({
-            "rider_name": credit.care_of.full_name if credit.care_of else "—",
+            "rider_name": credit.care_of.full_name if credit.care_of else "Station (Storefront)",
             "customer_name": credit.customer.name,
             "product_name": credit.product.name,
             "qty": credit.qty_credited,
             "amount": _format_peso(credit.total_credit_amount),
             "is_repaid": is_repaid,
             "status": "Repaid" if is_repaid else "Pending",
-            "created_at": credit.created_at.strftime("%Y-%m-%d"),
+            "created_at": tx_date.strftime("%Y-%m-%d") if tx_date else "—",
             "remittance_id": credit.remittance.id if credit.remittance else None,
             "remittance_date": credit.remittance.date.isoformat() if credit.remittance else "—",
         })

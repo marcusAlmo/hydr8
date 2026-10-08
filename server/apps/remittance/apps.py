@@ -12,8 +12,11 @@ class RemittanceConfig(AppConfig):
             Remittance,
             RemittanceRider,
             RemittanceRiderProductLine,
+            RemittanceStaff,
             RiderCredit,
             RiderCreditRepayment,
+            RiderDeduction,
+            StaffDeduction,
         )
         auditlog.register(Remittance)
         auditlog.register(RemittanceRider)
@@ -21,3 +24,7 @@ class RemittanceConfig(AppConfig):
         auditlog.register(Expense)
         auditlog.register(RiderCredit)
         auditlog.register(RiderCreditRepayment)
+        auditlog.register(RemittanceStaff)
+        auditlog.register(StaffDeduction)
+        auditlog.register(RiderDeduction)
+

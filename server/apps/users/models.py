@@ -137,6 +137,11 @@ class User(AbstractUser):
         verbose_name_plural = 'users'
         indexes = [
             models.Index(fields=['company', 'deleted_at', 'deactivated_at', 'is_active']),
+            models.Index(
+                fields=['company', 'deleted_at'],
+                name='idx_user_company_active',
+                condition=models.Q(deleted_at__isnull=True),
+            ),
         ]
 
     def set_password(self, raw_password: str) -> None:

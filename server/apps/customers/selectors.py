@@ -11,7 +11,6 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.core.paginator import Paginator
-from django.db import models
 from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
@@ -706,7 +705,7 @@ def get_customer_table_context(
         qs = qs.filter(name__ilike=query)
 
     # Apply status/category chip filter — applied exactly once
-    # FIXME: was duplicated 3× in a previous version; keep this single block.
+    # FIXME: was duplicated 3x in a previous version; keep this single block.
     active_filter = (active_filter or "all").lower()
     if active_filter == "has_debt":
         qs = qs.filter(debt_balance__gt=0)

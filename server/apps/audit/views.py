@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
 from apps.audit.selectors import (
-    build_logs_json,
+    build_logs_data,
     get_log_entry,
     list_log_entries,
 )
@@ -88,23 +88,29 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
     if for_htmx:
         logs_json = "[]"
         action_counts_json = "{}"
+        logs_data = []
+        action_counts_data = {}
     else:
         # JSON-serializable projection for Alpine.js client-side filtering.
         # Only the current page's entries are included -- filters apply within the page.
-        logs_json = build_logs_json(page_obj.object_list)
+        logs_data = build_logs_data(page_obj.object_list)
+        logs_json = json.dumps(logs_data)
 
-        # JSON of action counts for the Alpine filter chips (full dataset counts)
-        action_counts_json = json.dumps({
+        # Action counts for the Alpine filter chips (full dataset counts)
+        action_counts_data = {
             "total": data["total"],
             "0": action_counts.get(0, 0),
             "1": action_counts.get(1, 0),
             "2": action_counts.get(2, 0),
             "3": action_counts.get(3, 0),
-        })
+        }
+        action_counts_json = json.dumps(action_counts_data)
 
     return {
         "today_date": timezone.localtime().strftime("%A, %b %d, %Y"),
         "logs": page_obj.object_list,
+        "logs_data": logs_data,
+        "action_counts_data": action_counts_data,
         "total": data["total"],
         "action_filters": action_filters,
         "stats": stats,
