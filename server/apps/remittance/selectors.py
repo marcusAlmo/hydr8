@@ -25,6 +25,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.core.models import Product, SystemConfig
+from apps.core.pagination import DEFAULT_PER_PAGE
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.users.models import DriverCommission, User
 from apps.users.permissions import is_tenant_scoped
@@ -1048,7 +1049,7 @@ def _remittance_row(rem: Remittance) -> dict:
 
 def get_recent_remittances(
     user: UserType,
-    limit: int = 25,
+    limit: int = DEFAULT_PER_PAGE,
     *,
     start_date: date | None = None,
     end_date: date | None = None,
@@ -1727,7 +1728,7 @@ def get_credit_repayments_for_remittance(
     user: UserType,
     remittance_id: int,
     page: int = 1,
-    page_size: int = 5,
+    page_size: int = DEFAULT_PER_PAGE,
     remittance: Remittance | None = None,
 ) -> dict:
     """Returns paginated customer credit repayments attributed to a remittance.
@@ -1748,6 +1749,7 @@ def get_credit_repayments_for_remittance(
                 "page_size": page_size,
                 "total_pages": 0,
                 "page_range": [],
+                "per_page_choices": list(PER_PAGE_CHOICES),
             }
 
     payment_filter = Q(remittance=remittance)
@@ -1809,6 +1811,7 @@ def get_credit_repayments_for_remittance(
         "page_range": page_range,
         "page_start": page_obj.start_index() if page_obj else 0,
         "page_end": page_obj.end_index() if page_obj else 0,
+        "per_page_choices": list(PER_PAGE_CHOICES),
     }
 
 
@@ -1816,7 +1819,7 @@ def get_credits_recorded_for_remittance(
     user: UserType,
     remittance_id: int,
     page: int = 1,
-    page_size: int = 5,
+    page_size: int = DEFAULT_PER_PAGE,
     remittance: Remittance | None = None,
 ) -> dict:
     """Returns paginated customer credit lines recorded for a remittance.
@@ -1836,6 +1839,7 @@ def get_credits_recorded_for_remittance(
                 "page_size": page_size,
                 "total_pages": 0,
                 "page_range": [],
+                "per_page_choices": list(PER_PAGE_CHOICES),
             }
 
     credit_filter = Q(remittance=remittance)
@@ -1892,4 +1896,5 @@ def get_credits_recorded_for_remittance(
         "page_range": page_range,
         "page_start": page_obj.start_index() if page_obj else 0,
         "page_end": page_obj.end_index() if page_obj else 0,
+        "per_page_choices": list(PER_PAGE_CHOICES),
     }

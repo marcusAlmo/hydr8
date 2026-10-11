@@ -17,6 +17,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.timezone import localtime
 
+from apps.core.pagination import DEFAULT_PER_PAGE, PER_PAGE_CHOICES
 from apps.customers.models import CreditLine
 from apps.customers.selectors import _display_id as _customer_display_id
 from apps.remittance.models import RemittanceRiderProductLine
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MODULES = ["Remittance", "Customers", "Products", "Users", "Reports"]
-PER_PAGE = 25
+PER_PAGE = DEFAULT_PER_PAGE
 
 # ---------------------------------------------------------------------------
 # Accent colour mapping for summary/stat cards.
@@ -257,6 +258,8 @@ def _directory_filters(users_qs, active_filter: str = "all") -> list[dict]:
 def _pagination_from_page(page_obj) -> dict:
     """Builds the pagination context dict from a Django Page object."""
     total = page_obj.paginator.count
+    per_page = page_obj.paginator.per_page
+    choices = list(PER_PAGE_CHOICES)
     if total == 0:
         return {
             "showing_from": 0,
@@ -269,6 +272,8 @@ def _pagination_from_page(page_obj) -> dict:
             "has_next": False,
             "previous_page_number": None,
             "next_page_number": None,
+            "per_page": per_page,
+            "per_page_choices": choices,
         }
     return {
         "showing_from": page_obj.start_index(),
@@ -281,6 +286,8 @@ def _pagination_from_page(page_obj) -> dict:
         "has_next": page_obj.has_next(),
         "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+        "per_page": per_page,
+        "per_page_choices": choices,
     }
 
 
@@ -599,12 +606,13 @@ def get_employee_directory_context(
     query: str = "",
     page: int = 1,
     active_filter: str = "all",
+    per_page: int = PER_PAGE,
 ) -> dict:
     """Returns the full context for the Employees & Users directory page.
 
     When ``query`` is non-empty, filters by first_name, last_name, or username
     using ``__ilike``. When ``active_filter`` is set, further narrows by
-    role or inactive users. Uses real pagination (PER_PAGE=25).
+    role or inactive users. Uses real pagination (default per_page=10).
     """
     users_qs = _user_qs(request_user).select_related('role')
 
@@ -630,7 +638,7 @@ def get_employee_directory_context(
     users_qs = users_qs.order_by("first_name", "last_name")
 
     # Real pagination
-    paginator = Paginator(users_qs, PER_PAGE)
+    paginator = Paginator(users_qs, per_page)
     page_obj = paginator.get_page(page)
 
     users = [_user_row(u) for u in page_obj.object_list]

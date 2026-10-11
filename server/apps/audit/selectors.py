@@ -10,9 +10,11 @@ from auditlog.models import LogEntry
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 
+from apps.core.pagination import DEFAULT_PER_PAGE
+
 logger = logging.getLogger(__name__)
 
-PER_PAGE = 50
+PER_PAGE = DEFAULT_PER_PAGE
 
 _ACTION_LABELS = {0: "CREATE", 1: "UPDATE", 2: "DELETE", 3: "ACCESS"}
 

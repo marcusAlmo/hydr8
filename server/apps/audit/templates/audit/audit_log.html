@@ -81,41 +81,43 @@
                     x-transition:leave-end="opacity-0 -translate-y-1"
                     @click.outside="customRangeOpen = false"
                     @keydown.escape.window="customRangeOpen = false"
-                    class="absolute right-0 top-full mt-1 z-50 w-80 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden"
+                    class="absolute right-0 top-full mt-1 z-50 w-[22rem] sm:w-[26rem] max-w-[calc(100vw-2rem)] bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-xl overflow-hidden"
                 >
                     <div class="p-4 space-y-3">
                         <h4 class="font-headline-sm text-body-md font-bold text-on-surface">Custom Date Range</h4>
                         <div class="grid grid-cols-2 gap-3">
-                            <div>
+                            <div class="min-w-0">
                                 <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">From</label>
                                 <input
                                     type="date"
                                     x-model="customFrom"
-                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    class="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
                                 >
                             </div>
-                            <div>
+                            <div class="min-w-0">
                                 <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">To</label>
                                 <input
                                     type="date"
                                     x-model="customTo"
-                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    class="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
                                 >
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div>
+                            <div class="min-w-0">
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">Time (From)</label>
                                 <input
                                     type="time"
                                     x-model="customFromTime"
-                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    class="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
                                 >
                             </div>
-                            <div>
+                            <div class="min-w-0">
+                                <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">Time (To)</label>
                                 <input
                                     type="time"
                                     x-model="customToTime"
-                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    class="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
                                 >
                             </div>
                         </div>
@@ -208,7 +210,7 @@
                     hx-trigger="keyup changed delay:300ms, search"
                     hx-target="#audit-log-table"
                     hx-swap="outerHTML"
-                    hx-include="this"
+                    hx-include="this, #audit-per-page"
                     hx-preserve="true"
                 >
             </div>

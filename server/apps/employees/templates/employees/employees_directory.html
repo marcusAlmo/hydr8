@@ -330,6 +330,7 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                     toolbar: { show: false },
                     animations: { enabled: true, speed: 600 },
                     fontFamily: 'Geist, sans-serif',
+                    background: 'transparent',
                 },
                 theme: {
                     mode: isDark ? 'dark' : 'light',
@@ -347,13 +348,19 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                 yaxis: {
                     labels: { show: true, style: { fontSize: '10px', colors: isDark ? '#94A3B8' : '#6E7881' } },
                 },
-                colors: ['#006591'],
+                colors: [isDark ? '#38BDF8' : '#006591'],
                 fill: {
                     type: 'gradient',
-                    gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] },
+                    gradient: {
+                        shade: isDark ? 'dark' : 'light',
+                        shadeIntensity: 1,
+                        opacityFrom: isDark ? 0.45 : 0.3,
+                        opacityTo: 0.05,
+                        stops: [0, 100],
+                    },
                 },
                 stroke: { curve: 'smooth', width: 2 },
-                grid: { show: true, borderColor: isDark ? '#334155' : '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
+                grid: { show: true, borderColor: isDark ? 'rgba(51, 65, 85, 0.4)' : '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
                 tooltip: {
                     y: { formatter: (v) => v + ' units' },
                     theme: isDark ? 'dark' : 'light',
@@ -387,6 +394,7 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                     toolbar: { show: false },
                     animations: { enabled: true, speed: 600 },
                     fontFamily: 'Geist, sans-serif',
+                    background: 'transparent',
                 },
                 theme: {
                     mode: isDark ? 'dark' : 'light',
@@ -408,13 +416,19 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                         formatter: (v) => '₱' + v.toLocaleString(),
                     },
                 },
-                colors: ['#006C4A'],
+                colors: [isDark ? '#34D399' : '#006C4A'],
                 fill: {
                     type: 'gradient',
-                    gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] },
+                    gradient: {
+                        shade: isDark ? 'dark' : 'light',
+                        shadeIntensity: 1,
+                        opacityFrom: isDark ? 0.45 : 0.3,
+                        opacityTo: 0.05,
+                        stops: [0, 100],
+                    },
                 },
                 stroke: { curve: 'smooth', width: 2 },
-                grid: { show: true, borderColor: isDark ? '#334155' : '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
+                grid: { show: true, borderColor: isDark ? 'rgba(51, 65, 85, 0.4)' : '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
                 tooltip: {
                     y: { formatter: (v) => '₱' + v.toLocaleString(undefined, { minimumFractionDigits: 2 }) },
                     theme: isDark ? 'dark' : 'light',

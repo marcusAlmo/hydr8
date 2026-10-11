@@ -64,7 +64,7 @@ class DarkModeTests(TestCase):
         self.assertIn("Sync with device settings", html)
 
     def test_employees_directory_theme_aware_charts(self):
-        """Employees directory template must include theme change listener."""
+        """Employees directory template must include theme change listener and dynamic colors."""
         self.client.force_login(self.user)
         response = self.client.get(reverse("employees:list"))
         self.assertEqual(response.status_code, 200)
@@ -72,9 +72,12 @@ class DarkModeTests(TestCase):
         html = response.content.decode()
         self.assertIn("hydr8:theme-change", html)
         self.assertIn("mode: isDark ? 'dark' : 'light'", html)
+        self.assertIn("background: 'transparent'", html)
+        self.assertIn("colors: [isDark ? '#38BDF8' : '#006591']", html)
+        self.assertIn("colors: [isDark ? '#34D399' : '#006C4A']", html)
 
     def test_remittance_history_theme_aware_charts(self):
-        """Remittance history template must include theme change listener."""
+        """Remittance history template must include theme change listener, dynamic colors, and rider palettes."""
         self.client.force_login(self.user)
         response = self.client.get(reverse("remittance:history"))
         self.assertEqual(response.status_code, 200)
@@ -82,6 +85,13 @@ class DarkModeTests(TestCase):
         html = response.content.decode()
         self.assertIn("hydr8:theme-change", html)
         self.assertIn("mode: isDark ? 'dark' : 'light'", html)
+        self.assertIn("background: 'transparent'", html)
+        self.assertIn("salesColor = isDark ? '#38BDF8' : '#006591'", html)
+        self.assertIn("debtColor  = isDark ? '#FBBF24' : '#D97706'", html)
+        self.assertIn("commColor  = isDark ? '#34D399' : '#006C4A'", html)
+        self.assertIn("darkRiderPalette", html)
+        self.assertIn("riderColor(rider, index)", html)
+        self.assertIn("html.dark .chart-skeleton", html)
 
     def test_base_template_with_alpha_and_tailwind_tokens(self):
         """Base template must use withAlpha color-mix helper for opacity and dark mode support."""
