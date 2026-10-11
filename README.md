@@ -56,8 +56,7 @@ hydr8/
 ├── docs/                      # Architectural specifications & requirements
 │   ├── ARCHITECTURE.md        # Comprehensive system architecture guide
 │   ├── DESIGN.md              # Semantic design system & UI token definitions
-│   ├── PROJECT_PLAN.md        # Feature roadmap & scope boundaries
-│   └── Admin_User_Stories.md  # Domain operational user stories
+│   └── PROJECT_PLAN.md        # Feature roadmap & scope boundaries
 ├── server/                    # Django monolith
 │   ├── apps/                  # Domain applications
 │   │   ├── analytics/         # Station performance metrics & daily snapshots
@@ -173,6 +172,23 @@ uv run python manage.py test apps.remittance apps.customers apps.users
 # Run linting and code formatting checks
 uv run ruff check .
 uv run ruff format --check .
+```
+
+---
+
+## Background Tasks & Maintenance
+
+Hydr8 includes background maintenance tasks to purge old audit logs (retaining 90 days by default) and clear expired sessions.
+
+```bash
+# Start background task scheduler (runs daily at 1:00 AM PHT)
+uv run python manage.py run_scheduler
+
+# Run daily maintenance manually on demand
+uv run python manage.py run_maintenance
+
+# Purge audit log records older than a specific retention window
+uv run python manage.py purge_audit_logs --days 90
 ```
 
 ---

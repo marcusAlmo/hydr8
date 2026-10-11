@@ -1,0 +1,2 @@
+# Production requirements bundle for Hydr8
+-r requirements/production.txt

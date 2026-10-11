@@ -1,13 +1,31 @@
+{% load pagination_tags %}
 {% if page_obj %}
-<div class="pagination-bar flex items-center justify-between py-3 px-4 bg-slate-900/50 border-t border-slate-800 text-xs text-slate-400">
-    <div class="pagination-info flex items-center gap-2">
+<div class="pagination-bar flex flex-wrap items-center justify-between gap-4 py-3 px-4 bg-slate-900/50 border-t border-slate-800 text-xs text-slate-400">
+    <div class="pagination-info flex items-center gap-3">
         <span>Showing <strong class="font-mono text-slate-200">{{ page_obj.start_index }}</strong> to <strong class="font-mono text-slate-200">{{ page_obj.end_index }}</strong> of <strong class="font-mono text-slate-200">{{ page_obj.paginator.count }}</strong> entries</span>
+        <div class="flex items-center gap-1.5 ml-2">
+            <label for="shared-pagination-per-page" class="text-slate-400">Rows</label>
+            <select id="shared-pagination-per-page"
+                    name="per_page"
+                    hx-get="?page=1{% if query_params %}&{{ query_params }}{% endif %}"
+                    {% if target %}hx-target="{{ target }}"{% endif %}
+                    {% if swap %}hx-swap="{{ swap }}"{% endif %}
+                    hx-include="this"
+                    class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 font-mono text-xs focus:ring-1 focus:ring-primary focus:border-transparent cursor-pointer">
+                {% with current_pp=page_obj.paginator.per_page %}
+                <option value="10" {% if current_pp == 10 %}selected{% endif %}>10</option>
+                <option value="15" {% if current_pp == 15 %}selected{% endif %}>15</option>
+                <option value="20" {% if current_pp == 20 %}selected{% endif %}>20</option>
+                <option value="25" {% if current_pp == 25 %}selected{% endif %}>25</option>
+                {% endwith %}
+            </select>
+        </div>
     </div>
 
     <div class="pagination-controls flex items-center gap-1.5">
         {% if page_obj.has_previous %}
         <button type="button"
-                hx-get="?page=1{% if query_params %}&{{ query_params }}{% endif %}"
+                hx-get="?page=1{% if query_params %}&{{ query_params }}{% endif %}&per_page={{ page_obj.paginator.per_page }}"
                 {% if target %}hx-target="{{ target }}"{% endif %}
                 {% if swap %}hx-swap="{{ swap }}"{% endif %}
                 class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors"
@@ -15,7 +33,7 @@
             &laquo;
         </button>
         <button type="button"
-                hx-get="?page={{ page_obj.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}"
+                hx-get="?page={{ page_obj.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}&per_page={{ page_obj.paginator.per_page }}"
                 {% if target %}hx-target="{{ target }}"{% endif %}
                 {% if swap %}hx-swap="{{ swap }}"{% endif %}
                 class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors">
@@ -25,20 +43,32 @@
         <span class="px-2.5 py-1 rounded bg-slate-900 text-slate-600 cursor-not-allowed">Previous</span>
         {% endif %}
 
-        <span class="px-3 py-1 font-mono text-slate-300">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
-        </span>
+        {% for p in page_obj|elided_pages %}
+            {% if p == "…" %}
+            <span class="px-1 text-slate-500 font-mono text-xs">…</span>
+            {% elif p == page_obj.number %}
+            <span class="px-2.5 py-1 rounded bg-primary text-white font-mono text-xs font-bold">{{ p }}</span>
+            {% else %}
+            <button type="button"
+                    hx-get="?page={{ p }}{% if query_params %}&{{ query_params }}{% endif %}&per_page={{ page_obj.paginator.per_page }}"
+                    {% if target %}hx-target="{{ target }}"{% endif %}
+                    {% if swap %}hx-swap="{{ swap }}"{% endif %}
+                    class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs transition-colors">
+                {{ p }}
+            </button>
+            {% endif %}
+        {% endfor %}
 
         {% if page_obj.has_next %}
         <button type="button"
-                hx-get="?page={{ page_obj.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}"
+                hx-get="?page={{ page_obj.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}&per_page={{ page_obj.paginator.per_page }}"
                 {% if target %}hx-target="{{ target }}"{% endif %}
                 {% if swap %}hx-swap="{{ swap }}"{% endif %}
                 class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors">
             Next
         </button>
         <button type="button"
-                hx-get="?page={{ page_obj.paginator.num_pages }}{% if query_params %}&{{ query_params }}{% endif %}"
+                hx-get="?page={{ page_obj.paginator.num_pages }}{% if query_params %}&{{ query_params }}{% endif %}&per_page={{ page_obj.paginator.per_page }}"
                 {% if target %}hx-target="{{ target }}"{% endif %}
                 {% if swap %}hx-swap="{{ swap }}"{% endif %}
                 class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors"

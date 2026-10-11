@@ -105,17 +105,35 @@ is now server-side (HTMX). matchesSearch() has been removed.
     </div>
 
     <!-- Pagination -->
-    <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex items-center justify-between">
-        <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
-            Showing {{ pagination.showing_from }}–{{ pagination.showing_to }}
-            of <span class="font-data-mono">{{ pagination.total_display }}</span> entries
-            <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered on page</span>
-        </span>
+    <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-4">
+            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                Showing {{ pagination.showing_from }}–{{ pagination.showing_to }}
+                of <span class="font-data-mono">{{ pagination.total_display }}</span> entries
+                <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered on page</span>
+            </span>
+            <div class="flex items-center gap-1.5">
+                <label for="audit-per-page" class="text-label-caps text-[11px] text-on-surface-variant uppercase tracking-wider">Per page:</label>
+                <select id="audit-per-page"
+                        name="per_page"
+                        aria-label="Entries per page"
+                        class="bg-surface-container border border-outline-variant/30 rounded px-2 py-0.5 text-xs font-data-mono text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                        hx-get="{% url 'audit:list' %}?page=1{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#audit-log-table"
+                        hx-swap="outerHTML"
+                        hx-trigger="change"
+                        hx-include="this">
+                    {% for choice in pagination.per_page_choices %}
+                    <option value="{{ choice }}" {% if pagination.per_page == choice %}selected{% endif %}>{{ choice }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
         <div class="flex items-center gap-1">
             {% if pagination.has_previous %}
             <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                     title="Previous page"
-                    hx-get="{% url 'audit:list' %}?page={{ pagination.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                    hx-get="{% url 'audit:list' %}?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                     hx-target="#audit-log-table"
                     hx-swap="outerHTML">
                 <span class="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -125,12 +143,24 @@ is now server-side (HTMX). matchesSearch() has been removed.
                 <span class="material-symbols-outlined text-[18px]">chevron_left</span>
             </button>
             {% endif %}
-            <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
-            <span class="px-2 text-on-surface-variant text-xs font-data-mono">/ {{ pagination.total_pages }}</span>
+            {% for p in pagination.page_numbers %}
+                {% if p == "…" %}
+                <span class="px-1 text-on-surface-variant text-xs font-data-mono">…</span>
+                {% elif p == pagination.current_page %}
+                <span class="px-2.5 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ p }}</span>
+                {% else %}
+                <button class="px-2.5 py-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant text-xs font-data-mono"
+                        hx-get="{% url 'audit:list' %}?page={{ p }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#audit-log-table"
+                        hx-swap="outerHTML">
+                    {{ p }}
+                </button>
+                {% endif %}
+            {% endfor %}
             {% if pagination.has_next %}
             <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                     title="Next page"
-                    hx-get="{% url 'audit:list' %}?page={{ pagination.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                    hx-get="{% url 'audit:list' %}?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                     hx-target="#audit-log-table"
                     hx-swap="outerHTML">
                 <span class="material-symbols-outlined text-[18px]">chevron_right</span>

@@ -1,4 +1,4 @@
-<!-- SideNavBar (The Abyss Sidebar) -->
+<!-- Sidebar Navigation -->
 {% with active_item=active_page|default:request.resolver_match.url_name|default:request.resolver_match.app_name %}
 <aside x-data="{
         expanded: $persist(true).as('hydr8_sidebar_expanded'),
@@ -13,7 +13,6 @@
             mq.addEventListener('change', handler);
         }
      }"
-       hx-boost="true"
        :style="{ width: expanded ? '240px' : '80px' }"
        style="width: var(--sidebar-width, 240px)"
        class="relative h-full bg-inverse-surface flex flex-col py-4 px-3 shadow-md z-50 transition-all duration-300 flex-shrink-0 overflow-hidden">
@@ -110,7 +109,34 @@
     </nav>
 
     <!-- Bottom Actions -->
-    <div class="mt-auto pt-4 border-t border-secondary-fixed-dim/20">
+    <div class="mt-auto pt-4 border-t border-secondary-fixed-dim/20 space-y-1">
+        <!-- Theme Toggle (Light / Dark Mode) -->
+        <div x-data="{
+                isDark: document.documentElement.classList.contains('dark'),
+                init() {
+                    window.addEventListener('hydr8:theme-change', (e) => {
+                        this.isDark = e.detail.isDark;
+                    });
+                },
+                toggle() {
+                    window.toggleHydr8Theme();
+                    this.isDark = document.documentElement.classList.contains('dark');
+                }
+             }">
+            <button @click="toggle()"
+                    type="button"
+                    class="w-full flex items-center gap-3 py-2 rounded text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200 border-l-2 border-transparent cursor-pointer"
+                    :class="expanded ? 'px-3' : 'justify-center px-0'"
+                    :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+                    :aria-label="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+                <span class="material-symbols-outlined flex-shrink-0 transition-transform duration-300"
+                      :class="isDark ? 'text-sky-300' : 'text-amber-300'"
+                      x-text="isDark ? 'dark_mode' : 'light_mode'">dark_mode</span>
+                <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap truncate"
+                      x-text="isDark ? 'Dark Mode' : 'Light Mode'">Theme</span>
+            </button>
+        </div>
+
         <div class="flex items-center gap-1" :class="expanded ? '' : 'flex-col'">
             <a href="{% url 'settings:list' %}?tab=profile"
                class="flex-1 min-w-0 flex items-center gap-3 py-2.5 rounded text-secondary-fixed-dim hover:bg-secondary-fixed-dim/10 hover:text-primary-fixed transition-colors duration-200 border-l-2 border-transparent"

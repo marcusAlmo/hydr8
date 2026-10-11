@@ -297,3 +297,314 @@ def get_outstanding_debts(user: User) -> list[dict]:
 def get_today_remittance(user: User) -> dict:
     """Today's remittance status for the dashboard side panel."""
     return _today_remittance(user)
+
+
+def _yesterday_ai_insight(user: User) -> dict:
+    """Compute daily operational health metrics and status indicators for yesterday."""
+    today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
+    yesterday_str = yesterday.strftime("%A, %b %d, %Y")
+    short_date = yesterday.strftime("%b %d")
+
+    rem = (
+        Remittance.objects.for_user(user)
+        .filter(date=yesterday)
+        .select_related("created_by")
+        .first()
+    )
+
+    if rem is None:
+        return {
+            "date": yesterday,
+            "date_str": yesterday_str,
+            "short_date": short_date,
+            "mood": "warning",
+            "mood_label": "Attention Needed",
+            "header_gradient": "bg-[#D97706]",
+            "pill_class": "bg-[#D97706]/15 text-[#D97706]",
+            "banner_class": "bg-[#D97706]/10 border-[#D97706]/30 text-[#D97706]",
+            "icon": "warning",
+            "title": "Missing Operational Remittance",
+            "sample_text": (
+                "No remittance was logged for yesterday. Operations ran without "
+                "closing the daily register, which can cause debt and container discrepancies."
+            ),
+            "metrics": {
+                "sales": "₱0.00",
+                "net_profit": "₱0.00",
+                "tithes_status": "Unrecorded",
+                "remittance_status": "Missing",
+            },
+            "detailed_insights": [
+                {
+                    "category": "Revenue & Margins",
+                    "icon": "payments",
+                    "content": "No sales transactions were closed or verified for yesterday. Ensure staff record any carried-over cash.",
+                },
+                {
+                    "category": "Credit & Collections",
+                    "icon": "account_balance_wallet",
+                    "content": "Customer payments and borrowed containers recorded yesterday are unassociated with a finalized batch.",
+                },
+                {
+                    "category": "Station Inventory",
+                    "icon": "water_drop",
+                    "content": "Water volume and 5-gallon container movements require sign-off to maintain accurate station balances.",
+                },
+            ],
+            "recommendations": [
+                "Log and finalize yesterday's remittance sheet before concluding today's sales.",
+                "Conduct a physical count of round and slim containers in stock.",
+                "Verify rider cash turn-overs from yesterday with the on-duty staff.",
+            ],
+            "action_url": "remittance:add",
+            "action_label": "Create Remittance",
+        }
+
+    creator = rem.created_by.full_name if rem.created_by else "Staff"
+    sales_fmt = _fmt_peso(rem.total_sales)
+    profit_fmt = _fmt_peso(rem.net_profit)
+    tithes_paid = rem.tithes_paid and rem.offering_paid
+    tithe_status_label = "Paid" if tithes_paid else "Unpaid"
+
+    if rem.status == Remittance.StatusChoices.DRAFT:
+        return {
+            "date": yesterday,
+            "date_str": yesterday_str,
+            "short_date": short_date,
+            "mood": "warning",
+            "mood_label": "Draft Pending",
+            "header_gradient": "bg-[#D97706]",
+            "pill_class": "bg-[#D97706]/15 text-[#D97706]",
+            "banner_class": "bg-[#D97706]/10 border-[#D97706]/30 text-[#D97706]",
+            "icon": "edit_note",
+            "title": "Yesterday's Draft Awaiting Finalization",
+            "sample_text": (
+                f"Yesterday's remittance was prepared by {creator} with {sales_fmt} in sales, "
+                "but remains in draft state. Review and finalize it to officially close the period."
+            ),
+            "metrics": {
+                "sales": sales_fmt,
+                "net_profit": profit_fmt,
+                "tithes_status": tithe_status_label,
+                "remittance_status": "Draft",
+            },
+            "detailed_insights": [
+                {
+                    "category": "Revenue Verification",
+                    "icon": "payments",
+                    "content": f"A draft total of {sales_fmt} is awaiting manager PIN sign-off.",
+                },
+                {
+                    "category": "Driver Commissions",
+                    "icon": "local_shipping",
+                    "content": "Driver delivery credits and expense deductions are logged but not yet frozen.",
+                },
+                {
+                    "category": "Audit Compliance",
+                    "icon": "verified_user",
+                    "content": "Finalizing locks child expense and credit entries against accidental edits.",
+                },
+            ],
+            "recommendations": [
+                "Review expense line items and rider commissions recorded in the draft.",
+                "Authenticate with Admin PIN to complete the finalization workflow.",
+            ],
+            "action_url": "remittance:add",
+            "action_label": "Review & Finalize",
+        }
+
+    if not tithes_paid:
+        return {
+            "date": yesterday,
+            "date_str": yesterday_str,
+            "short_date": short_date,
+            "mood": "warning",
+            "mood_label": "Attention Needed",
+            "header_gradient": "bg-[#D97706]",
+            "pill_class": "bg-[#D97706]/15 text-[#D97706]",
+            "banner_class": "bg-[#D97706]/10 border-[#D97706]/30 text-[#D97706]",
+            "icon": "priority_high",
+            "title": "Unsettled Tithes from Yesterday",
+            "sample_text": (
+                f"Yesterday closed with {sales_fmt} in sales, but {_fmt_peso(rem.tithe_amount)} "
+                "in tithe contributions remains unpaid. Settle outstanding commitments."
+            ),
+            "metrics": {
+                "sales": sales_fmt,
+                "net_profit": profit_fmt,
+                "tithes_status": "Unpaid",
+                "remittance_status": "Finalized",
+            },
+            "detailed_insights": [
+                {
+                    "category": "Tithe Compliance",
+                    "icon": "volunteer_activism",
+                    "content": f"Calculated tithe allocation of {_fmt_peso(rem.tithe_amount)} has not been marked as paid.",
+                },
+                {
+                    "category": "Operating Cashflow",
+                    "icon": "payments",
+                    "content": f"Net cash on hand reflects {profit_fmt} prior to tithe disbursement.",
+                },
+                {
+                    "category": "Reconciliation",
+                    "icon": "account_balance",
+                    "content": "Verify physical cashier envelopes before marking contributions as settled.",
+                },
+            ],
+            "recommendations": [
+                f"Disburse church tithe allocation ({_fmt_peso(rem.tithe_amount)}) from yesterday's collection.",
+                "Check that offering envelopes match physical register receipts.",
+            ],
+            "action_url": "remittance:history",
+            "action_label": "View History",
+        }
+
+    if rem.net_profit < 0:
+        return {
+            "date": yesterday,
+            "date_str": yesterday_str,
+            "short_date": short_date,
+            "mood": "warning",
+            "mood_label": "Deficit Warning",
+            "header_gradient": "bg-[#BA1A1A]",
+            "pill_class": "bg-[#BA1A1A]/15 text-[#BA1A1A]",
+            "banner_class": "bg-[#BA1A1A]/10 border-[#BA1A1A]/30 text-[#BA1A1A]",
+            "icon": "trending_down",
+            "title": "Operating Deficit Incurred",
+            "sample_text": (
+                f"Yesterday expenses outpaced revenue, resulting in a net deficit of {profit_fmt}. "
+                "Review emergency equipment maintenance and fuel expense spikes."
+            ),
+            "metrics": {
+                "sales": sales_fmt,
+                "net_profit": profit_fmt,
+                "tithes_status": tithe_status_label,
+                "remittance_status": "Finalized",
+            },
+            "detailed_insights": [
+                {
+                    "category": "Expense Analysis",
+                    "icon": "receipt_long",
+                    "content": "Total operating expenditures exceeded daily gross refill revenue.",
+                },
+                {
+                    "category": "Margin Impact",
+                    "icon": "trending_down",
+                    "content": "Fixed and variable overhead consumed operational reserves for the day.",
+                },
+                {
+                    "category": "Recovery Strategy",
+                    "icon": "lightbulb",
+                    "content": "Boost high-margin alkaline sales to offset yesterday's deficit.",
+                },
+            ],
+            "recommendations": [
+                "Audit yesterday's individual expense receipts for non-routine line items.",
+                "Tighten driver fuel allowances and inspect vehicle efficiency.",
+            ],
+            "action_url": "remittance:history",
+            "action_label": "Inspect Remittance",
+        }
+
+    if rem.total_sales > Decimal("0.00") and rem.net_profit > Decimal("0.00"):
+        margin_pct = (rem.net_profit / rem.total_sales) * 100
+        if margin_pct >= 40:
+            return {
+                "date": yesterday,
+                "date_str": yesterday_str,
+                "short_date": short_date,
+                "mood": "positive",
+                "mood_label": "Positive Health",
+                "header_gradient": "bg-tertiary",
+                "pill_class": "bg-tertiary/15 text-tertiary",
+                "banner_class": "bg-tertiary/10 border-tertiary/30 text-tertiary",
+                "icon": "trending_up",
+                "title": "Strong Operational Margins",
+                "sample_text": (
+                    f"Yesterday delivered excellent operating performance: {sales_fmt} in sales with a {margin_pct:.0f}% "
+                    f"net margin ({profit_fmt}). Tithes and obligations were fully cleared."
+                ),
+                "metrics": {
+                    "sales": sales_fmt,
+                    "net_profit": profit_fmt,
+                    "tithes_status": "Paid",
+                    "remittance_status": "Finalized",
+                },
+                "detailed_insights": [
+                    {
+                        "category": "Profit Margin",
+                        "icon": "trending_up",
+                        "content": f"Healthy net profit ratio of {margin_pct:.1f}% achieved across all delivery routes.",
+                    },
+                    {
+                        "category": "Collection Health",
+                        "icon": "payments",
+                        "content": "Strong cash turn-over with minimal non-credit slippage recorded.",
+                    },
+                    {
+                        "category": "Logistics Flow",
+                        "icon": "local_shipping",
+                        "content": "Dispatch volumes met station targets with timely customer bottle returns.",
+                    },
+                ],
+                "recommendations": [
+                    "Maintain current driver route allocations for optimal delivery times.",
+                    "Pre-stage cleaned bottle buffers for tomorrow's commercial refills.",
+                ],
+                "action_url": "remittance:history",
+                "action_label": "View Remittance",
+            }
+
+    # Neutral / baseline state
+    return {
+        "date": yesterday,
+        "date_str": yesterday_str,
+        "short_date": short_date,
+        "mood": "neutral",
+        "mood_label": "Stable Baseline",
+        "header_gradient": "bg-primary",
+        "pill_class": "bg-primary/15 text-primary",
+        "banner_class": "bg-primary/10 border-primary/30 text-primary",
+        "icon": "insights",
+        "title": "Steady Daily Operations",
+        "sample_text": (
+            f"Yesterday ran at normal operating levels: {sales_fmt} in gross sales and {profit_fmt} "
+            "net profit. Key operational indicators remained stable."
+        ),
+        "metrics": {
+            "sales": sales_fmt,
+            "net_profit": profit_fmt,
+            "tithes_status": tithe_status_label,
+            "remittance_status": "Finalized" if rem.status == Remittance.StatusChoices.FINALIZED else rem.status.capitalize(),
+        },
+        "detailed_insights": [
+            {
+                "category": "Throughput Velocity",
+                "icon": "speed",
+                "content": "Volume demand matched expected daily distribution patterns.",
+            },
+            {
+                "category": "Cost Discipline",
+                "icon": "savings",
+                "content": "Standard operational expenses remained within budget thresholds.",
+            },
+            {
+                "category": "Customer Activity",
+                "icon": "groups",
+                "content": "Regular refilling cycles recorded with balanced bottle exchanges.",
+            },
+        ],
+        "recommendations": [
+            "Monitor container return turn-around times among store accounts.",
+            "Promote 5-gallon package bundles to boost average transaction value.",
+        ],
+        "action_url": "remittance:history",
+        "action_label": "View History",
+    }
+
+
+def get_yesterday_ai_insight(user: User) -> dict:
+    """Return yesterday's operational status indicators and diagnostic metrics."""
+    return _yesterday_ai_insight(user)

@@ -15,6 +15,11 @@ from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+)
 from apps.remittance.models import Remittance
 from apps.settings.selectors import get_overdue_threshold_days
 from apps.users.models import User
@@ -43,7 +48,7 @@ SORT_FIELD_MAP: dict[str, str] = {
 }
 DEFAULT_SORT = "name"
 DEFAULT_DIR = "asc"
-PER_PAGE = 25
+PER_PAGE = DEFAULT_PER_PAGE
 RANKING_PER_PAGE = 10
 
 # Maps sort field names to actual DB column/annotation names for DB-side sorting.
@@ -201,6 +206,8 @@ def _last_payment_dt(customer: Customer) -> datetime | None:
 def _pagination_from_page(page_obj) -> dict:
     """Builds the pagination context dict from a Django Page object."""
     total = page_obj.paginator.count
+    per_page = page_obj.paginator.per_page
+    choices = list(PER_PAGE_CHOICES)
     if total == 0:
         return {
             "showing_from": 0,
@@ -213,6 +220,9 @@ def _pagination_from_page(page_obj) -> dict:
             "has_next": False,
             "previous_page_number": None,
             "next_page_number": None,
+            "per_page": per_page,
+            "per_page_choices": choices,
+            "page_numbers": [],
         }
     return {
         "showing_from": page_obj.start_index(),
@@ -225,6 +235,9 @@ def _pagination_from_page(page_obj) -> dict:
         "has_next": page_obj.has_next(),
         "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+        "per_page": per_page,
+        "per_page_choices": choices,
+        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages),
     }
 
 
@@ -792,6 +805,7 @@ def get_customer_table_context(
     page: int = 1,
     active_filter: str = "all",
     care_of_id: str = "",
+    per_page: int = PER_PAGE,
 ) -> dict:
     """Returns the full customer table partial context.
 
@@ -801,7 +815,7 @@ def get_customer_table_context(
     When ``care_of_id`` is a non-empty user PK string, further narrows to
     customers who have at least one open CreditLine **or** outstanding
     BorrowedContainer assigned to that rider/assignee.
-    Uses DB-side sorting and real pagination (PER_PAGE=25).
+    Uses DB-side sorting and real pagination (default per_page=10).
     """
     next_dir = "desc" if direction == "asc" else "asc"
 
@@ -859,7 +873,7 @@ def get_customer_table_context(
         qs = qs.order_by(db_sort)
 
     # Real pagination
-    paginator = Paginator(qs, PER_PAGE)
+    paginator = Paginator(qs, per_page)
     page_obj = paginator.get_page(page)
 
     rows = [_customer_row(c) for c in page_obj.object_list]
@@ -880,7 +894,7 @@ def get_customer_table_context(
     }
 
 
-def get_customer_list_context(user: UserType) -> dict:
+def get_customer_list_context(user: UserType, per_page: int = PER_PAGE) -> dict:
     """Returns the full Customers page context for the Summary and Ranking tabs.
 
     The Debt Management tab has been retired — its KPIs (total outstanding,
@@ -888,7 +902,7 @@ def get_customer_list_context(user: UserType) -> dict:
     tab's stats row, and the Record Borrowed / Record Debt actions now live
     in the Summary tab's action bar.
     """
-    table_context = get_customer_table_context(user)
+    table_context = get_customer_table_context(user, per_page=per_page)
     ranking_context = _ranking_context(user)
 
     return {

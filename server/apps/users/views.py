@@ -114,31 +114,23 @@ def _post_auth_redirect_url(user) -> str:
 
 def index(request):
     """
-    Renders the full login landing page (users/index.html).
-    Reads the optional `next` query param (set by @login_required redirects)
-    and the optional `error` query param (set by the rate-limited handler)
-    and passes them to the template so the embedded login form can carry
-    them through the HTMX POST and redirect to the originally requested page.
+    Renders the public landing page (users/index.html).
+    Passes the optional `next` query param to the Sign In navigation links
+    so the user is redirected to their intended destination after logging in.
     """
-    form = AuthenticationForm()
     next_url = request.GET.get('next', '')
-    if request.GET.get('error') == 'rate_limited':
-        form = _form_with_non_field_error(form, "Too many requests. Please try again later.")
-    return render(request, 'users/index.html', {'form': form, 'next': next_url})
+    return render(request, 'users/index.html', {'next': next_url})
 
 
 @require_http_methods(["GET", "POST"])
 @LOGIN_RATELIMIT
 def login_view(request):
     """
-    Handles the HTMX login flow using industry standard Django Forms.
-    - POST: Validates via AuthenticationForm. Returns failure state (form) or redirects.
-    - GET:  Redirects to the full landing page (users:index) so a direct visit
-            to /login/ shows the branded login UI, not the bare form partial.
+    Handles user authentication.
+    - POST: Validates credentials via AuthenticationForm.
+    - GET:  Renders the dedicated split-screen login page (users/login.html).
     - Rate limited: 10 POSTs/min per IP (django-ratelimit).
     - Lockout: 5 failed attempts for a (ip, username) bucket locks for 1 minute.
-    - The `next` parameter is threaded through failed attempts so it survives
-      retries and is honored on successful login (with open-redirect protection).
     """
     if request.method == "POST":
         form = AuthenticationForm(request, data=request.POST)
@@ -183,18 +175,15 @@ def login_view(request):
             # Preserve `next` so the hidden input survives the HTMX swap.
             record_failed_login(ip=ip, username=username)
             login_failed.send(sender=None, request=request, username=username, ip=ip)
-            logger.warning(
-                "DEBUG login FAILED. form_errors=%r",
-                {k: [str(e) for e in v] for k, v in form.errors.items()},
-            )
+            logger.warning("Authentication failed for username=%s. ip=%s", username, ip)
             return render(request, 'users/partials/login_form.html', {'form': form, 'next': next_url})
 
-    # GET: redirect to the full landing page, preserving ?next= if present.
+    # GET: render the dedicated split-screen login page (users/login.html)
+    form = AuthenticationForm()
     next_url = request.GET.get('next', '')
-    target = reverse('users:index')
-    if next_url:
-        target = f"{target}?next={quote(next_url)}"
-    return redirect(target)
+    if request.GET.get('error') == 'rate_limited':
+        form = _form_with_non_field_error(form, "Too many requests. Please try again later.")
+    return render(request, 'users/login.html', {'form': form, 'next': next_url})
 
 
 def ratelimited_view(request, exception=None):
@@ -219,9 +208,9 @@ def ratelimited_view(request, exception=None):
     )
     safe_next = _safe_next_url(next_url, request)
     if safe_next:
-        target = f"{reverse('users:index')}?error=rate_limited&next={quote(safe_next)}"
+        target = f"{reverse('users:login')}?error=rate_limited&next={quote(safe_next)}"
     else:
-        target = f"{reverse('users:index')}?error=rate_limited"
+        target = f"{reverse('users:login')}?error=rate_limited"
     if request.headers.get('HX-Request') == 'true':
         response = HttpResponse()
         response['HX-Redirect'] = target

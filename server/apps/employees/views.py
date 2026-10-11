@@ -6,6 +6,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from apps.core.pagination import parse_per_page
 from apps.users.permissions import is_admin as user_is_admin
 
 from .selectors import (
@@ -34,7 +35,8 @@ def employees_directory_view(request):
     if not _can_view_employees(request.user):
         return HttpResponse("Forbidden", status=403)
 
-    directory_ctx = get_employee_directory_context(request.user)
+    per_page = parse_per_page(request.GET.get("per_page"))
+    directory_ctx = get_employee_directory_context(request.user, per_page=per_page)
     roles_ctx = get_roles_permissions_context(request.user)
     context = {**directory_ctx, **roles_ctx}
     return render(request, "employees/employees_directory.html", context)
@@ -70,5 +72,6 @@ def employees_search_view(request):
     except (TypeError, ValueError):
         page = 1
 
-    context = get_employee_directory_context(request.user, query, page, active_filter)
+    per_page = parse_per_page(request.GET.get("per_page"))
+    context = get_employee_directory_context(request.user, query, page, active_filter, per_page=per_page)
     return render(request, "employees/partials/users_table.html", context)

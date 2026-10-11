@@ -56,6 +56,14 @@ class SettingsViewTests(TestCase):
         response = self.client.get('/settings/?tab=<script>')
         self.assertContains(response, "activeTab: 'system-config'")
 
+    def test_settings_profile_password_toggle_alpine_scope(self):
+        response = self.client.get('/settings/?tab=profile')
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode()
+        self.assertIn("showCurrentPw: false", html)
+        self.assertNotIn('x-data="{ showCurrentPw: false }"', html)
+        self.assertIn("showCurrentPw ? 'visibility_off' : 'visibility'", html)
+
 
 class SaveSystemConfigViewTests(TestCase):
 

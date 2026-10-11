@@ -9,6 +9,7 @@ from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from apps.core.pagination import parse_per_page
 from apps.core.views import error_message
 from apps.settings.selectors import get_default_credit_limit
 from apps.users.permissions import is_admin, is_back_office
@@ -108,7 +109,8 @@ def _back_office_required(view):
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def customer_list_view(request):
     """Renders the full Customers page with Summary and Ranking tabs."""
-    context = get_customer_list_context(request.user)
+    per_page = parse_per_page(request.GET.get("per_page"))
+    context = get_customer_list_context(request.user, per_page=per_page)
     _apply_accent(context["stats"])
     _apply_accent(context["ranking_stats"])
     return render(request, "customers/customer_list.html", context)
@@ -124,7 +126,8 @@ def top_payers_view(request):
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
-    context = get_top_payers_paginated(request.user, page=page)
+    per_page = parse_per_page(request.GET.get("per_page"))
+    context = get_top_payers_paginated(request.user, page=page, per_page=per_page)
     return render(request, "customers/partials/top_payers_card.html", context)
 
 
@@ -138,7 +141,8 @@ def prompt_returners_view(request):
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
-    context = get_prompt_returners_paginated(request.user, page=page)
+    per_page = parse_per_page(request.GET.get("per_page"))
+    context = get_prompt_returners_paginated(request.user, page=page, per_page=per_page)
     return render(request, "customers/partials/prompt_returners_card.html", context)
 
 
@@ -159,8 +163,9 @@ def customer_table_view(request):
         page = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page = 1
+    per_page = parse_per_page(request.GET.get("per_page"))
     context = get_customer_table_context(
-        request.user, sort_field, direction, query, page, active_filter, care_of_id
+        request.user, sort_field, direction, query, page, active_filter, care_of_id, per_page=per_page
     )
     return render(request, "customers/partials/customer_table.html", context)
 

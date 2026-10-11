@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from django.utils import timezone
 
 from apps.core.models import Product
+from apps.core.pagination import DEFAULT_PER_PAGE
 from apps.users.models import DriverCommission, User
 from apps.users.permissions import is_tenant_scoped
 from apps.users.presentation import avatar_classes, driver_code
@@ -205,7 +206,7 @@ def get_products_pricing_context(user: UserType) -> dict:
 
         # --- Commissions tab ---
         "product_columns": columns,
-        "page_size": 5,
+        "page_size": DEFAULT_PER_PAGE,
         "rider_count": len(riders),
         "riders": riders,
     }

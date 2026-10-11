@@ -1,0 +1,62 @@
+{% comment %}
+AI Insights card on the dashboard — highlights yesterday's operational status.
+Expects context:
+  - ai_insight: dict with mood ('positive'|'warning'|'neutral'), mood_label, title,
+                sample_text, metrics, short_date, header_gradient, pill_class, etc.
+{% endcomment %}
+{% load static %}
+<div class="bg-surface-container-lowest border border-outline-variant/60 dark:border-outline/40 ring-1 ring-black/5 dark:ring-white/10 rounded overflow-hidden shadow-sm flex flex-col hover:shadow-md transition-shadow cursor-pointer group"
+     hx-get="{% url 'analytics:dashboard_ai_insights_modal' %}"
+     hx-target="#modal-root"
+     hx-swap="innerHTML"
+     role="button"
+     tabindex="0"
+     aria-label="View AI Daily Insights">
+
+    {# Header — gradient accent depends on mood #}
+    <div class="p-3.5 sm:p-4 text-white flex items-center justify-between {{ ai_insight.header_gradient }}">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[20px] transition-transform group-hover:rotate-12 duration-200">auto_awesome</span>
+            <span class="font-headline-sm text-headline-sm">AI Daily Insights</span>
+        </div>
+        <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase font-bold tracking-wider shadow-sm border border-white/10">
+            {{ ai_insight.mood_label }}
+        </span>
+    </div>
+
+    {# Body #}
+    <div class="p-5 flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+            <span class="font-data-mono text-[11px] text-on-surface-variant font-medium">{{ ai_insight.short_date }} Operations</span>
+            <span class="font-label-caps text-[10px] uppercase font-bold px-2 py-0.5 rounded {{ ai_insight.pill_class }}">
+                {{ ai_insight.mood|title }}
+            </span>
+        </div>
+
+        <h4 class="font-headline-sm text-headline-sm text-on-surface font-bold mb-1.5 group-hover:text-primary transition-colors">
+            {{ ai_insight.title }}
+        </h4>
+
+        <p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed line-clamp-3 mb-4">
+            {{ ai_insight.sample_text }}
+        </p>
+
+        {# Metrics snapshot #}
+        <div class="grid grid-cols-2 gap-2 p-2.5 bg-surface-container-low rounded border border-outline-variant/15 mb-4 text-xs font-data-mono">
+            <div>
+                <span class="text-[10px] text-on-surface-variant block uppercase font-label-caps">Sales</span>
+                <span class="font-bold text-primary">{{ ai_insight.metrics.sales }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-on-surface-variant block uppercase font-label-caps">Net Profit</span>
+                <span class="font-bold text-tertiary">{{ ai_insight.metrics.net_profit }}</span>
+            </div>
+        </div>
+
+        {# Footer action prompt #}
+        <div class="flex items-center justify-between pt-2 border-t border-outline-variant/10 text-xs font-bold text-primary group-hover:underline">
+            <span>View detailed diagnostic</span>
+            <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+        </div>
+    </div>
+</div>

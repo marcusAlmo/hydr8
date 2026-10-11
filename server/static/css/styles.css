@@ -1,5 +1,5 @@
 :root {
-    /* Premium Dark Theme Tokens */
+    /* Base Tokens */
     --bg-primary: #0B0E14;
     --bg-secondary: rgba(22, 27, 34, 0.6);
     --text-primary: #F0F6FC;
@@ -11,6 +11,77 @@
     --glass-border: rgba(255, 255, 255, 0.1);
     --glass-bg: rgba(255, 255, 255, 0.03);
     --glass-blur: blur(16px);
+
+    /* Light Theme Semantic Tokens */
+    --color-background: #f9f9ff;
+    --color-on-background: #111c2d;
+    --color-surface: #f9f9ff;
+    --color-surface-dim: #cfdaf2;
+    --color-surface-bright: #f9f9ff;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f0f3ff;
+    --color-surface-container: #e7eeff;
+    --color-surface-container-high: #dee8ff;
+    --color-surface-container-highest: #d8e3fb;
+    --color-on-surface: #111c2d;
+    --color-on-surface-variant: #54647a;
+    --color-outline: #6e7881;
+    --color-outline-variant: #bec8d2;
+    --color-inverse-surface: #0B192C;
+    --color-inverse-on-surface: #ecf1ff;
+    --color-primary: #006591;
+    --color-primary-container: #0ea5e9;
+    --color-on-primary: #ffffff;
+    --color-on-primary-container: #003751;
+    --color-secondary: #505f76;
+    --color-secondary-container: #d0e1fb;
+    --color-on-secondary-container: #54647a;
+    --color-tertiary: #006c4a;
+    --color-tertiary-container: #35af80;
+    --color-on-tertiary-container: #003c27;
+    --color-error: #ba1a1a;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+}
+
+html.light,
+[data-theme="light"] {
+    color-scheme: light;
+}
+
+html.dark,
+[data-theme="dark"] {
+    color-scheme: dark;
+    /* Dark Theme Semantic Tokens */
+    --color-background: #0b1329;
+    --color-on-background: #f1f5f9;
+    --color-surface: #0f1b38;
+    --color-surface-dim: #090e21;
+    --color-surface-bright: #142247;
+    --color-surface-container-lowest: #070d1e;
+    --color-surface-container-low: #0f1b38;
+    --color-surface-container: #15244c;
+    --color-surface-container-high: #1c3066;
+    --color-surface-container-highest: #243d7d;
+    --color-on-surface: #f1f5f9;
+    --color-on-surface-variant: #94a3b8;
+    --color-outline: #64748b;
+    --color-outline-variant: #334155;
+    --color-inverse-surface: #0B192C;
+    --color-inverse-on-surface: #f1f5f9;
+    --color-primary: #38bdf8;
+    --color-primary-container: #0284c7;
+    --color-on-primary: #001d34;
+    --color-on-primary-container: #e0f2fe;
+    --color-secondary: #94a3b8;
+    --color-secondary-container: #1e293b;
+    --color-on-secondary-container: #cbd5e1;
+    --color-tertiary: #34d399;
+    --color-tertiary-container: #065f46;
+    --color-on-tertiary-container: #a7f3d0;
+    --color-error: #f87171;
+    --color-error-container: #450a0a;
+    --color-on-error-container: #fecaca;
 }
 
 * {
@@ -24,6 +95,21 @@ body {
     min-height: 100dvh;
     overflow-x: hidden;
     position: relative;
+    background-color: var(--color-background, #f9f9ff);
+    color: var(--color-on-surface, #111c2d);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+html.dark body,
+[data-theme="dark"] body {
+    background-color: var(--color-background, #0b1329);
+    color: var(--color-on-surface, #f1f5f9);
+}
+
+html.dark select option,
+[data-theme="dark"] select option {
+    background-color: #0f1b38;
+    color: #f1f5f9;
 }
 
 /* Dynamic Background Gradients */
@@ -58,7 +144,7 @@ body {
     100% { transform: scale(1.2) translate(50px, 50px); opacity: 0.2; }
 }
 
-/* Premium Buttons */
+/* Button Styles */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -259,19 +345,16 @@ body {
    text inputs, textareas, and selects across the app. */
 input::placeholder,
 textarea::placeholder {
-    color: #bec8d2;          /* outline-variant */
+    color: var(--color-outline-variant, #bec8d2);
     opacity: 1;
     font-weight: 400;
 }
 select:invalid,
 select option[value=""]:disabled {
-    color: #bec8d2;          /* outline-variant — muted "Select..." prompt */
+    color: var(--color-outline-variant, #bec8d2);
 }
 
-/* ============================================================
-   Skeleton Loaders — shimmer placeholders shown while HTMX
-   fetches the real dashboard data.
-   ============================================================ */
+/* Skeleton Loaders — shimmer placeholders during HTMX content loads */
 
 /* Base shimmer bar — a grey rounded rectangle with a moving highlight */
 .hydr8-skeleton-bar {
@@ -296,13 +379,7 @@ select option[value=""]:disabled {
     100% { background-position: -200% 0; }
 }
 
-/* ============================================================
-   Reveal Animations — soft fade + slide-up when HTMX swaps in
-   real content to replace a skeleton, or when a server-rendered
-   page first paints.  Apply `.hydr8-reveal` to a container for a
-   single fade-in, or `.hydr8-stagger` to a parent + `.hydr8-reveal-item`
-   to each child for a cascading entrance.
-   ============================================================ */
+/* Reveal Animations — soft fade + slide-up for newly rendered content */
 
 .hydr8-reveal {
     animation: hydr8-reveal-in 0.5s ease-out both;
@@ -350,5 +427,69 @@ select option[value=""]:disabled {
         animation: none !important;
     }
 }
+
+/* ── Dark Mode Helper Overrides ── */
+html.dark ::-webkit-scrollbar-track,
+[data-theme="dark"] ::-webkit-scrollbar-track {
+    background: #0b1329;
+}
+html.dark ::-webkit-scrollbar-thumb,
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder,
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+    color: #64748b;
+}
+
+html.dark .editable-underline,
+[data-theme="dark"] .editable-underline {
+    border-bottom: 1px solid #334155;
+}
+html.dark .editable-underline:focus,
+html.dark .editable-underline-dirty,
+[data-theme="dark"] .editable-underline:focus,
+[data-theme="dark"] .editable-underline-dirty {
+    border-bottom: 2px solid #38bdf8;
+}
+
+html.dark .hydr8-skeleton-bar,
+[data-theme="dark"] .hydr8-skeleton-bar {
+    background: linear-gradient(
+        90deg,
+        rgba(51, 65, 85, 0.3) 25%,
+        rgba(51, 65, 85, 0.6) 50%,
+        rgba(51, 65, 85, 0.3) 75%
+    );
+    background-size: 200% 100%;
+}
+
+/* Date & Time Input Enhancements */
+input[type="date"],
+input[type="time"] {
+    min-height: 2.375rem;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+
 
 

@@ -13,14 +13,20 @@ from apps.audit.selectors import (
     get_log_entry,
     list_log_entries,
 )
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+    parse_per_page,
+)
 from apps.users.permissions import is_admin
 
 logger = logging.getLogger(__name__)
 
 
-def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = False) -> dict:
+def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = False, per_page: int = DEFAULT_PER_PAGE) -> dict:
     """Builds the template context for the audit log list page from real data."""
-    data = list_log_entries(user=user, page=page, query=query)
+    data = list_log_entries(user=user, page=page, per_page=per_page, query=query)
     page_obj = data["page_obj"]
     action_counts = data["action_counts"]
 
@@ -83,6 +89,9 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
         "has_next": page_obj.has_next(),
         "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+        "per_page": page_obj.paginator.per_page,
+        "per_page_choices": list(PER_PAGE_CHOICES),
+        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages),
     }
 
     if for_htmx:
@@ -150,8 +159,11 @@ def audit_log_view(request):
     except (TypeError, ValueError):
         page = 1
     query = request.GET.get("q", "")
+    per_page = parse_per_page(request.GET.get("per_page"))
     for_htmx = getattr(request, "htmx", False) and not getattr(request.htmx, "boosted", False)
-    context = _build_list_context(user=request.user, page=page, query=query, for_htmx=for_htmx)
+    context = _build_list_context(
+        user=request.user, page=page, query=query, for_htmx=for_htmx, per_page=per_page
+    )
 
     # Internal HTMX requests (search/pagination) get just the table partial;
     # full page and boosted navigation requests get the complete page.

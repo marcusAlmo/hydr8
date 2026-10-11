@@ -25,6 +25,11 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.core.models import Product, SystemConfig
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+)
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.users.models import DriverCommission, User
 from apps.users.permissions import is_tenant_scoped
@@ -542,7 +547,7 @@ def get_add_remittance_context(
     If a DRAFT remittance already exists for the given date (defaulting
     to today), the form is hydrated from the database draft — sold
     quantities, expenses, and offering amount are restored so the user
-    can continue editing seamlessly after a "Save as Draft" / page
+    can continue editing after a "Save as Draft" / page
     refresh cycle, or after clicking "Finalize" from the history page
     for a draft on a different date.
     """
@@ -1048,8 +1053,9 @@ def _remittance_row(rem: Remittance) -> dict:
 
 def get_recent_remittances(
     user: UserType,
-    limit: int = 25,
+    limit: int = DEFAULT_PER_PAGE,
     *,
+    page: int = 1,
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> dict:
@@ -1063,7 +1069,8 @@ def get_recent_remittances(
         qs = qs.filter(date__range=(start_date, end_date))
     qs = qs.order_by("-date")
 
-    rows: list[dict] = [_remittance_row(rem) for rem in qs[:limit]]
+    offset = max(0, (page - 1) * limit)
+    rows: list[dict] = [_remittance_row(rem) for rem in qs[offset : offset + limit]]
     return {"remittances": rows, "total": qs.count()}
 
 
@@ -1274,7 +1281,7 @@ def get_remittance_history_context(
         Q(tithes_paid=False) | Q(offering_paid=False)
     ).count()
 
-    # AI Projected Profit (EOQ)
+    # Projected profit (end of quarter extrapolation)
     quarter = (today.month - 1) // 3 + 1
     q_start_month = (quarter - 1) * 3 + 1
     q_end_month = q_start_month + 2
@@ -1727,7 +1734,7 @@ def get_credit_repayments_for_remittance(
     user: UserType,
     remittance_id: int,
     page: int = 1,
-    page_size: int = 5,
+    page_size: int = DEFAULT_PER_PAGE,
     remittance: Remittance | None = None,
 ) -> dict:
     """Returns paginated customer credit repayments attributed to a remittance.
@@ -1748,6 +1755,7 @@ def get_credit_repayments_for_remittance(
                 "page_size": page_size,
                 "total_pages": 0,
                 "page_range": [],
+                "per_page_choices": list(PER_PAGE_CHOICES),
             }
 
     payment_filter = Q(remittance=remittance)
@@ -1809,6 +1817,8 @@ def get_credit_repayments_for_remittance(
         "page_range": page_range,
         "page_start": page_obj.start_index() if page_obj else 0,
         "page_end": page_obj.end_index() if page_obj else 0,
+        "per_page_choices": list(PER_PAGE_CHOICES),
+        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages),
     }
 
 
@@ -1816,7 +1826,7 @@ def get_credits_recorded_for_remittance(
     user: UserType,
     remittance_id: int,
     page: int = 1,
-    page_size: int = 5,
+    page_size: int = DEFAULT_PER_PAGE,
     remittance: Remittance | None = None,
 ) -> dict:
     """Returns paginated customer credit lines recorded for a remittance.
@@ -1836,6 +1846,8 @@ def get_credits_recorded_for_remittance(
                 "page_size": page_size,
                 "total_pages": 0,
                 "page_range": [],
+                "per_page_choices": list(PER_PAGE_CHOICES),
+                "page_numbers": [],
             }
 
     credit_filter = Q(remittance=remittance)
@@ -1892,4 +1904,6 @@ def get_credits_recorded_for_remittance(
         "page_range": page_range,
         "page_start": page_obj.start_index() if page_obj else 0,
         "page_end": page_obj.end_index() if page_obj else 0,
+        "per_page_choices": list(PER_PAGE_CHOICES),
+        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages),
     }

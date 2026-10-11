@@ -1,115 +1,134 @@
-{% load static %}<!DOCTYPE html><html class="light" lang="en"><head>
-<meta charset="utf-8">
-<meta content="width=device-width, initial-scale=1.0" name="viewport">
-<title>Login | Hydr8</title>
-<link rel="icon" type="image/svg+xml" href="{% static 'hydr8-icon.svg' %}">
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&amp;family=Geist+Mono:wght@500&amp;display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
-<script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            "colors": {
-                    "inverse-primary": "#89ceff",
-                    "surface-dim": "#cfdaf2",
-                    "tertiary": "#006c4a",
-                    "primary-fixed": "#c9e6ff",
-                    "on-secondary-container": "#54647a",
-                    "primary": "#006591",
-                    "on-tertiary-fixed-variant": "#005137",
-                    "secondary": "#505f76",
-                    "inverse-surface": "#263143",
-                    "surface-variant": "#d8e3fb",
-                    "primary-container": "#0ea5e9",
-                    "secondary-container": "#d0e1fb",
-                    "on-primary-fixed-variant": "#004c6e",
-                    "tertiary-fixed-dim": "#68dba9",
-                    "on-primary-container": "#003751",
-                    "surface-container": "#e7eeff",
-                    "surface-container-lowest": "#ffffff",
-                    "on-secondary-fixed": "#0b1c30",
-                    "error": "#ba1a1a",
-                    "on-primary": "#ffffff",
-                    "on-tertiary": "#ffffff",
-                    "background": "#f9f9ff",
-                    "on-secondary": "#ffffff",
-                    "on-tertiary-container": "#003c27",
-                    "tertiary-fixed": "#85f8c4",
-                    "surface-container-low": "#f0f3ff",
-                    "surface-bright": "#f9f9ff",
-                    "on-tertiary-fixed": "#002114",
-                    "on-error": "#ffffff",
-                    "tertiary-container": "#35af80",
-                    "on-error-container": "#93000a",
-                    "surface-container-high": "#dee8ff",
-                    "on-surface": "#111c2d",
-                    "surface-container-highest": "#d8e3fb",
-                    "surface": "#f9f9ff",
-                    "primary-fixed-dim": "#89ceff",
-                    "secondary-fixed-dim": "#b7c8e1",
-                    "error-container": "#ffdad6",
-                    "outline": "#6e7881",
-                    "surface-tint": "#006591",
-                    "outline-variant": "#bec8d2",
-                    "on-primary-fixed": "#001e2f",
-                    "inverse-on-surface": "#ecf1ff",
-                    "on-background": "#111c2d",
-                    "on-secondary-fixed-variant": "#38485d"
-            },
-            "borderRadius": {
-                    "DEFAULT": "0.125rem",
-                    "lg": "0.25rem",
-                    "xl": "0.5rem",
-                    "full": "0.75rem"
-            },
-            "spacing": {
-                    "margin-page": "1.5rem",
-                    "gutter": "1rem",
-                    "stack-dense": "0.25rem",
-                    "stack-compact": "0.5rem",
-                    "container-max": "1440px"
-            },
-            "fontFamily": {
-                    "data-mono": ["Geist Mono"],
-                    "headline-sm": ["Geist"],
-                    "label-caps": ["Geist"],
-                    "body-sm": ["Geist"],
-                    "headline-md": ["Geist"],
-                    "headline-lg": ["Geist"],
-                    "body-md": ["Geist"]
-            },
-            "fontSize": {
-                    "data-mono": ["14px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "500"}],
-                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
-                    "label-caps": ["11px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
-                    "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}],
-                    "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
-                    "headline-lg": ["30px", {"lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
-                    "headline-xlg": ["60px", {"lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
-                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+{% load static %}<!DOCTYPE html>
+<html class="scroll-smooth scroll-pt-20" lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Hydr8 | Water Refilling Station Operations & Management System</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'hydr8-icon.svg' %}">
+    <meta name="description" content="Hydr8 is the complete operating system for modern water refilling stations. Featuring offline-first Command Queue, daily cash remittance, 5-gallon bottle tracking, driver dispatch, and operations analytics. Only ₱999/month.">
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800;900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+
+    <!-- Pre-hydrate Theme (Light/Dark) - Defaults to Light mode when none is defined -->
+    <script>
+        (function () {
+            try {
+                var storedTheme = localStorage.getItem('hydr8_theme');
+                // Default to light mode when none is defined
+                var isDark = storedTheme === 'dark' || (storedTheme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            } catch (e) {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+                document.documentElement.setAttribute('data-theme', 'light');
             }
-          },
-        },
-      }
+        })();
+
+        window.getHydr8Theme = function() {
+            return localStorage.getItem('hydr8_theme') || 'light';
+        };
+        window.setHydr8Theme = function(theme) {
+            localStorage.setItem('hydr8_theme', theme);
+            var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                document.documentElement.classList.remove('light');
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+            window.dispatchEvent(new CustomEvent('hydr8:theme-change', { detail: { theme: theme, isDark: isDark } }));
+        };
+        window.toggleHydr8Theme = function() {
+            var isDark = document.documentElement.classList.contains('dark');
+            window.setHydr8Theme(isDark ? 'light' : 'dark');
+        };
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                if (window.getHydr8Theme() === 'system') {
+                    window.setHydr8Theme('system');
+                }
+            });
+        }
     </script>
-<style>
+
+    <!-- Tailwind CSS with Hydr8 Design Tokens -->
+    <script>
+        (function() {
+            var _warn = console.warn;
+            console.warn = function() {
+                if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].indexOf('cdn.tailwindcss.com should not be used in production') !== -1) {
+                    return;
+                }
+                _warn.apply(console, arguments);
+            };
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0284c7",
+                        "primary-container": "#0ea5e9",
+                        "on-primary": "#ffffff",
+                        "secondary": "#334155",
+                        "surface": "#ffffff",
+                        "background": "#f8fafc",
+                        "on-surface": "#0f172a",
+                        "abyss": "#070D1E",
+                        "abyss-card": "#0F1B38",
+                        "abyss-border": "#1E2F5A"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "md": "0.375rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                    fontFamily: {
+                        "sans": ["Inter", "Geist", "sans-serif"],
+                        "geist": ["Geist", "sans-serif"],
+                        "mono": ["Geist Mono", "monospace"]
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 5rem;
+        }
+
         .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
             vertical-align: middle;
         }
-
         .abyss-bg {
-            background-color: #0F172A; /* Requested Abyss specifically */
+            background-color: #070D1E;
         }
-
         .auth-card-shimmer {
             position: relative;
             overflow: hidden;
         }
-
         .auth-card-shimmer::after {
             content: "";
             position: absolute;
@@ -117,76 +136,1041 @@
             left: -50%;
             width: 200%;
             height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(14, 165, 233, 0.03), transparent);
+            background: linear-gradient(45deg, transparent, rgba(14, 165, 233, 0.08), transparent);
             transform: rotate(45deg);
-            animation: shimmer 10s infinite linear;
+            animation: shimmer 12s infinite linear;
             pointer-events: none;
         }
-
         @keyframes shimmer {
             0% { transform: translateX(-100%) rotate(45deg); }
             100% { transform: translateX(100%) rotate(45deg); }
         }
-
         [x-cloak] { display: none !important; }
-    </style>
-<script src="https://unpkg.com/htmx.org@1.9.10"></script>
-<script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
-</head>
-<body class="bg-background font-body-md text-on-background selection:bg-primary-container selection:text-on-primary-container">
-<div class="min-h-dvh flex">
-<!-- Left Panel (Abyss) -->
-<div class="hidden md:flex flex-col justify-center items-center w-1/2 abyss-bg relative overflow-hidden">
-<!-- Atmospheric micro-interaction element -->
-<div class="absolute inset-0 opacity-20 pointer-events-none">
-<div class="absolute top-0 -left-1/4 w-1/2 h-1/2 bg-primary rounded-full blur-[120px]"></div>
-<div class="absolute bottom-0 -right-1/4 w-1/2 h-1/2 bg-tertiary rounded-full blur-[120px]"></div>
-</div>
-<div class="relative z-10 flex flex-col items-center text-center space-y-2">
-<!-- Data from JSON: header_title: "Hydr8", header_subtext: "Water. Delivered. Managed." -->
-<h1 class="font-headline-lg text-headline-xlg font-black tracking-tight text-primary-fixed">
-                    Hydr8
-                </h1>
-<p class="font-body-md text-body-md text-secondary-fixed-dim uppercase tracking-[0.2em] opacity-80">
-                    Water. Delivered. Managed.
-                </p>
-</div>
-<!-- Subtle Grid Pattern Overlay -->
-<div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
-</div>
-<!-- Right Panel (Login Surface) -->
-<div class="flex-1 flex flex-col justify-center px-margin-page py-12 bg-surface-bright">
-<!-- Mobile Logo (Visible only on mobile) -->
-<div class="md:hidden flex flex-col items-center mb-12">
-<h1 class="font-headline-lg text-headline-lg font-black text-primary">Hydr8</h1>
-<p class="font-body-sm text-body-sm text-outline tracking-wider">Water. Delivered. Managed.</p>
-</div>
-<div class="mx-auto w-full max-w-[400px]">
-<div class="auth-card-shimmer bg-surface-container-lowest p-8 border border-outline-variant shadow-sm rounded-lg">
-<div class="mb-8">
-<h2 class="font-headline-md text-headline-md text-on-surface">Sign In</h2>
-<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Access the hydration management dashboard</p>
-</div>
-{% include "users/partials/login_form.html" %}
-<div class="mt-8 pt-6 border-t border-outline-variant/30 text-center">
-<p class="font-body-sm text-body-sm text-on-surface-variant">
-                            Internal Enterprise System. Unauthorized access is prohibited.
-                        </p>
-</div>
-</div>
-<!-- Footer / Support Info -->
-<div class="mt-8 flex justify-center items-center gap-6 opacity-60 grayscale">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">verified_user</span>
-<span class="font-label-caps text-label-caps uppercase">SECURE PORTAL</span>
-</div>
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-[18px]">sync</span>
-<span class="font-label-caps text-label-caps uppercase">REAL-TIME DATA</span>
-</div>
-</div>
-</div>
-</div>
-</div>
 
-</body></html>
+        /* Fluid hardware-accelerated scroll reveal */
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(24px);
+            transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+            will-change: opacity, transform;
+        }
+        .scroll-reveal.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .stagger-1 { transition-delay: 70ms; }
+        .stagger-2 { transition-delay: 140ms; }
+        .stagger-3 { transition-delay: 210ms; }
+        .stagger-4 { transition-delay: 280ms; }
+        .stagger-5 { transition-delay: 350ms; }
+        .stagger-6 { transition-delay: 420ms; }
+
+        @media (prefers-reduced-motion: reduce) {
+            html {
+                scroll-behavior: auto !important;
+            }
+            .scroll-reveal {
+                opacity: 1 !important;
+                transform: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
+    <!-- HTMX & Alpine.js -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body 
+    x-data="{ 
+        isDark: document.documentElement.classList.contains('dark'),
+        mobileMenuOpen: false, 
+        activeTab: 'queue', 
+        getStartedModalOpen: false,
+        emailCopied: false,
+        toggleTheme() {
+            window.toggleHydr8Theme();
+            this.isDark = document.documentElement.classList.contains('dark');
+        },
+        copyContactEmail() {
+            navigator.clipboard.writeText('rushdashvx@gmail.com');
+            this.emailCopied = true;
+            setTimeout(() => { this.emailCopied = false; }, 2500);
+        }
+    }" 
+    x-init="
+        window.addEventListener('hydr8:theme-change', (e) => {
+            isDark = e.detail.isDark;
+        });
+    "
+    class="bg-slate-50 dark:bg-[#070D1E] font-sans text-slate-900 dark:text-slate-100 antialiased selection:bg-sky-500 selection:text-white transition-colors duration-200">
+
+    <!-- Sticky top navigation bar -->
+    <header class="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/95 border-b border-slate-200 text-slate-900 dark:bg-[#070D1E]/95 dark:border-slate-700 dark:text-white transition-all">
+        <!-- Reading / Scroll Progress Bar -->
+        <div id="scroll-progress" class="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-sky-400 via-teal-300 to-sky-500 w-0 transition-[width] duration-75 pointer-events-none" aria-hidden="true"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <a href="/" class="flex items-center gap-3 group">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center text-white shadow-lg shadow-sky-500/30 group-hover:scale-105 transition-transform">
+                    <span class="material-symbols-outlined text-[26px]">water_drop</span>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white font-geist">Hydr8</span>
+                        <span class="text-[11px] font-bold tracking-wider uppercase px-2 py-0.5 rounded bg-sky-500/10 text-sky-700 border border-sky-400/40 dark:bg-sky-500/20 dark:text-sky-300 font-mono">v2.4 OS</span>
+                    </div>
+                    <span class="text-[12px] font-semibold text-slate-500 dark:text-slate-200 tracking-wider uppercase block">Water. Delivered. Managed.</span>
+                </div>
+            </a>
+
+            <!-- Actions: Theme Toggle, Log In & Get Started CTA -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- Theme Toggle Button (Light / Dark Mode) -->
+                <button 
+                    @click="toggleTheme()" 
+                    type="button" 
+                    class="w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer border border-slate-200 bg-slate-100/80 text-slate-700 hover:text-sky-600 hover:bg-slate-200/80 shadow-xs dark:border-slate-700 dark:bg-slate-800/90 dark:text-amber-300 dark:hover:bg-slate-700"
+                    :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+                    :aria-label="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+                    <span class="material-symbols-outlined text-[20px] transition-transform duration-300" x-text="isDark ? 'light_mode' : 'dark_mode'">dark_mode</span>
+                </button>
+
+                <a href="{% url 'users:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 dark:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-600 rounded-lg transition-all flex items-center gap-1.5 shadow-xs">
+                    <span class="material-symbols-outlined text-[18px]">login</span>
+                    <span>Log In</span>
+                </a>
+                <button 
+                    @click="getStartedModalOpen = true" 
+                    type="button" 
+                    class="px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-extrabold text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-lg shadow-lg shadow-sky-500/30 active:scale-[0.98] transition-all flex items-center gap-1.5 sm:gap-2 cursor-pointer">
+                    <span>Get Started</span>
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero section -->
+    <section class="relative bg-gradient-to-b from-sky-50/70 via-white to-slate-50 dark:bg-none dark:bg-[#070D1E] overflow-hidden text-slate-900 dark:text-white pt-14 pb-24 md:pt-20 md:pb-32 border-b border-slate-200 dark:border-slate-800 transition-colors">
+        <!-- Ambient atmospheric glow -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-10 dark:opacity-25">
+            <div class="absolute -top-40 -left-40 w-96 h-96 bg-sky-600 rounded-full blur-[140px]"></div>
+            <div class="absolute top-1/2 -right-40 w-96 h-96 bg-teal-500 rounded-full blur-[150px]"></div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+                
+                <!-- Headline & call to action -->
+                <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-sky-500/10 text-sky-700 border border-sky-400/30 dark:bg-sky-500/20 dark:text-sky-200 dark:border-sky-400/50 backdrop-blur-md">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse"></span>
+                        <span class="font-mono uppercase tracking-wider">RESILIENT OFFLINE-READY COMMAND QUEUE</span>
+                    </div>
+
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] font-geist text-slate-950 dark:text-white">
+                        The Water Station OS That <span class="text-sky-600 dark:text-sky-400 underline decoration-sky-500/50 decoration-4 underline-offset-8">Never Drops a Gallon.</span>
+                    </h1>
+
+                    <p class="text-lg sm:text-xl text-slate-600 dark:text-slate-100 font-normal leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                        Purpose-built for Philippine water refilling stations. Manage counter walk-ins, driver delivery routes, 5-gallon bottle inventories, and daily remittance without ever stalling during brownouts or internet drops.
+                    </p>
+
+                    <div class="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                        <button 
+                            @click="getStartedModalOpen = true" 
+                            type="button" 
+                            class="w-full sm:w-auto px-8 py-4 text-base font-extrabold text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-xl shadow-xl shadow-sky-600/40 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer group">
+                            <span>Get Started — ₱999 / mo</span>
+                            <span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                        </button>
+
+                        <a 
+                            href="{% url 'users:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" 
+                            class="w-full sm:w-auto px-7 py-4 text-base font-bold text-slate-800 bg-white hover:bg-slate-100 border-2 border-slate-300 dark:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-600 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs">
+                            <span class="material-symbols-outlined text-[20px]">login</span>
+                            <span>Sign In to Station</span>
+                        </a>
+                    </div>
+
+                    <!-- Value highlights -->
+                    <div class="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                        <div class="p-3.5 rounded-xl bg-white dark:bg-[#0F1B38] border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="text-sky-600 dark:text-sky-300 text-xl font-black font-mono">₱999/mo</div>
+                            <div class="text-xs font-semibold text-slate-500 dark:text-slate-200 mt-0.5">All-Inclusive Station Plan</div>
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-white dark:bg-[#0F1B38] border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="text-emerald-600 dark:text-emerald-300 text-xl font-black font-mono">Instant</div>
+                            <div class="text-xs font-semibold text-slate-500 dark:text-slate-200 mt-0.5">Offline-Ready POS</div>
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-white dark:bg-[#0F1B38] border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="text-sky-600 dark:text-sky-200 text-xl font-black font-mono">100%</div>
+                            <div class="text-xs font-semibold text-slate-500 dark:text-slate-200 mt-0.5">Remittance Audit</div>
+                        </div>
+                        <div class="p-3.5 rounded-xl bg-white dark:bg-[#0F1B38] border-2 border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="text-teal-600 dark:text-teal-300 text-xl font-black font-mono">2-Tier PIN</div>
+                            <div class="text-xs font-semibold text-slate-500 dark:text-slate-200 mt-0.5">Remittance Sign-Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live station operations preview -->
+                <div class="lg:col-span-5">
+                    <div class="relative mx-auto max-w-md lg:max-w-none rounded-2xl p-1 bg-gradient-to-b from-sky-400 via-sky-300 to-slate-200 dark:from-sky-400 dark:via-slate-600 dark:to-slate-800 shadow-2xl">
+                        <div class="rounded-[15px] bg-white dark:bg-[#0A142E] p-6 text-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 space-y-5">
+                            
+                            <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-3 h-3 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-sm shadow-emerald-400 animate-ping"></div>
+                                    <span class="text-sm font-extrabold text-slate-900 dark:text-white font-geist">Station Terminal: PUMP #1 ACTIVE</span>
+                                </div>
+                                <span class="px-2.5 py-1 rounded text-xs font-mono font-bold bg-emerald-500/10 text-emerald-700 border border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-300 flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[15px]">cloud_done</span>
+                                    <span>Command Queue: Synced</span>
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="bg-slate-50 dark:bg-[#11224D] p-3.5 rounded-xl border border-slate-200 dark:border-slate-600">
+                                    <span class="text-[11px] font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider block font-mono">Today's Refills</span>
+                                    <div class="text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">428 <span class="text-xs font-medium text-slate-500 dark:text-slate-300">jugs</span></div>
+                                    <span class="text-xs text-emerald-600 dark:text-emerald-300 font-bold">₱14,980.00 Gross</span>
+                                </div>
+                                <div class="bg-slate-50 dark:bg-[#11224D] p-3.5 rounded-xl border border-slate-200 dark:border-slate-600">
+                                    <span class="text-[11px] font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider block font-mono">Driver Runs</span>
+                                    <div class="text-2xl font-black text-slate-900 dark:text-white font-mono mt-1">6 <span class="text-xs font-medium text-slate-500 dark:text-slate-300">dispatches</span></div>
+                                    <span class="text-xs text-sky-600 dark:text-sky-300 font-bold">184 delivered • 0 lost</span>
+                                </div>
+                            </div>
+
+                            <!-- Command Queue activity feed -->
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-200 px-1 font-mono">
+                                    <span>REAL-TIME COMMAND QUEUE</span>
+                                    <span class="text-sky-600 dark:text-sky-300 font-mono">0 pending • auto-sync</span>
+                                </div>
+                                <div class="space-y-2 font-mono text-xs">
+                                    <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-[18px] text-emerald-500 dark:text-emerald-400">check_circle</span>
+                                            <span class="text-slate-800 dark:text-white font-semibold">Refill 10x Round Jugs (₱250)</span>
+                                        </div>
+                                        <span class="text-sky-600 dark:text-sky-200 text-[11px] font-bold">Instant</span>
+                                    </div>
+                                    <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-[18px] text-emerald-500 dark:text-emerald-400">check_circle</span>
+                                            <span class="text-slate-800 dark:text-white font-semibold">Return 5x Empty Slim (Brgy. 4)</span>
+                                        </div>
+                                        <span class="text-emerald-600 dark:text-emerald-300 text-[11px] font-bold">Synced</span>
+                                    </div>
+                                    <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-[18px] text-sky-500 dark:text-sky-300">sync_alt</span>
+                                            <span class="text-slate-800 dark:text-white font-semibold">Driver Jun Remittance (₱3,400)</span>
+                                        </div>
+                                        <span class="text-emerald-600 dark:text-emerald-300 text-[11px] font-bold">Verified</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pt-2">
+                                <button 
+                                    @click="getStartedModalOpen = true" 
+                                    class="w-full py-3 text-xs font-black uppercase tracking-wider text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-lg transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">touch_app</span>
+                                    <span>Subscribe Your Station for ₱999/mo</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Command Queue section -->
+    <section id="command-queue" class="py-20 bg-slate-50 dark:bg-[#0A142E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 relative scroll-mt-20 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto space-y-4 mb-16 scroll-reveal">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold tracking-wider uppercase bg-emerald-500/10 text-emerald-800 border border-emerald-400/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-400/50 font-mono">
+                    <span class="material-symbols-outlined text-[16px]">queue_play_next</span>
+                    Offline-First Reliability
+                </span>
+                <h2 class="text-3xl sm:text-4xl font-black font-geist tracking-tight text-slate-950 dark:text-white">
+                    Command Queue Engine: Never Let Brownouts Halt Your Business
+                </h2>
+                <p class="text-base sm:text-lg text-slate-600 dark:text-slate-100 font-normal leading-relaxed">
+                    Philippine water refilling stations regularly face power fluctuations and unstable internet connections. Hydr8's built-in <strong class="text-sky-600 dark:text-sky-300">Command Queue</strong> lets your team keep recording refills and bottle returns smoothly, then automatically syncs all records the second your connection restores.
+                </p>
+            </div>
+
+            <!-- Feature highlights -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all scroll-reveal stagger-1 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 border border-sky-400/50 text-sky-600 dark:text-sky-300 flex items-center justify-center mb-5">
+                        <span class="material-symbols-outlined text-[28px]">bolt</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white font-geist mb-2">Instant Dispatch</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Refill orders and gallon returns register instantly. Cashiers never experience loading spinners or delays during peak refill hours.
+                    </p>
+                </div>
+
+                <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400 transition-all scroll-reveal stagger-2 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-400/50 text-emerald-600 dark:text-emerald-300 flex items-center justify-center mb-5">
+                        <span class="material-symbols-outlined text-[28px]">wifi_off</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white font-geist mb-2">Offline Resilience</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Station WiFi goes down? Keep dispensing and recording. Transactions are stored securely on the station computer and persist through restarts.
+                    </p>
+                </div>
+
+                <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 transition-all scroll-reveal stagger-3 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-400/50 text-indigo-600 dark:text-indigo-300 flex items-center justify-center mb-5">
+                        <span class="material-symbols-outlined text-[28px]">sync_saved_locally</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white font-geist mb-2">Duplicate-Proof Sync</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        When internet reconnects, the queue automatically syncs transactions in exact order—preventing double charges, missed refills, or ledger discrepancies.
+                    </p>
+                </div>
+
+                <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-amber-500 dark:hover:border-amber-400 transition-all scroll-reveal stagger-4 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-400/50 text-amber-600 dark:text-amber-300 flex items-center justify-center mb-5">
+                        <span class="material-symbols-outlined text-[28px]">shield_check</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white font-geist mb-2">Audit Accountability</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Every transaction records staff ID, exact timestamp, and verification status. Zero tampering, full accountability for every peso collected by drivers and staff.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core features -->
+    <section id="features" class="py-20 bg-white dark:bg-[#070D1E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto space-y-3 mb-16 scroll-reveal">
+                <span class="text-sky-600 dark:text-sky-400 font-extrabold text-xs uppercase tracking-wider font-mono">COMPLETE STATION SUITE</span>
+                <h2 class="text-3xl sm:text-4xl font-black text-slate-950 dark:text-white tracking-tight font-geist">
+                    Engineered for Every Aspect of Water Station Operations
+                </h2>
+                <p class="text-base sm:text-lg text-slate-600 dark:text-slate-200 font-medium">
+                    Stop using paper notebooks or fragile spreadsheets. Hydr8 gives you total control over cash, jugs, drivers, and daily balances.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-1 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[28px]">payments</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white font-geist">Daily Remittance & Cash Audit</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Eliminate station cash leakage. Track cash-in-drawer, driver remittances, tithes/offerings snapshots, and expenses. Require 2-tier PIN verification before final sign-off.
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-2 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[28px]">water_bottle</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white font-geist">Slim & Round Bottle Ledger</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Never lose track of your expensive 5-gallon containers. Automatically track borrowed, returned, damaged, and deposited Slim and Round bottles per customer account.
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-3 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[28px]">local_shipping</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white font-geist">Driver Route Dispatch</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Assign delivery batches to your tricycle, motorcycle, or multicab drivers. Track empty jug returns, cash collected, and driver commission splits in real-time.
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-4 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[28px]">query_stats</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white font-geist">Live Analytics & Performance Dashboard</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Real-time operational dashboard for daily gross revenue, volume dispensed (liters and gallons), 5-gallon bottle inventory balances, expense breakdowns, and driver delivery rankings.
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-5 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[28px]">badge</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white font-geist">Multi-User Role Security</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Dedicated role isolation for Station Admins, Staff, and Delivery Drivers. Back-office operations are strictly gated with lockout defense and session guards.
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-6 shadow-xs">
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-[28px]">history</span>
+                    </div>
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white font-geist">Audit Trail & Activity Log</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-200 font-medium leading-relaxed">
+                        Full operational traceability. Every product price update, customer credit adjustment, and finalized remittance is timestamped and logged with user actor IDs.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Interactive feature gallery -->
+    <section id="gallery" class="py-20 bg-slate-50 dark:bg-[#070D1E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto space-y-3 mb-12 scroll-reveal">
+                <span class="text-sky-600 dark:text-sky-300 font-extrabold text-xs tracking-wider uppercase font-mono">Feature Gallery</span>
+                <h2 class="text-3xl sm:text-4xl font-black text-slate-950 dark:text-white tracking-tight font-geist">
+                    See How Hydr8 Powers Your Daily Workflow
+                </h2>
+                <p class="text-slate-600 dark:text-slate-200 text-base font-normal">
+                    Click through the gallery tabs below to preview the core interfaces designed for high-speed refilling and zero-drift bookkeeping.
+                </p>
+            </div>
+
+            <!-- Gallery tabs -->
+            <div class="flex flex-wrap items-center justify-center gap-2.5 mb-10 scroll-reveal stagger-1">
+                <button 
+                    @click="activeTab = 'queue'" 
+                    type="button" 
+                    :class="activeTab === 'queue' ? 'bg-sky-600 text-white font-extrabold border-2 border-sky-400 shadow-md shadow-sky-500/20' : 'bg-white dark:bg-[#0F1E42] text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border-2 border-slate-200 dark:border-slate-700 font-bold'"
+                    class="px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                    <span class="material-symbols-outlined text-[18px]">queue_play_next</span>
+                    <span>Command Queue & POS</span>
+                </button>
+                <button 
+                    @click="activeTab = 'remittance'" 
+                    type="button" 
+                    :class="activeTab === 'remittance' ? 'bg-sky-600 text-white font-extrabold border-2 border-sky-400 shadow-md shadow-sky-500/20' : 'bg-white dark:bg-[#0F1E42] text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border-2 border-slate-200 dark:border-slate-700 font-bold'"
+                    class="px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                    <span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+                    <span>Daily Remittance Ledger</span>
+                </button>
+                <button 
+                    @click="activeTab = 'bottles'" 
+                    type="button" 
+                    :class="activeTab === 'bottles' ? 'bg-sky-600 text-white font-extrabold border-2 border-sky-400 shadow-md shadow-sky-500/20' : 'bg-white dark:bg-[#0F1E42] text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border-2 border-slate-200 dark:border-slate-700 font-bold'"
+                    class="px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                    <span class="material-symbols-outlined text-[18px]">water_bottle</span>
+                    <span>Customer & Bottle Ledger</span>
+                </button>
+                <button 
+                    @click="activeTab = 'drivers'" 
+                    type="button" 
+                    :class="activeTab === 'drivers' ? 'bg-sky-600 text-white font-extrabold border-2 border-sky-400 shadow-md shadow-sky-500/20' : 'bg-white dark:bg-[#0F1E42] text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border-2 border-slate-200 dark:border-slate-700 font-bold'"
+                    class="px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                    <span class="material-symbols-outlined text-[18px]">delivery_dining</span>
+                    <span>Driver Route Dispatch</span>
+                </button>
+                <button 
+                    @click="activeTab = 'analytics'" 
+                    type="button" 
+                    :class="activeTab === 'analytics' ? 'bg-sky-600 text-white font-extrabold border-2 border-sky-400 shadow-md shadow-sky-500/20' : 'bg-white dark:bg-[#0F1E42] text-slate-700 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border-2 border-slate-200 dark:border-slate-700 font-bold'"
+                    class="px-4 py-2.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                    <span class="material-symbols-outlined text-[18px]">query_stats</span>
+                    <span>Station Analytics & Reports</span>
+                </button>
+            </div>
+
+            <!-- Tab 1: Command Queue & POS Showcase -->
+            <div x-show="activeTab === 'queue'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
+                    <div>
+                        <div class="flex items-center gap-2 text-sky-600 dark:text-sky-300 font-mono text-xs font-bold uppercase">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span>OFFLINE-FIRST COUNTER DISPATCH</span>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900 dark:text-white font-geist mt-1">High-Speed POS & Local Command Queue</h3>
+                        <p class="text-slate-600 dark:text-slate-200 text-sm mt-1">Dispense bottles and log walk-in orders with sub-second responsiveness regardless of internet status.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-400/40 dark:border-emerald-400/50 text-xs font-mono font-bold flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">sync</span>
+                            <span>Queue: 0 pending</span>
+                        </span>
+                        <span class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-white text-xs font-mono font-bold border border-slate-200 dark:border-slate-600">
+                            Speed: Instant
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Order buttons and queue stream -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-7 space-y-4">
+                        <span class="text-xs font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider block font-mono">QUICK PRODUCT DISPATCH</span>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-colors cursor-pointer text-left">
+                                <div class="text-xs text-sky-600 dark:text-sky-300 font-bold font-mono">5-GAL ROUND</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">₱25.00</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-200 font-medium mt-1">Refill Only</div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-colors cursor-pointer text-left">
+                                <div class="text-xs text-sky-600 dark:text-sky-300 font-bold font-mono">5-GAL SLIM</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">₱30.00</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-200 font-medium mt-1">Refill Only</div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-colors cursor-pointer text-left">
+                                <div class="text-xs text-emerald-600 dark:text-emerald-300 font-bold font-mono">NEW JUG + WATER</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">₱220.00</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-200 font-medium mt-1">Includes Deposit</div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-colors cursor-pointer text-left">
+                                <div class="text-xs text-indigo-600 dark:text-indigo-300 font-bold font-mono">1-GAL DISPENSER</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">₱15.00</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-200 font-medium mt-1">Purified Refill</div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-colors cursor-pointer text-left">
+                                <div class="text-xs text-amber-600 dark:text-amber-300 font-bold font-mono">DISPENSER FAUCET</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">₱85.00</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-200 font-medium mt-1">Replacement Tap</div>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-colors cursor-pointer text-left">
+                                <div class="text-xs text-teal-600 dark:text-teal-300 font-bold font-mono">BOTTLE CAP (100x)</div>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white mt-1">₱120.00</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-200 font-medium mt-1">Bulk Seal Caps</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-5 bg-slate-100/70 dark:bg-[#0E1A38] p-5 rounded-xl border-2 border-slate-200 dark:border-slate-700 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider font-mono">ACTIVE COMMAND QUEUE STREAM</span>
+                            <span class="text-xs text-emerald-600 dark:text-emerald-300 font-mono font-bold">ONLINE SYNC ACTIVE</span>
+                        </div>
+                        <div class="space-y-2 text-xs font-mono">
+                            <div class="p-3 rounded-lg bg-white dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                <div>
+                                    <div class="text-slate-900 dark:text-white font-bold text-sm">CMD#8941: Refill x4 Round Jugs</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-200 mt-0.5">Walk-in Cash • Paid ₱100.00</div>
+                                </div>
+                                <span class="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-700 dark:text-emerald-200 font-bold border border-emerald-400/50">COMMITTED</span>
+                            </div>
+                            <div class="p-3 rounded-lg bg-white dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                <div>
+                                    <div class="text-slate-900 dark:text-white font-bold text-sm">CMD#8940: Return x2 Slim Jugs</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-200 mt-0.5">Aling Nena • Credit Balance ₱60</div>
+                                </div>
+                                <span class="px-2 py-1 rounded text-xs bg-emerald-500/20 text-emerald-700 dark:text-emerald-200 font-bold border border-emerald-400/50">COMMITTED</span>
+                            </div>
+                            <div class="p-3 rounded-lg bg-white dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                <div>
+                                    <div class="text-slate-900 dark:text-white font-bold text-sm">CMD#8939: Route #2 Dispatch</div>
+                                    <div class="text-xs text-slate-500 dark:text-slate-200 mt-0.5">Driver: Jun • 30 Jugs Out</div>
+                                </div>
+                                <span class="px-2 py-1 rounded text-xs bg-sky-500/20 text-sky-700 dark:text-sky-200 font-bold border border-sky-400/50">DISPATCHED</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Remittance ledger -->
+            <div x-show="activeTab === 'remittance'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
+                    <div>
+                        <div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-300 font-mono text-xs font-bold uppercase">
+                            <span class="material-symbols-outlined text-[18px]">lock</span>
+                            <span>2-TIER PIN VERIFICATION LOCKOUT</span>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900 dark:text-white font-geist mt-1">Daily Cash Remittance & Financial Audit</h3>
+                        <p class="text-slate-600 dark:text-slate-200 text-sm mt-1">Snapshots unit prices and commission rates upon closing to guarantee 100% financial immutability.</p>
+                    </div>
+                    <span class="px-3 py-1.5 rounded-lg bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 border border-sky-400/40 dark:border-sky-400/50 text-xs font-mono font-bold">
+                        Automatic Balance Protection
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 font-mono">
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs text-slate-500 dark:text-slate-200 uppercase font-bold">Gross Refill Sales</span>
+                        <div class="text-3xl font-black text-slate-900 dark:text-white mt-1">₱18,450.00</div>
+                        <span class="text-xs text-slate-500 dark:text-slate-200 font-semibold">615 total refills</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs text-slate-500 dark:text-slate-200 uppercase font-bold">Driver Turn-overs</span>
+                        <div class="text-3xl font-black text-sky-600 dark:text-sky-300 mt-1">₱9,800.00</div>
+                        <span class="text-xs text-slate-500 dark:text-slate-200 font-semibold">3 drivers fully settled</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs text-slate-500 dark:text-slate-200 uppercase font-bold">Cash Drawer Variance</span>
+                        <div class="text-3xl font-black text-emerald-600 dark:text-emerald-300 mt-1">₱0.00</div>
+                        <span class="text-xs text-emerald-600 dark:text-emerald-300 font-bold">Balanced • Zero discrepancy</span>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-100/70 dark:bg-[#0E1A38] border-2 border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-2.5 text-slate-700 dark:text-slate-200 font-semibold">
+                        <span class="material-symbols-outlined text-amber-500 dark:text-amber-300 text-[22px]">security</span>
+                        <span>Finalized Remittances are locked permanently. Adjustments require Admin PIN authorization.</span>
+                    </div>
+                    <span class="text-emerald-700 dark:text-emerald-300 font-mono font-extrabold bg-emerald-500/10 dark:bg-emerald-500/20 px-2.5 py-1 rounded border border-emerald-400/40">STATUS: LOCKED & FINALIZED</span>
+                </div>
+            </div>
+
+            <!-- Tab 3: Customer and bottle ledger -->
+            <div x-show="activeTab === 'bottles'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
+                <div class="border-b border-slate-200 dark:border-slate-700 pb-6">
+                    <div class="text-sky-600 dark:text-sky-300 font-mono text-xs font-bold uppercase">ZERO INVENTORY DRIFT</div>
+                    <h3 class="text-2xl font-black text-slate-900 dark:text-white font-geist mt-1">Customer CRM & 5-Gallon Bottle Tracking</h3>
+                    <p class="text-slate-600 dark:text-slate-200 text-sm mt-1">Keep track of every slim and round gallon jug distributed across your neighborhoods and offices.</p>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-slate-100 dark:bg-[#11224D] text-slate-800 dark:text-white border-b-2 border-slate-200 dark:border-slate-600 font-bold">
+                            <tr>
+                                <th class="p-3.5">Customer Name</th>
+                                <th class="p-3.5">Type</th>
+                                <th class="p-3.5">Slim Jugs Held</th>
+                                <th class="p-3.5">Round Jugs Held</th>
+                                <th class="p-3.5">Outstanding Debt</th>
+                                <th class="p-3.5">Last Refill</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-slate-700 text-slate-700 dark:text-slate-100 font-semibold">
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                                <td class="p-3.5 font-bold text-slate-900 dark:text-white text-sm">St. Jude Medical Clinic</td>
+                                <td class="p-3.5 text-sky-600 dark:text-sky-300 font-bold">Commercial / Net-30</td>
+                                <td class="p-3.5 text-slate-800 dark:text-white">12 jugs</td>
+                                <td class="p-3.5 text-slate-400 dark:text-slate-300">0 jugs</td>
+                                <td class="p-3.5 text-amber-600 dark:text-amber-300 font-bold">₱720.00</td>
+                                <td class="p-3.5 text-slate-500 dark:text-slate-200">Today 9:15 AM</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                                <td class="p-3.5 font-bold text-slate-900 dark:text-white text-sm">Barangay Hall Complex</td>
+                                <td class="p-3.5 text-sky-600 dark:text-sky-300 font-bold">Government Account</td>
+                                <td class="p-3.5 text-slate-400 dark:text-slate-300">0 jugs</td>
+                                <td class="p-3.5 text-slate-800 dark:text-white">25 jugs</td>
+                                <td class="p-3.5 text-emerald-600 dark:text-emerald-300 font-bold">₱0.00 (Paid)</td>
+                                <td class="p-3.5 text-slate-500 dark:text-slate-200">Yesterday</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                                <td class="p-3.5 font-bold text-slate-900 dark:text-white text-sm">Villa Mercedes Res. Assoc.</td>
+                                <td class="p-3.5 text-teal-600 dark:text-teal-300 font-bold">Residential Route</td>
+                                <td class="p-3.5 text-slate-800 dark:text-white">8 jugs</td>
+                                <td class="p-3.5 text-slate-800 dark:text-white">6 jugs</td>
+                                <td class="p-3.5 text-emerald-600 dark:text-emerald-300 font-bold">₱0.00 (Paid)</td>
+                                <td class="p-3.5 text-slate-500 dark:text-slate-200">2 days ago</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab 4: Driver route dispatch -->
+            <div x-show="activeTab === 'drivers'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
+                <div class="border-b border-slate-200 dark:border-slate-700 pb-6">
+                    <div class="text-sky-600 dark:text-sky-300 font-mono text-xs font-bold uppercase">ROUTE OPTIMIZATION & PROOF OF DELIVERY</div>
+                    <h3 class="text-2xl font-black text-slate-900 dark:text-white font-geist mt-1">Driver Dispatch & Commission Settlement</h3>
+                    <p class="text-slate-600 dark:text-slate-200 text-sm mt-1">Manage delivery loads, bottle drop-offs, and driver commission payouts with automated mathematical auditing.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-5 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-900 dark:text-white text-base">Driver: Kuya Jun (Tricycle #1)</span>
+                            <span class="px-2.5 py-1 rounded text-xs bg-emerald-500/20 text-emerald-700 dark:text-emerald-200 font-mono font-bold border border-emerald-400/50">En Route</span>
+                        </div>
+                        <div class="text-xs text-slate-600 dark:text-slate-200 space-y-1.5 font-mono font-semibold">
+                            <div>• Loaded: 35x Round Jugs, 15x Slim Jugs</div>
+                            <div>• Delivered So Far: 28 Jugs</div>
+                            <div>• Empty Jugs Returned: 24 Jugs</div>
+                            <div class="text-emerald-600 dark:text-emerald-300 font-bold">• Cash Collected: ₱980.00</div>
+                        </div>
+                    </div>
+                    <div class="p-5 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-900 dark:text-white text-base">Driver: Mark (Multicab #2)</span>
+                            <span class="px-2.5 py-1 rounded text-xs bg-sky-500/20 text-sky-700 dark:text-sky-200 font-mono font-bold border border-sky-400/50">Settled</span>
+                        </div>
+                        <div class="text-xs text-slate-600 dark:text-slate-200 space-y-1.5 font-mono font-semibold">
+                            <div>• Loaded: 80x Slim Jugs</div>
+                            <div>• Delivered: 80 Jugs</div>
+                            <div>• Empty Jugs Returned: 80 Jugs (100%)</div>
+                            <div class="text-emerald-600 dark:text-emerald-300 font-bold">• Commission Paid: ₱400.00 (@ ₱5/jug)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 5: Station analytics and dashboard -->
+            <div x-show="activeTab === 'analytics'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
+                <div class="border-b border-slate-200 dark:border-slate-700 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="text-sky-600 dark:text-sky-300 font-mono text-xs font-bold uppercase">LIVE OPERATIONS & FINANCIAL REPORTING</div>
+                        <h3 class="text-2xl font-black text-slate-900 dark:text-white font-geist mt-1">Station Analytics & Daily Performance</h3>
+                        <p class="text-slate-600 dark:text-slate-200 text-sm mt-1">Instant visibility into station sales, outstanding receivables, volume dispensed, and daily cash health.</p>
+                    </div>
+                    <span class="px-3 py-1.5 rounded-lg bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 border border-sky-400/40 dark:border-sky-400/50 text-xs font-mono font-bold flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-[16px]">trending_up</span>
+                        <span>Auto-Calculated KPIs</span>
+                    </span>
+                </div>
+
+                <!-- Dashboard metrics grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-200 uppercase block">TODAY'S GROSS SALES</span>
+                        <div class="text-2xl font-black text-emerald-600 dark:text-emerald-300 font-mono mt-1">₱14,980.00</div>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-300 font-medium">Counter + delivery dispatches</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-200 uppercase block">VOLUME DISPENSED</span>
+                        <div class="text-2xl font-black text-sky-600 dark:text-sky-300 font-mono mt-1">2,140 <span class="text-sm font-normal text-slate-500 dark:text-slate-300">gal</span></div>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-300 font-medium">428 5-gallon jugs total</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-200 uppercase block">OUTSTANDING DEBT</span>
+                        <div class="text-2xl font-black text-amber-600 dark:text-amber-300 font-mono mt-1">₱3,240.00</div>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-300 font-medium">Customer credit receivables</span>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
+                        <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-200 uppercase block">OPERATING EXPENSES</span>
+                        <div class="text-2xl font-black text-slate-700 dark:text-slate-200 font-mono mt-1">₱1,250.00</div>
+                        <span class="text-[11px] text-slate-500 dark:text-slate-300 font-medium">Delivery fuel & supplies</span>
+                    </div>
+                </div>
+
+                <!-- Bottle inventory breakdown -->
+                <div class="p-5 rounded-xl bg-slate-100/70 dark:bg-[#0E1A38] border-2 border-slate-200 dark:border-slate-700 space-y-3">
+                    <div class="flex items-center justify-between text-xs font-bold font-mono text-slate-800 dark:text-white">
+                        <span>5-GALLON BOTTLE CIRCULATION STATUS</span>
+                        <span class="text-emerald-600 dark:text-emerald-300 font-mono">TOTAL INVENTORY: 1,600 JUGS</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                        <div class="p-3 rounded-lg bg-white dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                            <span class="text-slate-900 dark:text-white font-semibold">5-Gallon Slim Jugs</span>
+                            <span class="text-sky-700 dark:text-sky-300 font-bold">482 at station • 318 with customers</span>
+                        </div>
+                        <div class="p-3 rounded-lg bg-white dark:bg-[#15295C] border border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                            <span class="text-slate-900 dark:text-white font-semibold">5-Gallon Round Jugs</span>
+                            <span class="text-sky-700 dark:text-sky-300 font-bold">520 at station • 280 with customers</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Pricing section -->
+    <section id="pricing" class="py-24 bg-white dark:bg-[#0A142E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 relative scroll-mt-20 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto space-y-3 mb-16 scroll-reveal">
+                <span class="text-sky-600 dark:text-sky-400 font-extrabold text-xs uppercase tracking-wider font-mono">TRANSPARENT PRICING</span>
+                <h2 class="text-3xl sm:text-5xl font-black text-slate-950 dark:text-white tracking-tight font-geist">
+                    Everything Included for Just ₱999 a Month
+                </h2>
+                <p class="text-base sm:text-lg text-slate-600 dark:text-slate-200 font-medium">
+                    No complicated enterprise tiers. No per-transaction percentages. Just one simple monthly subscription that pays for itself on day one.
+                </p>
+            </div>
+
+            <!-- Pricing card -->
+            <div class="max-w-xl mx-auto rounded-3xl p-1 bg-gradient-to-b from-sky-500 via-sky-600 to-teal-500 shadow-2xl scroll-reveal stagger-2">
+                <div class="bg-white dark:bg-[#0F1E42] rounded-[23px] p-8 sm:p-10 space-y-8 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-xl">
+                    
+                    <!-- Plan header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-slate-200 dark:border-slate-700 pb-6">
+                        <div>
+                            <span class="inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 mb-2 font-mono border border-sky-400/40 dark:border-sky-400/50">
+                                COMPLETE STATION ACCESS
+                            </span>
+                            <h3 class="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white font-geist">Hydr8 Station Pro</h3>
+                            <p class="text-sm font-semibold text-slate-500 dark:text-slate-200 mt-1">Single or multi-pump refilling stations</p>
+                        </div>
+                        <div class="text-left sm:text-right">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-4xl sm:text-5xl font-black text-slate-950 dark:text-white font-mono">₱999</span>
+                                <span class="text-sm font-bold text-slate-500 dark:text-slate-200">/ month</span>
+                            </div>
+                            <span class="text-xs text-emerald-600 dark:text-emerald-400 font-bold">Billed monthly • Cancel anytime</span>
+                        </div>
+                    </div>
+
+                    <!-- Inclusions list -->
+                    <div class="space-y-4">
+                        <div class="text-xs font-extrabold text-slate-500 dark:text-slate-200 uppercase tracking-wider font-mono">
+                            WHAT'S INCLUDED IN YOUR ₱999 SUBSCRIPTION:
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3.5 text-sm font-medium">
+                            <div class="p-3.5 rounded-xl bg-sky-50 dark:bg-[#11224D] border-2 border-sky-400 dark:border-sky-500/60 flex items-start gap-3 shadow-xs">
+                                <span class="material-symbols-outlined text-sky-600 dark:text-sky-400 text-[24px] shrink-0 mt-0.5">check_circle</span>
+                                <div>
+                                    <span class="font-extrabold text-slate-950 dark:text-white text-base">Command Queue Engine Included:</span>
+                                    <span class="text-slate-600 dark:text-slate-200 text-xs font-medium block mt-0.5">Offline-first local dispatch with automatic background sync during brownouts and signal loss.</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Unlimited Refills & POS Orders:</strong> Walk-ins, pre-orders, and commercial delivery logs.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Slim & Round Bottle Ledger:</strong> Full customer jug deposit and return tracking.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Daily Cash Remittance:</strong> 2-tier PIN security, driver settlement, and cash drawer audit.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Driver Route Dispatch:</strong> Tricycle & multicab route monitoring with commission splits.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Debt & Credit Aging:</strong> Customer receivables with automated balance updates and overdue payment alerts.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Live Station Analytics & Dashboard:</strong> Real-time gross sales, volume dispensed, and bottle inventory balances.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Multi-Role User Access:</strong> Secure logins for Admin, Counter Staff, and Drivers.</span>
+                            </div>
+
+                            <div class="flex items-start gap-3">
+                                <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-[22px] shrink-0 mt-0.5">check_circle</span>
+                                <span class="text-slate-600 dark:text-slate-200"><strong class="text-slate-950 dark:text-white">Priority Setup & Onboarding:</strong> Direct developer assistance for your station.</span>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- CTA -->
+                    <div class="pt-4 space-y-3">
+                        <button 
+                            @click="getStartedModalOpen = true" 
+                            type="button" 
+                            class="w-full py-4 text-base font-extrabold text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-xl shadow-xl shadow-sky-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer">
+                            <span>Get Started — Subscribe for ₱999/mo</span>
+                            <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+                        </button>
+                        <p class="text-center text-xs font-semibold text-slate-500 dark:text-slate-200">
+                            Questions about setup? Contact directly at <a href="mailto:rushdashvx@gmail.com" class="text-sky-600 dark:text-sky-300 font-bold hover:underline">rushdashvx@gmail.com</a>
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Security & trust section -->
+    <section id="security-trust" class="py-12 bg-white dark:bg-[#050A18] text-slate-600 dark:text-slate-300 text-xs border-t border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 scroll-reveal">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-[26px] text-emerald-600 dark:text-emerald-400">verified_user</span>
+                <div>
+                    <span class="font-bold text-slate-900 dark:text-white text-sm">Role-Based Access Control & PIN Security</span>
+                    <p class="text-slate-600 dark:text-slate-300 mt-0.5">Strict role separation for Admins, Staff, and Drivers with automated login lockout defense.</p>
+                </div>
+            </div>
+            <div class="text-center md:text-right">
+                <span class="text-slate-800 dark:text-slate-200 font-mono font-bold">99.9% Station Uptime • 100% Audit Accurate</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-[#050A18] text-slate-300 py-12 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-sky-600 flex items-center justify-center text-white">
+                        <span class="material-symbols-outlined text-[20px]">water_drop</span>
+                    </div>
+                    <div>
+                        <span class="text-lg font-black text-white font-geist">Hydr8</span>
+                        <span class="text-xs text-slate-300 font-medium block">Water. Delivered. Managed.</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-center gap-6 text-sm font-semibold text-slate-200">
+                    <a href="{% url 'users:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="hover:text-white transition-colors">Sign In</a>
+                    <a href="mailto:rushdashvx@gmail.com" class="text-sky-300 hover:underline font-mono">rushdashvx@gmail.com</a>
+                </div>
+            </div>
+
+            <div class="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-300 font-medium gap-4">
+                <p>2026 Hydr8. Built for Philippine Water Refilling Stations.</p>
+                <p>Subscription contact: <a href="mailto:rushdashvx@gmail.com" class="text-sky-300 hover:underline font-mono font-bold">rushdashvx@gmail.com</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Subscription modal -->
+    <div 
+        x-show="getStartedModalOpen" 
+        x-cloak 
+        class="fixed inset-0 z-50 overflow-y-auto" 
+        aria-labelledby="modal-title" 
+        role="dialog" 
+        aria-modal="true">
+        
+        <div 
+            x-show="getStartedModalOpen"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            @click="getStartedModalOpen = false"
+            class="fixed inset-0 bg-slate-950/85 backdrop-blur-md transition-opacity"></div>
+
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div 
+                x-show="getStartedModalOpen"
+                x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                @click.outside="getStartedModalOpen = false"
+                class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-[#0B152E] text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border-2 border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-6 text-slate-900 dark:text-white">
+
+                <button 
+                    @click="getStartedModalOpen = false" 
+                    type="button" 
+                    class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white rounded-lg p-1.5 focus:outline-none transition-colors"
+                    aria-label="Close dialog">
+                    <span class="material-symbols-outlined text-[24px]">close</span>
+                </button>
+
+                <div class="space-y-2 pr-8">
+                    <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 border border-sky-400/40 dark:border-sky-400/50 font-mono">
+                        <span class="material-symbols-outlined text-[16px]">verified</span>
+                        <span>HYDR8 SUBSCRIPTION • ₱999 / MO</span>
+                    </div>
+                    <h3 id="modal-title" class="text-2xl font-black font-geist text-slate-950 dark:text-white">
+                        Get Started with Hydr8
+                    </h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-100 font-medium leading-relaxed">
+                        Ready to empower your water refilling station with the Command Queue, bottle ledger, and daily remittance? Contact our subscription desk directly to get your station credentials provisioned.
+                    </p>
+                </div>
+
+                <div class="p-5 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-600 space-y-3">
+                    <div class="text-xs font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider font-mono">
+                        DIRECT SUBSCRIPTION CONTACT
+                    </div>
+                    <div class="flex items-center justify-between gap-3 bg-white dark:bg-[#070D1E] p-3.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-2.5 overflow-hidden">
+                            <span class="material-symbols-outlined text-sky-600 dark:text-sky-400 text-[22px]">mail</span>
+                            <span class="font-mono text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">rushdashvx@gmail.com</span>
+                        </div>
+                        <button 
+                            @click="copyContactEmail()" 
+                            type="button" 
+                            class="px-3 py-1.5 text-xs font-extrabold rounded-md bg-sky-600 hover:bg-sky-500 text-white border border-sky-400 transition-colors flex items-center gap-1 shrink-0 cursor-pointer shadow-sm">
+                            <span class="material-symbols-outlined text-[16px]" x-text="emailCopied ? 'check' : 'content_copy'">content_copy</span>
+                            <span x-text="emailCopied ? 'Copied!' : 'Copy'">Copy</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <a 
+                        href="mailto:rushdashvx@gmail.com?subject=Hydr8%20Subscription%20Inquiry%20(₱999/mo)&body=Hello%20Hydr8%20Team,%0D%0A%0D%0AI%20would%20like%20to%20get%20started%20with%20Hydr8%20(₱999/month)%20for%20our%20water%20refilling%20station.%0D%0A%0D%0AStation%20Name:%20%0D%0AOwner/Manager:%20%0D%0APhone%20Number:%20%0D%0ACity/Municipality:%20%0D%0AApproximate%20Daily%20Refills:%20%0D%0A%0D%0APlease%20send%20us%20the%20account%20setup%20instructions.%0D%0A%0D%0AThank%20you!" 
+                        class="w-full py-4 px-4 text-center font-extrabold text-sm text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-xl shadow-lg shadow-sky-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[20px]">send</span>
+                        <span>Open Email Client (rushdashvx@gmail.com)</span>
+                    </a>
+
+                    <button 
+                        @click="getStartedModalOpen = false" 
+                        type="button" 
+                        class="w-full py-2.5 text-center font-bold text-xs text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors">
+                        Cancel & Return to Overview
+                    </button>
+                </div>
+
+                <div class="pt-2 text-center text-xs text-slate-500 dark:text-slate-300 font-mono font-medium">
+                    Fast 24-hour station setup • Command Queue included • Cancel anytime
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scroll observer and navigation script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Reading / Scroll progress bar
+            const progressBar = document.getElementById('scroll-progress');
+            if (progressBar) {
+                const updateProgress = () => {
+                    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+                    const docHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+                    const progress = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
+                    progressBar.style.width = progress + '%';
+                };
+                window.addEventListener('scroll', updateProgress, { passive: true });
+                updateProgress();
+            }
+
+            // IntersectionObserver for scroll reveals
+            const revealElements = document.querySelectorAll('.scroll-reveal');
+            if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const revealObserver = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('is-visible');
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, {
+                    root: null,
+                    rootMargin: '0px 0px -40px 0px',
+                    threshold: 0.08
+                });
+
+                revealElements.forEach(el => revealObserver.observe(el));
+            } else {
+                revealElements.forEach(el => el.classList.add('is-visible'));
+            }
+
+            // Smooth anchor scrolling
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function(e) {
+                    const targetId = this.getAttribute('href');
+                    if (targetId && targetId !== '#') {
+                        const targetEl = document.querySelector(targetId);
+                        if (targetEl) {
+                            e.preventDefault();
+                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            if (history.pushState) {
+                                history.pushState(null, '', targetId);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

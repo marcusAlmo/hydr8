@@ -1,5 +1,6 @@
 from django.core.cache import cache
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.users.models import Role, User
 from apps.users.services import (
@@ -28,17 +29,61 @@ class UserLandingAndLoginViewTests(TestCase):
         cache.clear()
 
     def test_landing_page_renders_abyss_brand(self):
-        """Test that the landing page renders split-screen Abyss brand and Sign In card."""
+        """Test that the landing page renders branding and links to login page."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Hydr8')
         self.assertContains(response, 'Water. Delivered. Managed.')
-        self.assertContains(response, 'Sign In')
+        self.assertContains(response, 'Sign In to Station')
+        self.assertContains(response, reverse('users:login'))
+        # No embedded form fields on landing page
+        self.assertNotContains(response, 'name="username"')
+        self.assertNotContains(response, 'name="password"')
+        self.assertNotContains(response, 'id="signin"')
+
+    def test_landing_page_features_pricing_and_contact(self):
+        """Test landing page renders core feature highlights, pricing, and contact email."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Command Queue')
+        self.assertContains(response, 'Offline-First')
+        self.assertContains(response, 'Feature Gallery')
+        self.assertContains(response, 'Daily Remittance Ledger')
+        self.assertContains(response, '₱999')
+        self.assertContains(response, 'Get Started')
+        self.assertContains(response, 'Log In')
+        self.assertContains(response, 'rushdashvx@gmail.com')
+
+    def test_landing_page_theme_toggle_and_default_light_mode(self):
+        """Test landing page renders theme toggle and pre-hydrates light mode by default."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'window.toggleHydr8Theme')
+        self.assertContains(response, 'window.getHydr8Theme')
+        self.assertContains(response, 'window.setHydr8Theme')
+        self.assertContains(response, "document.documentElement.setAttribute('data-theme', 'light')")
+        self.assertContains(response, 'toggleTheme()')
+        self.assertContains(response, 'Switch to Light Mode')
+
+    def test_landing_page_technical_jargon_removed(self):
+        """Test landing page omits internal backend implementation details from copy."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'PostgreSQL ACID • Redis Caching • Atomic F() Updates')
+        self.assertNotContains(response, 'Atomic F() Balance Updates')
+        self.assertNotContains(response, 'PostgreSQL')
+        self.assertNotContains(response, 'Redis')
+        self.assertNotContains(response, 'Latency: 1.2ms')
+        self.assertContains(response, '99.9% Station Uptime • 100% Audit Accurate')
+        self.assertContains(response, 'Automatic Balance Protection')
+        self.assertContains(response, 'Speed: Instant')
 
     def test_login_view_get(self):
-        """Test direct GET request to login view redirects to the landing page."""
+        """Test direct GET request to login view renders dedicated login page."""
         response = self.client.get('/login/')
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Sign In')
+        self.assertContains(response, 'Hydr8')
 
     def test_login_htmx_failure_returns_partial(self):
         """Test HTMX login failure returns inline form errors."""
@@ -60,7 +105,7 @@ class UserLandingAndLoginViewTests(TestCase):
 
     def test_login_form_has_password_eye_toggle(self):
         """Test the password field includes the Alpine.js eye toggle button."""
-        response = self.client.get('/')
+        response = self.client.get('/login/')
         self.assertContains(response, 'x-data="{ show: false }"')
         self.assertContains(response, '@click="show = !show"')
         self.assertContains(response, 'visibility')

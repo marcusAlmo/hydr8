@@ -47,7 +47,13 @@
                     {% include "analytics/partials/skeletons/outstanding_debts_skeleton.html" %}
                 </div>
             </div>
-            {% include "analytics/partials/today_remittance_panel.html" %}
+            <!-- Sidebar column: Today's remittance and operational insights -->
+            <div class="lg:col-span-1">
+                <div class="lg:sticky lg:top-6 flex flex-col gap-8">
+                    {% include "analytics/partials/today_remittance_panel.html" %}
+                    {% include "analytics/partials/ai_insights_card.html" %}
+                </div>
+            </div>
         </div>
     </div>
 {% endblock %}

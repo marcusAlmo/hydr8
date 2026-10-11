@@ -52,6 +52,14 @@
         .chart-skeleton.is-hidden {
             display: none;
         }
+        html.dark .chart-skeleton {
+            background: linear-gradient(
+                90deg,
+                rgba(51, 65, 85, 0.15) 0%,
+                rgba(51, 65, 85, 0.35) 50%,
+                rgba(51, 65, 85, 0.15) 100%
+            );
+        }
 
         /* Respect reduced-motion preference */
         @media (prefers-reduced-motion: reduce) {
@@ -137,25 +145,25 @@
                     x-transition:leave-end="opacity-0 -translate-y-1"
                     @click.outside="customRangeOpen = false"
                     @keydown.escape.window="customRangeOpen = false"
-                    class="absolute right-0 top-full mt-1 z-50 w-80 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden"
+                    class="absolute right-0 top-full mt-1 z-50 w-[22rem] sm:w-[26rem] max-w-[calc(100vw-2rem)] bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-xl overflow-hidden"
                 >
                     <div class="p-4 space-y-3">
                         <h4 class="font-headline-sm text-body-md font-bold text-on-surface">Custom Date Range</h4>
                         <div class="grid grid-cols-2 gap-3">
-                            <div>
+                            <div class="min-w-0">
                                 <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">From</label>
                                 <input
                                     type="date"
                                     x-model="customFrom"
-                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    class="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
                                 >
                             </div>
-                            <div>
+                            <div class="min-w-0">
                                 <label class="font-label-caps text-label-caps text-outline uppercase block mb-1">To</label>
                                 <input
                                     type="date"
                                     x-model="customTo"
-                                    class="w-full px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    class="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-body-sm font-data-mono text-on-surface focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
                                 >
                             </div>
                         </div>
@@ -371,7 +379,7 @@
 
                             <!-- Scrollable rider list -->
                             <div class="max-h-64 overflow-y-auto custom-scrollbar">
-                                <template x-for="rider in filteredRiders(riderQuery)" :key="rider.name">
+                                <template x-for="(rider, index) in filteredRiders(riderQuery)" :key="rider.name">
                                     <label
                                         :class="isRiderActive(rider.name)
                                             ? 'bg-primary/5'
@@ -384,7 +392,7 @@
                                             @change="toggleRider(rider.name)"
                                             class="w-4 h-4 text-primary rounded border-outline-variant focus:ring-primary flex-shrink-0"
                                         >
-                                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="`background:${rider.color}`"></span>
+                                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="`background:${riderColor(rider, index)}`"></span>
                                         <span class="text-body-sm font-body-sm text-on-surface flex-1 truncate" x-text="rider.name"></span>
                                         <span class="font-data-mono text-[11px] text-outline" x-text="rider.units_sold[rider.units_sold.length - 1] + ' u'"></span>
                                     </label>
@@ -566,24 +574,53 @@
                     {% endfor %}
                 </table>
             </div>
-            <div class="p-4 border-t border-outline-variant/20 flex justify-between items-center text-body-sm text-outline font-body-sm">
-                <div>{{ pagination.showing }}</div>
-                <div class="flex items-center gap-2">
-                    <button class="p-1 rounded hover:bg-surface-container-high transition-colors disabled:opacity-30" disabled>
+            <div class="p-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-4 text-body-sm text-outline font-body-sm">
+                <div class="flex items-center gap-4">
+                    <div>{{ pagination.showing }}</div>
+                    <div class="flex items-center gap-1.5">
+                        <label for="history-per-page" class="text-label-caps text-outline uppercase text-[11px]">Rows</label>
+                        <select
+                            id="history-per-page"
+                            name="per_page"
+                            onchange="const url = new URL(window.location); url.searchParams.set('per_page', this.value); url.searchParams.set('page', '1'); window.location.href = url.toString();"
+                            class="px-2 py-1 bg-surface-container-low border border-outline-variant/40 rounded text-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-transparent cursor-pointer font-data-mono"
+                        >
+                            {% for choice in pagination.per_page_choices %}
+                            <option value="{{ choice }}" {% if pagination.per_page == choice %}selected{% endif %}>{{ choice }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1">
+                    {% if pagination.has_previous %}
+                    <a href="?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
                         <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-                    </button>
-                    {% for p in pagination.total_pages|make_list %}
-                        {% with page_num=forloop.counter %}
-                        {% if page_num == pagination.current_page %}
-                        <span class="px-2 py-0.5 bg-primary text-on-primary rounded text-[12px] font-bold">{{ page_num }}</span>
+                    </a>
+                    {% else %}
+                    <span class="p-1 rounded opacity-30 cursor-not-allowed">
+                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </span>
+                    {% endif %}
+
+                    {% for p in pagination.page_numbers %}
+                        {% if p == "…" %}
+                        <span class="px-1 text-outline text-body-sm font-data-mono">…</span>
+                        {% elif p == pagination.current_page %}
+                        <span class="px-2.5 py-1 bg-primary text-on-primary rounded text-[12px] font-bold">{{ p }}</span>
                         {% else %}
-                        <button class="px-2 py-0.5 hover:bg-surface-container-high rounded text-[12px]">{{ page_num }}</button>
+                        <a href="?page={{ p }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="px-2.5 py-1 hover:bg-surface-container-high rounded text-[12px] text-on-surface transition-colors">{{ p }}</a>
                         {% endif %}
-                        {% endwith %}
                     {% endfor %}
-                    <button class="p-1 rounded hover:bg-surface-container-high transition-colors">
+
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-                    </button>
+                    </a>
+                    {% else %}
+                    <span class="p-1 rounded opacity-30 cursor-not-allowed">
+                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </span>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -664,20 +701,37 @@
                 ],
                 // --- Rider filter ---
                 selectedRiders: seed.riders.map(r => r.name),
+                lightRiderPalette: [
+                    '#006591', '#505F76', '#006C4A', '#D97706', '#7C3AED',
+                    '#0284C7', '#DC2626', '#059669', '#4F46E5', '#EA580C',
+                    '#0D9488', '#B45309', '#D97706', '#6366F1', '#8B5CF6',
+                ],
+                darkRiderPalette: [
+                    '#38BDF8', '#CBD5E1', '#34D399', '#FBBF24', '#A78BFA',
+                    '#22D3EE', '#FB7185', '#2DD4BF', '#818CF8', '#FB923C',
+                    '#A3E635', '#FACC15', '#E879F9', '#C084FC', '#60A5FA',
+                ],
+                riderColor(rider, index) {
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const palette = isDark ? this.darkRiderPalette : this.lightRiderPalette;
+                    const riderIdx = this.seed.riders.findIndex(r => r.name === rider.name);
+                    const i = riderIdx >= 0 ? riderIdx : (index ?? 0);
+                    return palette[i % palette.length];
+                },
                 // --- Chart state ---
                 charts: {},
                 _isInitialRender: true,
 
                 init() {
-                    this.$watch('dateRange', () => this.renderAll());
+                    this.$watch('dateRange', () => this.renderAll(false));
                     this.$watch('selectedRiders', () => {
                         // Only the rider chart depends on the rider filter.
-                        this.renderRiderChart();
+                        this.renderRiderChart(false);
                     });
-                    this.renderChart('#chart-total-sales', 'total_sales', '#006591', true);
-                    this.renderChart('#chart-outstanding-debt', 'outstanding_debt', '#D97706', true);
-                    this.renderChart('#chart-commissions', 'commissions_paid', '#006C4A', true);
-                    this.renderRiderChart();
+                    window.addEventListener('hydr8:theme-change', () => {
+                        this.renderAll(true);
+                    });
+                    this.renderAll(true);
                     this._isInitialRender = false;
                 },
 
@@ -905,6 +959,11 @@
                 baseOptions(series, color, currency, field) {
                     const labels = this.filteredLabels();
                     const maData = this.movingAverage(field, 7);
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const labelColor = isDark ? '#94A3B8' : '#6E7881';
+                    const gridColor = isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(190, 200, 210, 0.25)';
+                    const maColor = isDark ? '#94A3B8' : '#6E7881';
+
                     return {
                         chart: {
                             type: 'area',
@@ -914,13 +973,14 @@
                             fontFamily: 'Geist, sans-serif',
                             animations: this._animConfig(this._isInitialRender),
                             redrawOnParentResize: true,
+                            background: 'transparent',
                         },
                         series: [
                             { name: 'Daily',        data: series },
                             { name: '7-Day MA',     data: maData },
                         ],
                         labels,
-                        colors: [color, '#6E7881'],
+                        colors: [color, maColor],
                         stroke: {
                             curve: 'smooth',
                             width: [2.5, 2],
@@ -929,20 +989,24 @@
                         fill: {
                             type: 'gradient',
                             gradient: {
+                                shade: isDark ? 'dark' : 'light',
                                 shadeIntensity: 1,
-                                opacityFrom: 0.35,
+                                opacityFrom: isDark ? 0.45 : 0.35,
                                 opacityTo: 0.05,
                                 stops: [0, 100],
                             },
                         },
+                        theme: {
+                            mode: isDark ? 'dark' : 'light',
+                        },
                         grid: {
-                            borderColor: 'rgba(190, 200, 210, 0.25)',
+                            borderColor: gridColor,
                             strokeDashArray: 4,
                             padding: { left: 8, right: 8 },
                         },
                         xaxis: {
                             labels: {
-                                style: { colors: '#6E7881', fontSize: '11px' },
+                                style: { colors: labelColor, fontSize: '11px' },
                                 rotate: 0,
                                 trim: true,
                                 hideOverlappingLabels: true,
@@ -953,14 +1017,14 @@
                         },
                         yaxis: {
                             labels: {
-                                style: { colors: '#6E7881', fontSize: '11px' },
+                                style: { colors: labelColor, fontSize: '11px' },
                                 formatter: (v) => currency
                                     ? '₱' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v))
                                     : Math.round(v),
                             },
                         },
                         tooltip: {
-                            theme: 'light',
+                            theme: isDark ? 'dark' : 'light',
                             style: { fontFamily: 'Geist Mono, monospace', fontSize: '12px' },
                             y: {
                                 formatter: (v) => currency
@@ -973,41 +1037,43 @@
                             show: true,
                             position: 'top',
                             fontSize: '11px',
-                            labels: { colors: '#6E7881' },
+                            labels: { colors: isDark ? '#E2E8F0' : '#6E7881' },
                             markers: { width: 8, height: 2, radius: 0 },
                             itemMargin: { horizontal: 8 },
                         },
                     };
                 },
 
-                renderChart(elId, field, color, currency) {
+                renderChart(elId, field, color, currency, forceRecreate = false) {
                     const opts = this.baseOptions(this.filteredSeries(field), color, currency, field);
                     const el = document.querySelector(elId);
                     if (!el) return;
-                    if (this.charts[elId] && this.charts[elId].el === el) {
+                    if (!forceRecreate && this.charts[elId] && this.charts[elId].el === el) {
                         this.charts[elId].updateOptions(opts, true, false);
                     } else {
                         if (this.charts[elId]) {
                             try { this.charts[elId].destroy(); } catch (e) {}
                         }
                         el.innerHTML = '';
-                        this.charts[elId] = new ApexCharts(el, opts);
-                        this.charts[elId].render();
+                        const chart = new ApexCharts(el, opts);
+                        this.charts = { ...this.charts, [elId]: chart };
+                        chart.render();
                     }
                 },
 
-                renderRiderChart() {
+                renderRiderChart(forceRecreate = false) {
                     const labels = this.filteredLabels();
                     const start = this.sliceStart();
-                    const series = this.seed.riders
-                        .filter(r => this.selectedRiders.includes(r.name))
-                        .map(r => ({
-                            name: r.name,
-                            data: this.dateRange === 'custom' ? r.units_sold : r.units_sold.slice(start),
-                        }));
-                    const colors = this.seed.riders
-                        .filter(r => this.selectedRiders.includes(r.name))
-                        .map(r => r.color);
+                    const activeRiders = this.seed.riders.filter(r => this.selectedRiders.includes(r.name));
+                    const series = activeRiders.map(r => ({
+                        name: r.name,
+                        data: this.dateRange === 'custom' ? r.units_sold : r.units_sold.slice(start),
+                    }));
+                    const colors = activeRiders.map(r => this.riderColor(r));
+
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const labelColor = isDark ? '#94A3B8' : '#6E7881';
+                    const gridColor = isDark ? 'rgba(51, 65, 85, 0.4)' : 'rgba(190, 200, 210, 0.25)';
 
                     const opts = {
                         chart: {
@@ -1017,19 +1083,23 @@
                             fontFamily: 'Geist, sans-serif',
                             animations: this._animConfig(this._isInitialRender),
                             redrawOnParentResize: true,
+                            background: 'transparent',
                         },
                         series,
                         labels,
                         colors,
                         stroke: { curve: 'smooth', width: 2.5 },
+                        theme: {
+                            mode: isDark ? 'dark' : 'light',
+                        },
                         grid: {
-                            borderColor: 'rgba(190, 200, 210, 0.25)',
+                            borderColor: gridColor,
                             strokeDashArray: 4,
                             padding: { left: 8, right: 8 },
                         },
                         xaxis: {
                             labels: {
-                                style: { colors: '#6E7881', fontSize: '11px' },
+                                style: { colors: labelColor, fontSize: '11px' },
                                 trim: true, hideOverlappingLabels: true,
                             },
                             axisBorder: { show: false },
@@ -1037,10 +1107,10 @@
                             tickAmount: Math.min(6, labels.length),
                         },
                         yaxis: {
-                            labels: { style: { colors: '#6E7881', fontSize: '11px' } },
+                            labels: { style: { colors: labelColor, fontSize: '11px' } },
                         },
                         tooltip: {
-                            theme: 'light',
+                            theme: isDark ? 'dark' : 'light',
                             style: { fontFamily: 'Geist Mono, monospace', fontSize: '12px' },
                             y: { formatter: (v) => v + ' units' },
                         },
@@ -1049,7 +1119,7 @@
                             show: true,
                             position: 'bottom',
                             fontSize: '11px',
-                            labels: { colors: '#6E7881' },
+                            labels: { colors: isDark ? '#E2E8F0' : '#6E7881' },
                             markers: { width: 8, height: 8, radius: 4 },
                             itemMargin: { horizontal: 8 },
                         },
@@ -1057,25 +1127,31 @@
 
                     const el = document.querySelector('#chart-rider-performance');
                     if (!el) return;
-                    if (this.charts['#chart-rider-performance'] && this.charts['#chart-rider-performance'].el === el) {
+                    if (!forceRecreate && this.charts['#chart-rider-performance'] && this.charts['#chart-rider-performance'].el === el) {
                         this.charts['#chart-rider-performance'].updateOptions(opts, true, false);
                     } else {
                         if (this.charts['#chart-rider-performance']) {
                             try { this.charts['#chart-rider-performance'].destroy(); } catch (e) {}
                         }
                         el.innerHTML = '';
-                        this.charts['#chart-rider-performance'] = new ApexCharts(el, opts);
-                        this.charts['#chart-rider-performance'].render();
+                        const chart = new ApexCharts(el, opts);
+                        this.charts = { ...this.charts, ['#chart-rider-performance']: chart };
+                        chart.render();
                     }
                 },
 
-                renderAll() {
+                renderAll(forceRecreate = false) {
                     // Filter change — use the faster transition speed.
                     this._isInitialRender = false;
-                    this.renderChart('#chart-total-sales',     'total_sales',      '#006591', true);
-                    this.renderChart('#chart-outstanding-debt','outstanding_debt', '#D97706', true);
-                    this.renderChart('#chart-commissions',     'commissions_paid', '#006C4A', true);
-                    this.renderRiderChart();
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const salesColor = isDark ? '#38BDF8' : '#006591';
+                    const debtColor  = isDark ? '#FBBF24' : '#D97706';
+                    const commColor  = isDark ? '#34D399' : '#006C4A';
+
+                    this.renderChart('#chart-total-sales',     'total_sales',      salesColor, true, forceRecreate);
+                    this.renderChart('#chart-outstanding-debt','outstanding_debt', debtColor,  true, forceRecreate);
+                    this.renderChart('#chart-commissions',     'commissions_paid', commColor,  true, forceRecreate);
+                    this.renderRiderChart(forceRecreate);
                 },
             };
         }

@@ -34,13 +34,14 @@ The project is split into a single `apps/` package of domain-driven Django apps 
 ### Key patterns
 
 - **Remittance Audit Breakdown**: Remittances feature a 4-tab operational audit (Riders delivery lines, Staff compensation, Debt Repayments, and Date-resolved Credit extensions).
-- **Services / Selectors**: business logic lives in `services.py`; read paths in `selectors.py`.
-- **HTMX partials**: templates are organized under `apps/<app>/templates/<app>/partials/`.
+- **Services / Selectors**: Business logic lives in `services.py`; read paths in `selectors.py`.
+- **HTMX partials**: Templates are organized under `apps/<app>/templates/<app>/partials/`.
 - **Multi-tenancy**: `apps.core.middleware.TenantMiddleware` scopes requests by company (`Company` foreign key).
 - **Authorization**: `Role` is the single source of truth. Use `apps.users.permissions.is_back_office` / `is_admin` instead of `is_staff`. Superusers remain a platform escape hatch.
-- **Rate limiting**: all user-input views are decorated with `django_ratelimit.decorators.ratelimit` (30/m mutations, 120/m reads, 10/m auth, 5/15m PIN). Login also uses a 5-failure lockout in `apps.users.services`.
+- **Rate limiting**: User-input views are decorated with `django_ratelimit.decorators.ratelimit` (30/m mutations, 120/m reads, 10/m auth, 5/15m PIN). Login also uses a 5-failure lockout in `apps.users.services`.
 - **Audit**: `django-auditlog` records model changes, tagged with a correlation ID from `apps.core.middleware.CorrelationIdMiddleware`.
 - **Caching**: `LocMemCache` in `local.py` / `test.py`; `Redis` in `production.py`.
+- **Scheduled Maintenance**: Daily cleanup at 1:00 AM PHT clears expired sessions and purges audit logs older than 90 days.
 
 For a deeper architecture write-up, see `../docs/ARCHITECTURE.md`. For authoring conventions, see `../AGENTS.md`.
 
@@ -123,6 +124,19 @@ The image runs `entrypoint.sh`, which:
 3. Starts Gunicorn on `0.0.0.0:8000`
 
 Make sure `.env` contains all values required by `config/settings/production.py` (especially `SECRET_KEY`, `DATABASE_URL`, `ALLOWED_HOSTS`, and `REDIS_URL`).
+
+## Background Tasks & Maintenance
+
+```bash
+# Run background scheduler (executes 1:00 AM PHT daily cleanup)
+uv run python manage.py run_scheduler
+
+# Run daily maintenance manually on demand
+uv run python manage.py run_maintenance
+
+# Purge audit log records older than N days
+uv run python manage.py purge_audit_logs --days 90
+```
 
 ## Testing and Linting
 
