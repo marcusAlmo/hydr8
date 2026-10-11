@@ -22,4 +22,9 @@ urlpatterns = [
         views.dashboard_outstanding_debts_partial,
         name="dashboard_outstanding_debts",
     ),
+    path(
+        "dashboard/partials/ai-insights-modal/",
+        views.dashboard_ai_insights_modal_view,
+        name="dashboard_ai_insights_modal",
+    ),
 ]

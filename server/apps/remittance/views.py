@@ -14,6 +14,11 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods
 from django_ratelimit.decorators import ratelimit
 
+from apps.core.pagination import (
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+    parse_per_page,
+)
 from apps.core.views import error_message, toast_for_exception
 from apps.users.permissions import is_admin
 
@@ -369,23 +374,41 @@ def remittance_history_view(request):
         start_date=start_date,
         end_date=end_date,
     )
+    page = request.GET.get("page", 1)
+    try:
+        page = int(page)
+    except (ValueError, TypeError):
+        page = 1
+
+    per_page = parse_per_page(request.GET.get("per_page"))
+
     recent = get_recent_remittances(
         request.user,
+        limit=per_page,
+        page=page,
         start_date=start_date,
         end_date=end_date,
     )
 
     total = recent["total"]
     shown = len(recent["remittances"])
-    per_page = 25
     total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(max(1, page), total_pages)
 
     context["remittances"] = recent["remittances"]
     context["is_admin"] = is_admin(request.user)
     context["pagination"] = {
         "showing": f"Showing {shown} of {total} records",
-        "current_page": 1,
+        "current_page": page,
         "total_pages": total_pages,
+        "per_page": per_page,
+        "per_page_choices": list(PER_PAGE_CHOICES),
+        "has_previous": page > 1,
+        "has_next": page < total_pages,
+        "previous_page_number": page - 1,
+        "next_page_number": page + 1,
+        "page_range": list(range(1, total_pages + 1)),
+        "page_numbers": get_elided_page_numbers(page, total_pages),
     }
     context["custom_from"] = from_str or ""
     context["custom_to"] = to_str or ""
@@ -563,8 +586,10 @@ def remittance_detail_view(request: HttpRequest, remittance_id: int) -> HttpResp
         request.user, remittance_id, remittance=remittance_obj
     )
 
+    page_size = parse_per_page(request.GET.get("per_page") or request.GET.get("page_size"))
+
     repayments_data = get_credit_repayments_for_remittance(
-        request.user, remittance_id, page=1, page_size=5, remittance=remittance_obj
+        request.user, remittance_id, page=1, page_size=page_size, remittance=remittance_obj
     )
     # Query with page_size=1 to retrieve total credits count for tab badge without loading full page
     credits_data = get_credits_recorded_for_remittance(
@@ -587,8 +612,10 @@ def remittance_detail_view(request: HttpRequest, remittance_id: int) -> HttpResp
         "page": repayments_data["page"],
         "total_pages": repayments_data["total_pages"],
         "page_size": repayments_data["page_size"],
+        "per_page_choices": repayments_data["per_page_choices"],
         "total_repayments": repayments_data["total"],
         "page_range": repayments_data["page_range"],
+        "page_numbers": repayments_data["page_numbers"],
         "page_start": repayments_data["page_start"],
         "page_end": repayments_data["page_end"],
         "is_admin": True,
@@ -611,6 +638,8 @@ def remittance_detail_repayments_view(request: HttpRequest, remittance_id: int) 
     except (ValueError, TypeError):
         page = 1
 
+    page_size = parse_per_page(request.GET.get("per_page") or request.GET.get("page_size"))
+
     remittance_obj = get_remittance_by_id(request.user, remittance_id)
     if remittance_obj is None:
         return HttpResponse("Remittance not found.", status=404)
@@ -620,7 +649,7 @@ def remittance_detail_repayments_view(request: HttpRequest, remittance_id: int) 
     )
 
     data = get_credit_repayments_for_remittance(
-        request.user, remittance_id, page=page, page_size=5, remittance=remittance_obj
+        request.user, remittance_id, page=page, page_size=page_size, remittance=remittance_obj
     )
 
     context = {
@@ -629,8 +658,10 @@ def remittance_detail_repayments_view(request: HttpRequest, remittance_id: int) 
         "page": data["page"],
         "total_pages": data["total_pages"],
         "page_size": data["page_size"],
+        "per_page_choices": data["per_page_choices"],
         "total_repayments": data["total"],
         "page_range": data["page_range"],
+        "page_numbers": data["page_numbers"],
         "page_start": data["page_start"],
         "page_end": data["page_end"],
     }
@@ -656,6 +687,8 @@ def remittance_detail_credits_view(request: HttpRequest, remittance_id: int) -> 
     except (ValueError, TypeError):
         page = 1
 
+    page_size = parse_per_page(request.GET.get("per_page") or request.GET.get("page_size"))
+
     remittance_obj = get_remittance_by_id(request.user, remittance_id)
     if remittance_obj is None:
         return HttpResponse("Remittance not found.", status=404)
@@ -665,7 +698,7 @@ def remittance_detail_credits_view(request: HttpRequest, remittance_id: int) -> 
     )
 
     data = get_credits_recorded_for_remittance(
-        request.user, remittance_id, page=page, page_size=5, remittance=remittance_obj
+        request.user, remittance_id, page=page, page_size=page_size, remittance=remittance_obj
     )
 
     context = {
@@ -674,8 +707,10 @@ def remittance_detail_credits_view(request: HttpRequest, remittance_id: int) -> 
         "page": data["page"],
         "total_pages": data["total_pages"],
         "page_size": data["page_size"],
+        "per_page_choices": data["per_page_choices"],
         "total_credits": data["total"],
         "page_range": data["page_range"],
+        "page_numbers": data["page_numbers"],
         "page_start": data["page_start"],
         "page_end": data["page_end"],
     }

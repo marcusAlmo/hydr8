@@ -17,7 +17,11 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.timezone import localtime
 
-from apps.core.pagination import DEFAULT_PER_PAGE, PER_PAGE_CHOICES
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+)
 from apps.customers.models import CreditLine
 from apps.customers.selectors import _display_id as _customer_display_id
 from apps.remittance.models import RemittanceRiderProductLine
@@ -274,6 +278,7 @@ def _pagination_from_page(page_obj) -> dict:
             "next_page_number": None,
             "per_page": per_page,
             "per_page_choices": choices,
+            "page_numbers": [],
         }
     return {
         "showing_from": page_obj.start_index(),
@@ -288,6 +293,7 @@ def _pagination_from_page(page_obj) -> dict:
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
         "per_page": per_page,
         "per_page_choices": choices,
+        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages),
     }
 
 

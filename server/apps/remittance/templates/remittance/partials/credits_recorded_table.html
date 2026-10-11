@@ -43,14 +43,32 @@
         </div>
         
         <!-- Pagination -->
-        <div class="flex items-center justify-between">
-            <p class="text-body-sm text-on-surface-variant">
-                Showing <span class="font-bold">{{ page_start }}</span>–<span class="font-bold">{{ page_end }}</span> of <span class="font-bold">{{ total_credits }}</span> credits
-            </p>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <p class="text-body-sm text-on-surface-variant">
+                    Showing <span class="font-bold">{{ page_start }}</span>–<span class="font-bold">{{ page_end }}</span> of <span class="font-bold">{{ total_credits }}</span> credits
+                </p>
+                <div class="flex items-center gap-1.5">
+                    <label for="credits-page-size" class="text-label-caps text-outline uppercase text-[11px]">Rows</label>
+                    <select
+                        id="credits-page-size"
+                        name="page_size"
+                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page=1"
+                        hx-target="#tab-credits-content"
+                        hx-swap="innerHTML"
+                        hx-include="this"
+                        class="px-2 py-1 bg-surface-container-low border border-outline-variant/40 rounded text-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-transparent cursor-pointer font-data-mono"
+                    >
+                        {% for choice in per_page_choices %}
+                        <option value="{{ choice }}" {% if page_size == choice %}selected{% endif %}>{{ choice }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
             <div class="flex gap-1">
                 {% if page > 1 %}
                     <button
-                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'-1' }}"
+                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'-1' }}&page_size={{ page_size }}"
                         hx-target="#tab-credits-content"
                         hx-swap="innerHTML"
                         class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
@@ -59,15 +77,17 @@
                     </button>
                 {% endif %}
                 
-                {% for p in page_range %}
-                    {% if p == page %}
-                        <button class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-body-sm font-semibold">{{ p }}</button>
+                {% for p in page_numbers %}
+                    {% if p == "…" %}
+                        <span class="px-1.5 py-1.5 text-on-surface-variant text-body-sm font-data-mono self-center">…</span>
+                    {% elif p == page %}
+                        <button class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-body-sm font-semibold font-data-mono">{{ p }}</button>
                     {% else %}
                         <button
-                            hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ p }}"
+                            hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ p }}&page_size={{ page_size }}"
                             hx-target="#tab-credits-content"
                             hx-swap="innerHTML"
-                            class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"
+                            class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors font-data-mono"
                         >
                             {{ p }}
                         </button>
@@ -76,7 +96,7 @@
                 
                 {% if page < total_pages %}
                     <button
-                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'1' }}"
+                        hx-get="{% url 'remittance:detail_credits' remittance.id %}?page={{ page|add:'1' }}&page_size={{ page_size }}"
                         hx-target="#tab-credits-content"
                         hx-swap="innerHTML"
                         class="px-3 py-1.5 rounded-lg border border-outline-variant/30 text-body-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors"

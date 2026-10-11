@@ -100,6 +100,7 @@
               x-data="{
                 saving: false,
                 showCurrent: false,
+                showCurrentPw: false,
                 originalUsername: '{{ profile.username|escapejs }}',
                 newUsername: '{{ profile.username|escapejs }}',
                 currentPassword: '',
@@ -137,7 +138,6 @@
                         name="current_password"
                         x-model="currentPassword"
                         :type="showCurrentPw ? 'text' : 'password'"
-                        x-data="{ showCurrentPw: false }"
                         class="w-full bg-surface-container-low border border-outline-variant/50 rounded-lg p-3 pr-12 text-on-surface font-data-mono text-data-mono focus:ring-2 focus:ring-primary outline-none transition-all duration-200"
                         placeholder="Enter current password"
                         autocomplete="current-password"/>

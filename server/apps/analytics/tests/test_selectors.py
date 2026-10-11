@@ -19,6 +19,7 @@ from apps.analytics.selectors import (
     _sales_trend,
     _today_remittance,
     _unreturned_containers,
+    _yesterday_ai_insight,
 )
 from apps.core.models import Product
 from apps.customers.models import CreditLine, Customer
@@ -378,6 +379,115 @@ class OutstandingDebtsTests(TestCase):
         )
         result = _outstanding_debts(self.user)
         self.assertEqual(result[0]["severity"], "critical")
+
+
+class YesterdayAIInsightTests(TestCase):
+    """Tests for the _yesterday_ai_insight selector."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="ai_user", password="securepassword123"
+        )
+        self.yesterday = timezone.localdate() - timedelta(days=1)
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_warning_mood_when_no_remittance_yesterday(self):
+        """When no remittance was logged yesterday, mood is 'warning'."""
+        result = _yesterday_ai_insight(self.user)
+        self.assertEqual(result["mood"], "warning")
+        self.assertEqual(result["mood_label"], "Attention Needed")
+        self.assertIn("No remittance was logged for yesterday", result["sample_text"])
+        self.assertEqual(result["metrics"]["remittance_status"], "Missing")
+
+    def test_warning_mood_when_yesterday_is_draft(self):
+        """When yesterday's remittance is draft, mood is 'warning'."""
+        Remittance.objects.create(
+            date=self.yesterday,
+            created_by=self.user,
+            status=Remittance.StatusChoices.DRAFT,
+            total_sales=Decimal("1200.00"),
+            net_profit=Decimal("600.00"),
+            tithe_amount=Decimal("120.00"),
+            tithes_paid=False,
+            offering_paid=False,
+        )
+        result = _yesterday_ai_insight(self.user)
+        self.assertEqual(result["mood"], "warning")
+        self.assertEqual(result["mood_label"], "Draft Pending")
+        self.assertIn("remains in draft state", result["sample_text"])
+
+    def test_warning_mood_when_tithes_unpaid(self):
+        """When yesterday's finalized remittance has unpaid tithes, mood is 'warning'."""
+        Remittance.objects.create(
+            date=self.yesterday,
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("2000.00"),
+            net_profit=Decimal("1500.00"),
+            tithe_amount=Decimal("200.00"),
+            tithes_paid=False,
+            offering_paid=False,
+        )
+        result = _yesterday_ai_insight(self.user)
+        self.assertEqual(result["mood"], "warning")
+        self.assertEqual(result["title"], "Unsettled Tithes from Yesterday")
+        self.assertEqual(result["metrics"]["tithes_status"], "Unpaid")
+
+    def test_warning_mood_when_net_loss(self):
+        """When yesterday recorded a net deficit, mood is 'warning'."""
+        Remittance.objects.create(
+            date=self.yesterday,
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("500.00"),
+            net_profit=Decimal("-200.00"),
+            tithe_amount=Decimal("50.00"),
+            tithes_paid=True,
+            offering_paid=True,
+        )
+        result = _yesterday_ai_insight(self.user)
+        self.assertEqual(result["mood"], "warning")
+        self.assertEqual(result["mood_label"], "Deficit Warning")
+        self.assertEqual(result["title"], "Operating Deficit Incurred")
+
+    def test_positive_mood_when_strong_performance(self):
+        """When yesterday was finalized, high margin (>=40%), and tithes paid, mood is 'positive'."""
+        Remittance.objects.create(
+            date=self.yesterday,
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("2500.00"),
+            net_profit=Decimal("1500.00"),  # 60% margin
+            tithe_amount=Decimal("250.00"),
+            tithes_paid=True,
+            offering_paid=True,
+        )
+        result = _yesterday_ai_insight(self.user)
+        self.assertEqual(result["mood"], "positive")
+        self.assertEqual(result["mood_label"], "Positive Health")
+        self.assertEqual(result["title"], "Strong Operational Margins")
+        self.assertEqual(result["metrics"]["tithes_status"], "Paid")
+
+    def test_neutral_mood_when_steady_performance(self):
+        """When yesterday had moderate profit (<40% margin) and tithes paid, mood is 'neutral'."""
+        Remittance.objects.create(
+            date=self.yesterday,
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("2000.00"),
+            net_profit=Decimal("400.00"),  # 20% margin
+            tithe_amount=Decimal("200.00"),
+            tithes_paid=True,
+            offering_paid=True,
+        )
+        result = _yesterday_ai_insight(self.user)
+        self.assertEqual(result["mood"], "neutral")
+        self.assertEqual(result["mood_label"], "Stable Baseline")
+        self.assertEqual(result["title"], "Steady Daily Operations")
+
 
 
 

@@ -13,7 +13,12 @@ from apps.audit.selectors import (
     get_log_entry,
     list_log_entries,
 )
-from apps.core.pagination import DEFAULT_PER_PAGE, PER_PAGE_CHOICES, parse_per_page
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+    parse_per_page,
+)
 from apps.users.permissions import is_admin
 
 logger = logging.getLogger(__name__)
@@ -86,6 +91,7 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
         "per_page": page_obj.paginator.per_page,
         "per_page_choices": list(PER_PAGE_CHOICES),
+        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages),
     }
 
     if for_htmx:

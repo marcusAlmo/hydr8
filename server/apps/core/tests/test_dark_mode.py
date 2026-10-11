@@ -48,6 +48,8 @@ class DarkModeTests(TestCase):
         self.assertIn("light_mode", html)
         self.assertIn("Switch to Light Mode", html)
         self.assertIn("Switch to Dark Mode", html)
+        self.assertIn("isDark ? 'Dark Mode' : 'Light Mode'", html)
+        self.assertIn("isDark ? 'dark_mode' : 'light_mode'", html)
 
     def test_settings_appearance_theme_selector(self):
         """Settings profile tab must render the Appearance & Theme selector card."""

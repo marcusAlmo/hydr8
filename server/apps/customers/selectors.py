@@ -15,7 +15,11 @@ from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from apps.core.models import Product
-from apps.core.pagination import DEFAULT_PER_PAGE, PER_PAGE_CHOICES
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+)
 from apps.remittance.models import Remittance
 from apps.settings.selectors import get_overdue_threshold_days
 from apps.users.models import User
@@ -218,6 +222,7 @@ def _pagination_from_page(page_obj) -> dict:
             "next_page_number": None,
             "per_page": per_page,
             "per_page_choices": choices,
+            "page_numbers": [],
         }
     return {
         "showing_from": page_obj.start_index(),
@@ -232,6 +237,7 @@ def _pagination_from_page(page_obj) -> dict:
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
         "per_page": per_page,
         "per_page_choices": choices,
+        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages),
     }
 
 

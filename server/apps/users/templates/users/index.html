@@ -66,6 +66,17 @@
     </script>
 
     <!-- Tailwind CSS with Hydr8 Design Tokens -->
+    <script>
+        (function() {
+            var _warn = console.warn;
+            console.warn = function() {
+                if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].indexOf('cdn.tailwindcss.com should not be used in production') !== -1) {
+                    return;
+                }
+                _warn.apply(console, arguments);
+            };
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
         tailwind.config = {
@@ -135,24 +146,6 @@
             100% { transform: translateX(100%) rotate(45deg); }
         }
         [x-cloak] { display: none !important; }
-
-        /* Crisp input contrast inside Sign In form */
-        #signin input[type="text"],
-        #signin input[type="password"] {
-            background-color: #ffffff !important;
-            color: #0f172a !important;
-            border: 2px solid #cbd5e1 !important;
-            font-weight: 500 !important;
-        }
-        #signin input[type="text"]:focus,
-        #signin input[type="password"]:focus {
-            border-color: #0284c7 !important;
-            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.2) !important;
-        }
-        #signin label {
-            color: #1e293b !important;
-            font-weight: 700 !important;
-        }
 
         /* Fluid hardware-accelerated scroll reveal */
         .scroll-reveal {
@@ -244,7 +237,7 @@
                     <span class="material-symbols-outlined text-[20px] transition-transform duration-300" x-text="isDark ? 'light_mode' : 'dark_mode'">dark_mode</span>
                 </button>
 
-                <a href="{% url 'users:login' %}" class="px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 dark:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-600 rounded-lg transition-all flex items-center gap-1.5 shadow-xs">
+                <a href="{% url 'users:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 dark:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-600 rounded-lg transition-all flex items-center gap-1.5 shadow-xs">
                     <span class="material-symbols-outlined text-[18px]">login</span>
                     <span>Log In</span>
                 </a>
@@ -301,7 +294,7 @@
                         </button>
 
                         <a 
-                            href="#signin" 
+                            href="{% url 'users:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" 
                             class="w-full sm:w-auto px-7 py-4 text-base font-bold text-slate-800 bg-white hover:bg-slate-100 border-2 border-slate-300 dark:text-white dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-600 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xs">
                             <span class="material-symbols-outlined text-[20px]">login</span>
                             <span>Sign In to Station</span>
@@ -1019,66 +1012,7 @@
     </section>
 
     <!-- ========================================================================= -->
-    <!-- 7. SECURE BACK-OFFICE SIGN IN SECTION (High-Contrast Clean Surface)       -->
-    <!-- ========================================================================= -->
-    <section id="signin" class="py-20 bg-slate-100 dark:bg-[#070D1E] text-slate-900 dark:text-white scroll-mt-20 transition-colors">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="max-w-md mx-auto">
-                
-                <!-- Station Title & Subtitle Matching Tests -->
-                <div class="text-center mb-8 space-y-2 scroll-reveal">
-                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center mx-auto text-white shadow-lg shadow-sky-500/30 mb-3">
-                        <span class="material-symbols-outlined text-[32px]">water_drop</span>
-                    </div>
-                    <h2 class="text-3xl font-black text-slate-950 dark:text-white font-geist">Hydr8</h2>
-                    <p class="text-sm font-bold text-slate-600 dark:text-slate-200 uppercase tracking-widest font-mono">
-                        Water. Delivered. Managed.
-                    </p>
-                </div>
-
-                <!-- Sign In Card (High Contrast White Surface for Maximum Readability) -->
-                <div class="auth-card-shimmer bg-white dark:bg-[#0F1E42] p-8 border-2 border-slate-200 dark:border-slate-700 shadow-2xl rounded-2xl text-slate-900 dark:text-white scroll-reveal stagger-1">
-                    <div class="mb-6">
-                        <h3 class="text-2xl font-black text-slate-950 dark:text-white font-geist">Sign In</h3>
-                        <p class="text-xs font-semibold text-slate-600 dark:text-slate-300 mt-1">Access the hydration management dashboard</p>
-                    </div>
-
-                    <!-- Embedded Standard Django HTMX Authentication Form -->
-                    {% include "users/partials/login_form.html" %}
-
-                    <div class="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700 text-center space-y-3">
-                        <p class="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                            Authorized Personnel Only. Access attempts are rate limited & audited.
-                        </p>
-                        <a href="{% url 'users:login' %}" class="inline-flex items-center gap-1 text-xs font-bold text-sky-600 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-100 transition-colors">
-                            <span>Switch to Dedicated Full-Screen Login</span>
-                            <span class="material-symbols-outlined text-[15px]">open_in_new</span>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Trust Badges -->
-                <div class="mt-8 flex justify-center items-center gap-6 text-xs font-bold text-slate-600 dark:text-slate-200 scroll-reveal stagger-2">
-                    <div class="flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-[18px] text-sky-600 dark:text-sky-400">verified_user</span>
-                        <span>SESSION GUARD</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-[18px] text-emerald-600 dark:text-emerald-400">lock</span>
-                        <span>PIN PROTECTED</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="material-symbols-outlined text-[18px] text-sky-600 dark:text-sky-300">sync</span>
-                        <span>REAL-TIME DATA</span>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-    </section>
-
-    <!-- ========================================================================= -->
-    <!-- 8. SECURITY & MULTI-TENANT TRUST SECTION                                  -->
+    <!-- 7. SECURITY & MULTI-TENANT TRUST SECTION                                  -->
     <!-- ========================================================================= -->
     <section id="security-trust" class="py-12 bg-white dark:bg-[#050A18] text-slate-600 dark:text-slate-300 text-xs border-t border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 scroll-reveal">
@@ -1090,7 +1024,7 @@
                 </div>
             </div>
             <div class="text-center md:text-right">
-                <span class="text-slate-800 dark:text-slate-200 font-mono font-bold">99.9% Station Uptime • Bank-Grade Security • 100% Audit Accurate</span>
+                <span class="text-slate-800 dark:text-slate-200 font-mono font-bold">99.9% Station Uptime • 100% Audit Accurate</span>
             </div>
         </div>
     </section>
@@ -1112,13 +1046,13 @@
                 </div>
 
                 <div class="flex flex-wrap items-center justify-center gap-6 text-sm font-semibold text-slate-200">
-                    <a href="{% url 'users:login' %}" class="hover:text-white transition-colors">Sign In</a>
+                    <a href="{% url 'users:login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="hover:text-white transition-colors">Sign In</a>
                     <a href="mailto:rushdashvx@gmail.com" class="text-sky-300 hover:underline font-mono">rushdashvx@gmail.com</a>
                 </div>
             </div>
 
             <div class="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-300 font-medium gap-4">
-                <p>&copy; 2026 Hydr8. All rights reserved. Built for Philippine Water Refilling Stations.</p>
+                <p>2026 Hydr8. Built for Philippine Water Refilling Stations.</p>
                 <p>Subscription contact: <a href="mailto:rushdashvx@gmail.com" class="text-sky-300 hover:underline font-mono font-bold">rushdashvx@gmail.com</a></p>
             </div>
         </div>

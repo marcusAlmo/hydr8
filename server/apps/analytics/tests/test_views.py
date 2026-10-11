@@ -5,6 +5,7 @@ today-remittance panel) and three HTMX partial endpoints that fetch the
 heavy data (stats, recent remittances, outstanding debts).  Tests cover
 both the shell and each partial.
 """
+from datetime import timedelta
 from decimal import Decimal
 
 from django.core.cache import cache
@@ -143,6 +144,76 @@ class DashboardShellTests(TestCase):
         self.client.force_login(fresh)
         response = self.client.get("/analytics/dashboard/")
         self.assertEqual(response.status_code, 200)
+
+    def test_today_remittance_panel_is_compact_and_sticky(self):
+        """The Today's Remittance panel is compact (not full height) and sticky on scroll."""
+        response = self.client.get("/analytics/dashboard/")
+        self.assertContains(response, "lg:sticky")
+        self.assertContains(response, "lg:top-6")
+        self.assertNotContains(response, "min-h-[28rem]")
+        self.assertNotContains(response, "h-full min-h-[28rem]")
+
+    def test_dashboard_renders_ai_insights_card(self):
+        """The dashboard shell renders the AI Daily Insights card with HTMX modal trigger and isolation outline."""
+        response = self.client.get("/analytics/dashboard/")
+        self.assertContains(response, "AI Daily Insights")
+        self.assertContains(response, "/analytics/dashboard/partials/ai-insights-modal/")
+        self.assertContains(response, 'hx-target="#modal-root"')
+        self.assertContains(response, "gap-8")
+        self.assertContains(response, "dark:border-outline/40")
+        self.assertContains(response, "dark:ring-white/10")
+
+
+class DashboardAIInsightsModalTests(TestCase):
+    """Tests for GET /analytics/dashboard/partials/ai-insights-modal/."""
+
+    def setUp(self):
+        self.user = _make_admin_user("modal_admin")
+        self.yesterday = timezone.localdate() - timedelta(days=1)
+        cache.clear()
+        self.client.force_login(self.user)
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_modal_requires_login(self):
+        self.client.logout()
+        response = self.client.get("/analytics/dashboard/partials/ai-insights-modal/")
+        self.assertEqual(response.status_code, 302)
+
+    def test_modal_requires_admin(self):
+        staff_role, _ = Role.objects.get_or_create(name="Staff")
+        staff_user = User.objects.create_user(username="modal_staff", password="password123")
+        staff_user.role = staff_role
+        staff_user.save()
+        self.client.force_login(staff_user)
+        response = self.client.get("/analytics/dashboard/partials/ai-insights-modal/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_modal_returns_200_for_admin_with_no_remittance(self):
+        response = self.client.get("/analytics/dashboard/partials/ai-insights-modal/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "AI Operational Insights")
+        self.assertContains(response, "Attention Needed")
+        self.assertContains(response, "Recommendations for Today")
+
+    def test_modal_renders_positive_state(self):
+        Remittance.objects.create(
+            date=self.yesterday,
+            created_by=self.user,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("3000.00"),
+            net_profit=Decimal("1800.00"),
+            tithe_amount=Decimal("300.00"),
+            tithes_paid=True,
+            offering_paid=True,
+        )
+        response = self.client.get("/analytics/dashboard/partials/ai-insights-modal/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Positive Health")
+        self.assertContains(response, "Strong Operational Margins")
+        self.assertContains(response, "₱3,000.00")
+
 
 
 class DashboardStatsPartialTests(TestCase):

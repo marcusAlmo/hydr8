@@ -201,26 +201,46 @@ Expects context:
         </div>
 
         <!-- Pagination footer -->
-        <div class="flex items-center justify-between px-4 py-3 border-t border-outline-variant/20 bg-surface-container-low">
-            <p class="font-body-sm text-body-sm text-on-surface-variant">
-                Showing
-                <span class="font-data-mono text-on-surface" x-text="showingStart()"></span>–<span class="font-data-mono text-on-surface" x-text="showingEnd()"></span>
-                of <span class="font-data-mono text-on-surface" x-text="filteredRiders.length"></span> drivers
-                <span x-show="driverSearch" x-cloak class="text-xs text-on-surface-variant/70">
-                    (filtered from <span class="font-data-mono" x-text="totalCount"></span>)
-                </span>
-            </p>
+        <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-outline-variant/20 bg-surface-container-low">
+            <div class="flex items-center gap-4">
+                <p class="font-body-sm text-body-sm text-on-surface-variant">
+                    Showing
+                    <span class="font-data-mono text-on-surface" x-text="showingStart()"></span>–<span class="font-data-mono text-on-surface" x-text="showingEnd()"></span>
+                    of <span class="font-data-mono text-on-surface" x-text="filteredRiders.length"></span> drivers
+                    <span x-show="driverSearch" x-cloak class="text-xs text-on-surface-variant/70">
+                        (filtered from <span class="font-data-mono" x-text="totalCount"></span>)
+                    </span>
+                </p>
+                <div class="flex items-center gap-1.5">
+                    <label for="commission-matrix-page-size" class="text-label-caps text-outline uppercase text-[11px]">Rows</label>
+                    <select
+                        id="commission-matrix-page-size"
+                        x-model.number="pageSize"
+                        @change="currentPage = 1"
+                        class="px-2 py-1 bg-surface-container-lowest border border-outline-variant/40 rounded text-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-transparent cursor-pointer font-data-mono"
+                    >
+                        <option :value="10">10</option>
+                        <option :value="15">15</option>
+                        <option :value="20">20</option>
+                        <option :value="25">25</option>
+                    </select>
+                </div>
+            </div>
             <div class="flex items-center gap-2">
                 <button @click="prevPage()" :disabled="currentPage === 1"
                         class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Previous page">
                     <span class="material-symbols-outlined text-[20px]">chevron_left</span>
                 </button>
-                <template x-for="p in totalPages()" :key="p">
-                    <button @click="goToPage(p)"
-                            class="w-8 h-8 rounded-lg font-data-mono text-sm transition-colors"
-                            :class="currentPage === p ? 'bg-primary text-on-primary font-bold' : 'text-on-surface-variant hover:bg-surface-container hover:text-primary'"
-                            x-text="p"></button>
+                <template x-for="(p, idx) in elidedPages()" :key="idx">
+                    <span class="inline-flex items-center">
+                        <span x-show="p === '…'" class="px-1 text-on-surface-variant font-data-mono text-xs">…</span>
+                        <button x-show="p !== '…'"
+                                @click="goToPage(p)"
+                                class="w-8 h-8 rounded-lg font-data-mono text-sm transition-colors"
+                                :class="currentPage === p ? 'bg-primary text-on-primary font-bold' : 'text-on-surface-variant hover:bg-surface-container hover:text-primary'"
+                                x-text="p"></button>
+                    </span>
                 </template>
                 <button @click="nextPage()" :disabled="currentPage === totalPages()"
                         class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -408,6 +428,20 @@ function commissionMatrix(cfg) {
         },
         showingEnd() {
             return Math.min(this.currentPage * this.pageSize, this.filteredRiders.length);
+        },
+        elidedPages() {
+            const total = this.totalPages();
+            const curr = this.currentPage;
+            if (total <= 5) {
+                return Array.from({ length: total }, (_, i) => i + 1);
+            }
+            if (curr <= 3) {
+                return [1, 2, 3, 4, '…', total];
+            }
+            if (curr >= total - 2) {
+                return [1, '…', total - 3, total - 2, total - 1, total];
+            }
+            return [1, '…', curr - 1, curr, curr + 1, '…', total];
         },
 
         // --- Snapshot original rates on init for discard restore ---

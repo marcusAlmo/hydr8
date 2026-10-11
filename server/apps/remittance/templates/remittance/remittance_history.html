@@ -574,24 +574,53 @@
                     {% endfor %}
                 </table>
             </div>
-            <div class="p-4 border-t border-outline-variant/20 flex justify-between items-center text-body-sm text-outline font-body-sm">
-                <div>{{ pagination.showing }}</div>
-                <div class="flex items-center gap-2">
-                    <button class="p-1 rounded hover:bg-surface-container-high transition-colors disabled:opacity-30" disabled>
+            <div class="p-4 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-4 text-body-sm text-outline font-body-sm">
+                <div class="flex items-center gap-4">
+                    <div>{{ pagination.showing }}</div>
+                    <div class="flex items-center gap-1.5">
+                        <label for="history-per-page" class="text-label-caps text-outline uppercase text-[11px]">Rows</label>
+                        <select
+                            id="history-per-page"
+                            name="per_page"
+                            onchange="const url = new URL(window.location); url.searchParams.set('per_page', this.value); url.searchParams.set('page', '1'); window.location.href = url.toString();"
+                            class="px-2 py-1 bg-surface-container-low border border-outline-variant/40 rounded text-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-transparent cursor-pointer font-data-mono"
+                        >
+                            {% for choice in pagination.per_page_choices %}
+                            <option value="{{ choice }}" {% if pagination.per_page == choice %}selected{% endif %}>{{ choice }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1">
+                    {% if pagination.has_previous %}
+                    <a href="?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
                         <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-                    </button>
-                    {% for p in pagination.total_pages|make_list %}
-                        {% with page_num=forloop.counter %}
-                        {% if page_num == pagination.current_page %}
-                        <span class="px-2 py-0.5 bg-primary text-on-primary rounded text-[12px] font-bold">{{ page_num }}</span>
+                    </a>
+                    {% else %}
+                    <span class="p-1 rounded opacity-30 cursor-not-allowed">
+                        <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                    </span>
+                    {% endif %}
+
+                    {% for p in pagination.page_numbers %}
+                        {% if p == "…" %}
+                        <span class="px-1 text-outline text-body-sm font-data-mono">…</span>
+                        {% elif p == pagination.current_page %}
+                        <span class="px-2.5 py-1 bg-primary text-on-primary rounded text-[12px] font-bold">{{ p }}</span>
                         {% else %}
-                        <button class="px-2 py-0.5 hover:bg-surface-container-high rounded text-[12px]">{{ page_num }}</button>
+                        <a href="?page={{ p }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="px-2.5 py-1 hover:bg-surface-container-high rounded text-[12px] text-on-surface transition-colors">{{ p }}</a>
                         {% endif %}
-                        {% endwith %}
                     {% endfor %}
-                    <button class="p-1 rounded hover:bg-surface-container-high transition-colors">
+
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-                    </button>
+                    </a>
+                    {% else %}
+                    <span class="p-1 rounded opacity-30 cursor-not-allowed">
+                        <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                    </span>
+                    {% endif %}
                 </div>
             </div>
         </div>

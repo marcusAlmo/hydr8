@@ -1,5 +1,6 @@
 from django.core.cache import cache
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.users.models import Role, User
 from apps.users.services import (
@@ -28,12 +29,17 @@ class UserLandingAndLoginViewTests(TestCase):
         cache.clear()
 
     def test_landing_page_renders_abyss_brand(self):
-        """Test that the landing page renders split-screen Abyss brand and Sign In card."""
+        """Test that the landing page renders Abyss brand, links to legacy login, and has no embedded form."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Hydr8')
         self.assertContains(response, 'Water. Delivered. Managed.')
-        self.assertContains(response, 'Sign In')
+        self.assertContains(response, 'Sign In to Station')
+        self.assertContains(response, reverse('users:login'))
+        # Embedded authentication form has been removed from landing page
+        self.assertNotContains(response, 'name="username"')
+        self.assertNotContains(response, 'name="password"')
+        self.assertNotContains(response, 'id="signin"')
 
     def test_landing_page_features_pricing_and_contact(self):
         """Test landing page renders Command Queue, Gallery, ₱499 pricing, and subscription contact email."""
@@ -77,7 +83,7 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertNotContains(response, 'Redis')
         self.assertNotContains(response, 'Latency: 1.2ms')
         # Value-focused customer guarantees present
-        self.assertContains(response, '99.9% Station Uptime • Bank-Grade Security • 100% Audit Accurate')
+        self.assertContains(response, '99.9% Station Uptime • 100% Audit Accurate')
         self.assertContains(response, 'Automatic Balance Protection')
         self.assertContains(response, 'Speed: Instant')
 
@@ -108,7 +114,7 @@ class UserLandingAndLoginViewTests(TestCase):
 
     def test_login_form_has_password_eye_toggle(self):
         """Test the password field includes the Alpine.js eye toggle button."""
-        response = self.client.get('/')
+        response = self.client.get('/login/')
         self.assertContains(response, 'x-data="{ show: false }"')
         self.assertContains(response, '@click="show = !show"')
         self.assertContains(response, 'visibility')

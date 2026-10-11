@@ -195,8 +195,20 @@ Expects context:
                     <span class="material-symbols-outlined text-[18px]">chevron_left</span>
                 </button>
                 {% endif %}
-                <span class="px-3 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ pagination.current_page }}</span>
-                <span class="px-2 text-on-surface-variant text-xs font-data-mono">/ {{ pagination.total_pages }}</span>
+                {% for p in pagination.page_numbers %}
+                    {% if p == "…" %}
+                    <span class="px-1 text-on-surface-variant text-xs font-data-mono">…</span>
+                    {% elif p == pagination.current_page %}
+                    <span class="px-2.5 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ p }}</span>
+                    {% else %}
+                    <button class="px-2.5 py-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant text-xs font-data-mono"
+                            hx-get="{% url 'employees:search' %}?page={{ p }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if active_filter != 'all' %}&filter={{ active_filter|urlencode }}{% endif %}"
+                            hx-target="#users-table"
+                            hx-swap="outerHTML">
+                        {{ p }}
+                    </button>
+                    {% endif %}
+                {% endfor %}
                 {% if pagination.has_next %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Next page"

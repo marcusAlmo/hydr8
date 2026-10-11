@@ -130,10 +130,10 @@
                     :title="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
                     :aria-label="isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
                 <span class="material-symbols-outlined flex-shrink-0 transition-transform duration-300"
-                      :class="isDark ? 'text-amber-300' : 'text-sky-300'"
-                      x-text="isDark ? 'light_mode' : 'dark_mode'">dark_mode</span>
+                      :class="isDark ? 'text-sky-300' : 'text-amber-300'"
+                      x-text="isDark ? 'dark_mode' : 'light_mode'">dark_mode</span>
                 <span x-show="expanded" x-transition.opacity.duration.200ms class="font-body-md text-body-md whitespace-nowrap truncate"
-                      x-text="isDark ? 'Light Mode' : 'Dark Mode'">Theme</span>
+                      x-text="isDark ? 'Dark Mode' : 'Light Mode'">Theme</span>
             </button>
         </div>
 

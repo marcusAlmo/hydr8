@@ -25,7 +25,11 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.core.models import Product, SystemConfig
-from apps.core.pagination import DEFAULT_PER_PAGE
+from apps.core.pagination import (
+    DEFAULT_PER_PAGE,
+    PER_PAGE_CHOICES,
+    get_elided_page_numbers,
+)
 from apps.customers.models import CreditLine, CreditPayment, Customer
 from apps.users.models import DriverCommission, User
 from apps.users.permissions import is_tenant_scoped
@@ -1051,6 +1055,7 @@ def get_recent_remittances(
     user: UserType,
     limit: int = DEFAULT_PER_PAGE,
     *,
+    page: int = 1,
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> dict:
@@ -1064,7 +1069,8 @@ def get_recent_remittances(
         qs = qs.filter(date__range=(start_date, end_date))
     qs = qs.order_by("-date")
 
-    rows: list[dict] = [_remittance_row(rem) for rem in qs[:limit]]
+    offset = max(0, (page - 1) * limit)
+    rows: list[dict] = [_remittance_row(rem) for rem in qs[offset : offset + limit]]
     return {"remittances": rows, "total": qs.count()}
 
 
@@ -1812,6 +1818,7 @@ def get_credit_repayments_for_remittance(
         "page_start": page_obj.start_index() if page_obj else 0,
         "page_end": page_obj.end_index() if page_obj else 0,
         "per_page_choices": list(PER_PAGE_CHOICES),
+        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages),
     }
 
 
@@ -1840,6 +1847,7 @@ def get_credits_recorded_for_remittance(
                 "total_pages": 0,
                 "page_range": [],
                 "per_page_choices": list(PER_PAGE_CHOICES),
+                "page_numbers": [],
             }
 
     credit_filter = Q(remittance=remittance)
@@ -1897,4 +1905,5 @@ def get_credits_recorded_for_remittance(
         "page_start": page_obj.start_index() if page_obj else 0,
         "page_end": page_obj.end_index() if page_obj else 0,
         "per_page_choices": list(PER_PAGE_CHOICES),
+        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages),
     }

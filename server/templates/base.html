@@ -59,6 +59,17 @@
     </script>
 
     <!-- Tailwind CSS with Stitch Design Tokens -->
+    <script>
+        (function() {
+            var _warn = console.warn;
+            console.warn = function() {
+                if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].indexOf('cdn.tailwindcss.com should not be used in production') !== -1) {
+                    return;
+                }
+                _warn.apply(console, arguments);
+            };
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
       function withAlpha(varName, fallback) {
