@@ -674,6 +674,10 @@
                         // Only the rider chart depends on the rider filter.
                         this.renderRiderChart();
                     });
+                    window.addEventListener('hydr8:theme-change', () => {
+                        this.renderAll();
+                        this.renderRiderChart();
+                    });
                     this.renderChart('#chart-total-sales', 'total_sales', '#006591', true);
                     this.renderChart('#chart-outstanding-debt', 'outstanding_debt', '#D97706', true);
                     this.renderChart('#chart-commissions', 'commissions_paid', '#006C4A', true);
@@ -905,6 +909,10 @@
                 baseOptions(series, color, currency, field) {
                     const labels = this.filteredLabels();
                     const maData = this.movingAverage(field, 7);
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const labelColor = isDark ? '#94A3B8' : '#6E7881';
+                    const gridColor = isDark ? '#334155' : 'rgba(190, 200, 210, 0.25)';
+
                     return {
                         chart: {
                             type: 'area',
@@ -920,7 +928,7 @@
                             { name: '7-Day MA',     data: maData },
                         ],
                         labels,
-                        colors: [color, '#6E7881'],
+                        colors: [color, isDark ? '#94A3B8' : '#6E7881'],
                         stroke: {
                             curve: 'smooth',
                             width: [2.5, 2],
@@ -935,14 +943,17 @@
                                 stops: [0, 100],
                             },
                         },
+                        theme: {
+                            mode: isDark ? 'dark' : 'light',
+                        },
                         grid: {
-                            borderColor: 'rgba(190, 200, 210, 0.25)',
+                            borderColor: gridColor,
                             strokeDashArray: 4,
                             padding: { left: 8, right: 8 },
                         },
                         xaxis: {
                             labels: {
-                                style: { colors: '#6E7881', fontSize: '11px' },
+                                style: { colors: labelColor, fontSize: '11px' },
                                 rotate: 0,
                                 trim: true,
                                 hideOverlappingLabels: true,
@@ -953,14 +964,14 @@
                         },
                         yaxis: {
                             labels: {
-                                style: { colors: '#6E7881', fontSize: '11px' },
+                                style: { colors: labelColor, fontSize: '11px' },
                                 formatter: (v) => currency
                                     ? '₱' + (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v))
                                     : Math.round(v),
                             },
                         },
                         tooltip: {
-                            theme: 'light',
+                            theme: isDark ? 'dark' : 'light',
                             style: { fontFamily: 'Geist Mono, monospace', fontSize: '12px' },
                             y: {
                                 formatter: (v) => currency
@@ -973,7 +984,7 @@
                             show: true,
                             position: 'top',
                             fontSize: '11px',
-                            labels: { colors: '#6E7881' },
+                            labels: { colors: isDark ? '#E2E8F0' : '#6E7881' },
                             markers: { width: 8, height: 2, radius: 0 },
                             itemMargin: { horizontal: 8 },
                         },
@@ -1009,6 +1020,10 @@
                         .filter(r => this.selectedRiders.includes(r.name))
                         .map(r => r.color);
 
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const labelColor = isDark ? '#94A3B8' : '#6E7881';
+                    const gridColor = isDark ? '#334155' : 'rgba(190, 200, 210, 0.25)';
+
                     const opts = {
                         chart: {
                             type: 'line',
@@ -1022,14 +1037,17 @@
                         labels,
                         colors,
                         stroke: { curve: 'smooth', width: 2.5 },
+                        theme: {
+                            mode: isDark ? 'dark' : 'light',
+                        },
                         grid: {
-                            borderColor: 'rgba(190, 200, 210, 0.25)',
+                            borderColor: gridColor,
                             strokeDashArray: 4,
                             padding: { left: 8, right: 8 },
                         },
                         xaxis: {
                             labels: {
-                                style: { colors: '#6E7881', fontSize: '11px' },
+                                style: { colors: labelColor, fontSize: '11px' },
                                 trim: true, hideOverlappingLabels: true,
                             },
                             axisBorder: { show: false },
@@ -1037,10 +1055,10 @@
                             tickAmount: Math.min(6, labels.length),
                         },
                         yaxis: {
-                            labels: { style: { colors: '#6E7881', fontSize: '11px' } },
+                            labels: { style: { colors: labelColor, fontSize: '11px' } },
                         },
                         tooltip: {
-                            theme: 'light',
+                            theme: isDark ? 'dark' : 'light',
                             style: { fontFamily: 'Geist Mono, monospace', fontSize: '12px' },
                             y: { formatter: (v) => v + ' units' },
                         },
@@ -1049,7 +1067,7 @@
                             show: true,
                             position: 'bottom',
                             fontSize: '11px',
-                            labels: { colors: '#6E7881' },
+                            labels: { colors: isDark ? '#E2E8F0' : '#6E7881' },
                             markers: { width: 8, height: 8, radius: 4 },
                             itemMargin: { horizontal: 8 },
                         },

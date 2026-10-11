@@ -156,6 +156,11 @@ function userDetailDrawer(seedData, commissionsDailyData) {
             this.$nextTick(() => {
                 this.renderCharts();
             });
+            window.addEventListener('hydr8:theme-change', () => {
+                if (this.seed && this.seed.labels && this.seed.labels.length > 0) {
+                    this.renderCharts();
+                }
+            });
         },
 
         // --- Date range actions ---
@@ -313,6 +318,7 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                 this.charts['#chart-driver-performance'].destroy();
             }
 
+            const isDark = document.documentElement.classList.contains('dark');
             const data = this.filteredSeries('performance');
             const labels = this.filteredLabels();
 
@@ -325,18 +331,21 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                     animations: { enabled: true, speed: 600 },
                     fontFamily: 'Geist, sans-serif',
                 },
+                theme: {
+                    mode: isDark ? 'dark' : 'light',
+                },
                 series: [{
                     name: 'Units Sold',
                     data: data,
                 }],
                 xaxis: {
                     categories: labels,
-                    labels: { show: true, style: { fontSize: '10px', colors: '#6E7881' } },
+                    labels: { show: true, style: { fontSize: '10px', colors: isDark ? '#94A3B8' : '#6E7881' } },
                     axisBorder: { show: false },
                     axisTicks: { show: false },
                 },
                 yaxis: {
-                    labels: { show: true, style: { fontSize: '10px', colors: '#6E7881' } },
+                    labels: { show: true, style: { fontSize: '10px', colors: isDark ? '#94A3B8' : '#6E7881' } },
                 },
                 colors: ['#006591'],
                 fill: {
@@ -344,10 +353,10 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                     gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] },
                 },
                 stroke: { curve: 'smooth', width: 2 },
-                grid: { show: true, borderColor: '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
+                grid: { show: true, borderColor: isDark ? '#334155' : '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
                 tooltip: {
                     y: { formatter: (v) => v + ' units' },
-                    theme: 'light',
+                    theme: isDark ? 'dark' : 'light',
                 },
                 dataLabels: { enabled: false },
             };
@@ -362,6 +371,7 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                 this.charts['#chart-driver-commission'].destroy();
             }
 
+            const isDark = document.documentElement.classList.contains('dark');
             // Cumulative is re-based from the filtered daily rows so the
             // chart starts at 0 within the selected window.  Labels come
             // from the same filtered rows to stay aligned.
@@ -378,20 +388,23 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                     animations: { enabled: true, speed: 600 },
                     fontFamily: 'Geist, sans-serif',
                 },
+                theme: {
+                    mode: isDark ? 'dark' : 'light',
+                },
                 series: [{
                     name: 'Cumulative Commission',
                     data: data,
                 }],
                 xaxis: {
                     categories: labels,
-                    labels: { show: true, style: { fontSize: '10px', colors: '#6E7881' } },
+                    labels: { show: true, style: { fontSize: '10px', colors: isDark ? '#94A3B8' : '#6E7881' } },
                     axisBorder: { show: false },
                     axisTicks: { show: false },
                 },
                 yaxis: {
                     labels: {
                         show: true,
-                        style: { fontSize: '10px', colors: '#6E7881' },
+                        style: { fontSize: '10px', colors: isDark ? '#94A3B8' : '#6E7881' },
                         formatter: (v) => '₱' + v.toLocaleString(),
                     },
                 },
@@ -401,10 +414,10 @@ function userDetailDrawer(seedData, commissionsDailyData) {
                     gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0.05, stops: [0, 100] },
                 },
                 stroke: { curve: 'smooth', width: 2 },
-                grid: { show: true, borderColor: '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
+                grid: { show: true, borderColor: isDark ? '#334155' : '#BEC8D2', strokeDashArray: 3, xaxis: { lines: { show: false } } },
                 tooltip: {
                     y: { formatter: (v) => '₱' + v.toLocaleString(undefined, { minimumFractionDigits: 2 }) },
-                    theme: 'light',
+                    theme: isDark ? 'dark' : 'light',
                 },
                 dataLabels: { enabled: false },
             };

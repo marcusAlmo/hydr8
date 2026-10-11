@@ -53,6 +53,34 @@ class UserLandingAndLoginViewTests(TestCase):
         # Contact Email for Subscription
         self.assertContains(response, 'rushdashvx@gmail.com')
 
+    def test_landing_page_theme_toggle_and_default_light_mode(self):
+        """Test landing page renders theme toggle and pre-hydrates light mode by default."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        # Pre-hydration script & helper contract
+        self.assertContains(response, 'window.toggleHydr8Theme')
+        self.assertContains(response, 'window.getHydr8Theme')
+        self.assertContains(response, 'window.setHydr8Theme')
+        self.assertContains(response, "document.documentElement.setAttribute('data-theme', 'light')")
+        # Toggle button in navigation
+        self.assertContains(response, 'toggleTheme()')
+        self.assertContains(response, 'Switch to Light Mode')
+
+    def test_landing_page_technical_jargon_removed(self):
+        """Test landing page has all developer-centric technical jargon removed."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        # Jargon explicitly banned
+        self.assertNotContains(response, 'PostgreSQL ACID • Redis Caching • Atomic F() Updates')
+        self.assertNotContains(response, 'Atomic F() Balance Updates')
+        self.assertNotContains(response, 'PostgreSQL')
+        self.assertNotContains(response, 'Redis')
+        self.assertNotContains(response, 'Latency: 1.2ms')
+        # Value-focused customer guarantees present
+        self.assertContains(response, '99.9% Station Uptime • Bank-Grade Security • 100% Audit Accurate')
+        self.assertContains(response, 'Automatic Balance Protection')
+        self.assertContains(response, 'Speed: Instant')
+
     def test_login_view_get(self):
         """Test direct GET request to login view renders dedicated login page."""
         response = self.client.get('/login/')

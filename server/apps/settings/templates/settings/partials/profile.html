@@ -283,4 +283,80 @@
             </div>
         </form>
     </div>
+
+    {# --- Appearance & Theme card --- #}
+    <div class="bg-surface-container-lowest border border-outline-variant/30 rounded-lg p-8 shadow-sm"
+         x-data="{
+            currentTheme: (window.getHydr8Theme ? window.getHydr8Theme() : (localStorage.getItem('hydr8_theme') || 'system')),
+            setTheme(t) {
+                this.currentTheme = t;
+                if (window.setHydr8Theme) {
+                    window.setHydr8Theme(t);
+                } else {
+                    localStorage.setItem('hydr8_theme', t);
+                    if (t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                }
+            }
+         }">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 bg-primary-container/20 rounded-lg flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined">palette</span>
+            </div>
+            <div>
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Appearance &amp; Theme</h3>
+                <p class="font-body-sm text-body-sm text-on-surface-variant">Choose how Hydr8 looks to you. Select a light or dark theme, or sync with your system preferences.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- Light Option -->
+            <button type="button"
+                    @click="setTheme('light')"
+                    class="p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer"
+                    :class="currentTheme === 'light' ? 'border-primary bg-primary-container/10 shadow-sm' : 'border-outline-variant/40 bg-surface-container-low hover:border-outline'">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="material-symbols-outlined text-[24px] text-amber-500">light_mode</span>
+                    <span class="material-symbols-outlined text-[20px] text-primary" x-show="currentTheme === 'light'">check_circle</span>
+                </div>
+                <div>
+                    <h4 class="font-bold text-sm text-on-surface">Light</h4>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Crisp daytime theme</p>
+                </div>
+            </button>
+
+            <!-- Dark Option -->
+            <button type="button"
+                    @click="setTheme('dark')"
+                    class="p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer"
+                    :class="currentTheme === 'dark' ? 'border-primary bg-primary-container/10 shadow-sm' : 'border-outline-variant/40 bg-surface-container-low hover:border-outline'">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="material-symbols-outlined text-[24px] text-sky-400">dark_mode</span>
+                    <span class="material-symbols-outlined text-[20px] text-primary" x-show="currentTheme === 'dark'">check_circle</span>
+                </div>
+                <div>
+                    <h4 class="font-bold text-sm text-on-surface">Dark</h4>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Deep slate abyss theme</p>
+                </div>
+            </button>
+
+            <!-- System Option -->
+            <button type="button"
+                    @click="setTheme('system')"
+                    class="p-4 rounded-xl border-2 text-left transition-all duration-200 flex flex-col justify-between cursor-pointer"
+                    :class="currentTheme === 'system' ? 'border-primary bg-primary-container/10 shadow-sm' : 'border-outline-variant/40 bg-surface-container-low hover:border-outline'">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="material-symbols-outlined text-[24px] text-on-surface-variant">desktop_windows</span>
+                    <span class="material-symbols-outlined text-[20px] text-primary" x-show="currentTheme === 'system'">check_circle</span>
+                </div>
+                <div>
+                    <h4 class="font-bold text-sm text-on-surface">System</h4>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Sync with device settings</p>
+                </div>
+            </button>
+        </div>
+    </div>
 </div>

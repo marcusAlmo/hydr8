@@ -12,58 +12,107 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&family=Geist+Mono:wght@500&family=Inter:wght@300;400;600;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     
+    <!-- Pre-hydrate Theme (Light/Dark) before paint to eliminate FOUC -->
+    <script>
+        (function () {
+            try {
+                var storedTheme = localStorage.getItem('hydr8_theme');
+                var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var isDark = storedTheme === 'dark' || (storedTheme === 'system' ? prefersDark : (!storedTheme ? prefersDark : false));
+                if (isDark) {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            } catch (e) {}
+        })();
+
+        window.getHydr8Theme = function() {
+            return localStorage.getItem('hydr8_theme') || 'system';
+        };
+        window.setHydr8Theme = function(theme) {
+            localStorage.setItem('hydr8_theme', theme);
+            var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var isDark = theme === 'dark' || (theme === 'system' && prefersDark);
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+            window.dispatchEvent(new CustomEvent('hydr8:theme-change', { detail: { theme: theme, isDark: isDark } }));
+        };
+        window.toggleHydr8Theme = function() {
+            var isDark = document.documentElement.classList.contains('dark');
+            window.setHydr8Theme(isDark ? 'light' : 'dark');
+        };
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                if (window.getHydr8Theme() === 'system') {
+                    window.setHydr8Theme('system');
+                }
+            });
+        }
+    </script>
+
     <!-- Tailwind CSS with Stitch Design Tokens -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script id="tailwind-config">
+      function withAlpha(varName, fallback) {
+        return `color-mix(in srgb, var(${varName}, ${fallback}) calc(100% * <alpha-value>), transparent)`;
+      }
       tailwind.config = {
         darkMode: "class",
         theme: {
           extend: {
             "colors": {
               "inverse-primary": "#89ceff",
-              "surface-dim": "#cfdaf2",
-              "tertiary": "#006c4a",
+              "surface-dim": withAlpha("--color-surface-dim", "#cfdaf2"),
+              "tertiary": withAlpha("--color-tertiary", "#006c4a"),
               "primary-fixed": "#c9e6ff",
-              "on-secondary-container": "#54647a",
-              "primary": "#006591",
+              "on-secondary-container": withAlpha("--color-on-secondary-container", "#54647a"),
+              "primary": withAlpha("--color-primary", "#006591"),
               "on-tertiary-fixed-variant": "#005137",
-              "secondary": "#505f76",
-              "inverse-surface": "#263143",
-              "surface-variant": "#d8e3fb",
-              "primary-container": "#0ea5e9",
-              "secondary-container": "#d0e1fb",
+              "secondary": withAlpha("--color-secondary", "#505f76"),
+              "inverse-surface": withAlpha("--color-inverse-surface", "#0B192C"),
+              "surface-variant": withAlpha("--color-surface-variant", "#d8e3fb"),
+              "primary-container": withAlpha("--color-primary-container", "#0ea5e9"),
+              "secondary-container": withAlpha("--color-secondary-container", "#d0e1fb"),
               "on-primary-fixed-variant": "#004c6e",
               "tertiary-fixed-dim": "#68dba9",
-              "on-primary-container": "#003751",
-              "surface-container": "#e7eeff",
-              "surface-container-lowest": "#ffffff",
+              "on-primary-container": withAlpha("--color-on-primary-container", "#003751"),
+              "surface-container": withAlpha("--color-surface-container", "#e7eeff"),
+              "surface-container-lowest": withAlpha("--color-surface-container-lowest", "#ffffff"),
               "on-secondary-fixed": "#0b1c30",
-              "error": "#ba1a1a",
-              "on-primary": "#ffffff",
+              "error": withAlpha("--color-error", "#ba1a1a"),
+              "on-primary": withAlpha("--color-on-primary", "#ffffff"),
               "on-tertiary": "#ffffff",
-              "background": "#f9f9ff",
+              "background": withAlpha("--color-background", "#f9f9ff"),
               "on-secondary": "#ffffff",
-              "on-tertiary-container": "#003c27",
+              "on-tertiary-container": withAlpha("--color-on-tertiary-container", "#003c27"),
               "tertiary-fixed": "#85f8c4",
-              "surface-container-low": "#f0f3ff",
-              "surface-bright": "#f9f9ff",
+              "surface-container-low": withAlpha("--color-surface-container-low", "#f0f3ff"),
+              "surface-bright": withAlpha("--color-surface-bright", "#f9f9ff"),
               "on-tertiary-fixed": "#002114",
               "on-error": "#ffffff",
-              "tertiary-container": "#35af80",
-              "on-error-container": "#93000a",
-              "surface-container-high": "#dee8ff",
-              "on-surface": "#111c2d",
-              "surface-container-highest": "#d8e3fb",
-              "surface": "#f9f9ff",
+              "tertiary-container": withAlpha("--color-tertiary-container", "#35af80"),
+              "on-error-container": withAlpha("--color-on-error-container", "#93000a"),
+              "surface-container-high": withAlpha("--color-surface-container-high", "#dee8ff"),
+              "on-surface": withAlpha("--color-on-surface", "#111c2d"),
+              "surface-container-highest": withAlpha("--color-surface-container-highest", "#d8e3fb"),
+              "surface": withAlpha("--color-surface", "#f9f9ff"),
               "primary-fixed-dim": "#89ceff",
               "secondary-fixed-dim": "#b7c8e1",
-              "error-container": "#ffdad6",
-              "outline": "#6e7881",
+              "error-container": withAlpha("--color-error-container", "#ffdad6"),
+              "outline": withAlpha("--color-outline", "#6e7881"),
               "surface-tint": "#006591",
-              "outline-variant": "#bec8d2",
+              "outline-variant": withAlpha("--color-outline-variant", "#bec8d2"),
               "on-primary-fixed": "#001e2f",
-              "inverse-on-surface": "#ecf1ff",
-              "on-background": "#111c2d",
+              "inverse-on-surface": withAlpha("--color-inverse-on-surface", "#ecf1ff"),
+              "on-background": withAlpha("--color-on-background", "#111c2d"),
               "on-secondary-fixed-variant": "#38485d"
             },
             "borderRadius": {
