@@ -33,7 +33,7 @@ The project is split into a single `apps/` package of domain-driven Django apps 
 
 ### Key patterns
 
-- **Remittance Breakdown**: Remittance detail views provide tabs for rider deliveries, staff compensation, customer debt repayments, and extended credit lines.
+- **Remittance Audit Breakdown**: Remittances feature a 4-tab operational audit (Riders delivery lines, Staff compensation, Debt Repayments, and Date-resolved Credit extensions).
 - **Services / Selectors**: Business logic lives in `services.py`; read paths in `selectors.py`.
 - **HTMX partials**: Templates are organized under `apps/<app>/templates/<app>/partials/`.
 - **Multi-tenancy**: `apps.core.middleware.TenantMiddleware` scopes requests by company (`Company` foreign key).

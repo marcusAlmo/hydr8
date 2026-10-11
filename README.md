@@ -6,23 +6,23 @@
 [![HTMX](https://img.shields.io/badge/HTMX-1.9.10-orange.svg)](https://htmx.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-CDN-38B2AC.svg)](https://tailwindcss.com/)
 
-**Hydr8** is an operations and management platform built for water refilling stations. It provides daily sales and remittance reconciliation, container inventory tracking, customer credit ledgers, driver route delivery commissions, and role-based staff operations.
+**Hydr8** is an operations and financial management platform designed specifically for water refilling stations. It delivers a hypermedia-driven, server-rendered interface that unifies point-of-sale activities, driver deliveries, container tracking, credit lines, multi-staff payroll, daily expense reconciliation, and cryptographic PIN-verified remittance auditing.
 
 ---
 
 ## Architecture & Core Philosophy
 
-### 1. Server-Rendered Hypermedia Architecture
-Hydr8 uses a server-driven hypermedia architecture with **Django 6**, **HTMX**, and **Alpine.js**:
-- **Server as Source of Truth:** HTML fragments are rendered on the server and swapped into the DOM via HTMX.
-- **Client-Side State:** Alpine.js handles ephemeral UI state (modals, dropdowns, theme toggles, and offline queues). Business logic and calculations run on the server.
-- **Styling:** Styled with Tailwind CSS via CDN using Material Design 3 tokens.
+### 1. Server-Rendered Hypermedia (HATEOAS)
+Hydr8 avoids bloated single-page application (SPA) architectures. It uses **Django 6**, **HTMX**, and **Alpine.js**:
+- **Server as Source of Truth:** HTML fragments are generated on the server and swapped into the DOM via HTMX.
+- **Minimal Client-Side State:** Alpine.js is restricted to ephemeral UI states (dialogs, drawers, dropdowns, offline synchronization queues). Business rules and financial math reside exclusively on the server.
+- **Responsive Presentation:** Styled with Tailwind CSS via CDN using Material Design 3 tokens.
 
 ### 2. Domain-Driven Layering
 The codebase is structured into isolated domain applications inside `server/apps/`:
 ```
 HTTP Request
-  └── View (Authentication, rate-limiting, and request routing)
+  └── View (Authentication, rate-limiting, and permission orchestration)
         ├── Selector (Optimized ORM queries: select_related, prefetch_related, annotate)
         └── Service (Atomic state mutations, financial transactions, validation)
               └── Model (Schema definitions, constraints, indexes)
@@ -35,15 +35,15 @@ HTTP Request
 
 ### 3. Financial Integrity & Invariants
 - **Immutable Historical Snapshots:** Remittance records snapshot mutable pricing and commission rates (`unit_price_snapshot`, `commission_rate_snapshot`) at creation time.
-- **Atomic Balance Updates:** Debt and container balances are modified using PostgreSQL `F()` expressions (`debt_balance = F('debt_balance') - payment`) to prevent race conditions.
+- **Atomic Balance Updates:** Debt and container balances are modified using PostgreSQL `F()` expressions (`debt_balance = F('debt_balance') - payment`) to eliminate race conditions.
 - **Immutability Enforcement:** Finalized remittance records are locked at the database level via PostgreSQL triggers (`status = 'FINALIZED'`); child rows cannot be added, mutated, or deleted once finalized.
 - **PIN Verification:** Remittance finalization requires administrative authorization via an Argon2/PBKDF2-hashed PIN with progressive lockout (5 failed attempts locks the IP/user for 15 minutes).
-- **Exact Math:** All monetary calculations use Python `Decimal` and PostgreSQL `DecimalField(max_digits=12, decimal_places=2)`. Floating-point values are not used for financial logic.
+- **Exact Math:** All monetary calculations use Python `Decimal` and PostgreSQL `DecimalField(max_digits=12, decimal_places=2)`. Floating-point values are strictly forbidden for financial logic.
 
 ### 4. Privacy & Regulatory Compliance (RA 10173)
-Hydr8 follows requirements from the **Philippine Data Privacy Act of 2012 (RA 10173)**:
-- **No PII/SPI in Server Logs:** Logs record actor IDs and entity IDs (`[user_id] Action. entity_id=X`). Names, addresses, contact details, and financial balances are never written to application logs.
-- **Purpose Limitation & Soft Deletes:** Customer data is retained for operational station tracking with soft-delete lifecycles (`deleted_at`) preserving financial auditability.
+Hydr8 is designed in strict compliance with the **Philippine Data Privacy Act of 2012 (RA 10173)** and National Privacy Commission (NPC) mandates:
+- **No PII/SPI in Server Logs:** Logs only record anonymized actor IDs and entity IDs (`[user_id] Action. entity_id=X`). Names, addresses, contact details, and financial balances are never written to application logs.
+- **Purpose Limitation & Soft Deletes:** Customer data is retained strictly for operational station tracking with soft-delete lifecycles (`deleted_at`) preserving financial auditability.
 - **Audit Trails:** Model modifications are tracked via `django-auditlog` tagged with request-scoped correlation IDs.
 
 ---

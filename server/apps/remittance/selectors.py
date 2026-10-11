@@ -1356,10 +1356,12 @@ def get_remittance_detail(
     remittance_id: int,
     remittance: Remittance | None = None,
 ) -> dict | None:
-    """Compile audit details for a specific remittance.
+    """Compiles comprehensive audit details for a specific remittance.
 
     Aggregates summary totals, driver delivery product lines, staff compensations,
-    rider/staff credit extensions, and debt repayment collections.
+    rider/staff credit extensions, and debt repayment collections. Supports
+    date-based operational attribution for credit lines and repayments collected
+    on the remittance date while preserving multi-tenant isolation.
     """
     if remittance is None:
         try:
