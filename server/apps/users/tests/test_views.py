@@ -29,60 +29,51 @@ class UserLandingAndLoginViewTests(TestCase):
         cache.clear()
 
     def test_landing_page_renders_abyss_brand(self):
-        """Test that the landing page renders Abyss brand, links to legacy login, and has no embedded form."""
+        """Test that the landing page renders branding and links to login page."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Hydr8')
         self.assertContains(response, 'Water. Delivered. Managed.')
         self.assertContains(response, 'Sign In to Station')
         self.assertContains(response, reverse('users:login'))
-        # Embedded authentication form has been removed from landing page
+        # No embedded form fields on landing page
         self.assertNotContains(response, 'name="username"')
         self.assertNotContains(response, 'name="password"')
         self.assertNotContains(response, 'id="signin"')
 
     def test_landing_page_features_pricing_and_contact(self):
-        """Test landing page renders Command Queue, Gallery, ₱499 pricing, and subscription contact email."""
+        """Test landing page renders core feature highlights, pricing, and contact email."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        # Features and Command Queue
         self.assertContains(response, 'Command Queue')
         self.assertContains(response, 'Offline-First')
-        # Feature Gallery
         self.assertContains(response, 'Feature Gallery')
         self.assertContains(response, 'Daily Remittance Ledger')
-        # Pricing at 499
-        self.assertContains(response, '₱499')
-        # Action Buttons
+        self.assertContains(response, '₱999')
         self.assertContains(response, 'Get Started')
         self.assertContains(response, 'Log In')
-        # Contact Email for Subscription
         self.assertContains(response, 'rushdashvx@gmail.com')
 
     def test_landing_page_theme_toggle_and_default_light_mode(self):
         """Test landing page renders theme toggle and pre-hydrates light mode by default."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        # Pre-hydration script & helper contract
         self.assertContains(response, 'window.toggleHydr8Theme')
         self.assertContains(response, 'window.getHydr8Theme')
         self.assertContains(response, 'window.setHydr8Theme')
         self.assertContains(response, "document.documentElement.setAttribute('data-theme', 'light')")
-        # Toggle button in navigation
         self.assertContains(response, 'toggleTheme()')
         self.assertContains(response, 'Switch to Light Mode')
 
     def test_landing_page_technical_jargon_removed(self):
-        """Test landing page has all developer-centric technical jargon removed."""
+        """Test landing page omits internal backend implementation details from copy."""
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
-        # Jargon explicitly banned
         self.assertNotContains(response, 'PostgreSQL ACID • Redis Caching • Atomic F() Updates')
         self.assertNotContains(response, 'Atomic F() Balance Updates')
         self.assertNotContains(response, 'PostgreSQL')
         self.assertNotContains(response, 'Redis')
         self.assertNotContains(response, 'Latency: 1.2ms')
-        # Value-focused customer guarantees present
         self.assertContains(response, '99.9% Station Uptime • 100% Audit Accurate')
         self.assertContains(response, 'Automatic Balance Protection')
         self.assertContains(response, 'Speed: Instant')

@@ -45,15 +45,10 @@ def _apply_accent_classes(stats: list[dict]) -> None:
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def dashboard_view(request: HttpRequest) -> HttpResponse:
-    """Renders the dashboard shell with skeletons.
+    """Render the dashboard shell with skeleton loaders.
 
-    Only lightweight data (today_date, today_remittance, ai_insight) is fetched here.
-    The heavy sections (stats, recent remittances, outstanding debts) are
-    loaded via HTMX lazy-load partials so the user sees the shell + skeleton
-    placeholders immediately.
-
-    Restricted to Admin (and platform superusers). Staff users get a focused
-    remittance-first view and do not see the dashboard, charts, or reports.
+    Loads initial summary metrics and today's remittance context. Heavy tables
+    and charts are loaded via HTMX partials. Admin access only.
     """
     if not user_is_admin(request.user):
         raise PermissionDenied
@@ -120,7 +115,7 @@ def dashboard_outstanding_debts_partial(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET"])
 @ratelimit(key="user", rate="120/m", method="GET", block=True)
 def dashboard_ai_insights_modal_view(request: HttpRequest) -> HttpResponse:
-    """Returns the AI Insights detailed modal as an HTMX partial."""
+    """Render the operational diagnostic modal partial."""
     if not user_is_admin(request.user):
         raise PermissionDenied
     insight = get_yesterday_ai_insight(request.user)

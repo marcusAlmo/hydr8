@@ -26,7 +26,6 @@ class DailyMaintenanceTests(TestCase):
         """Verify run_daily_cleanup_and_maintenance hard-deletes logs > 90 days and clears sessions."""
         now = timezone.now()
 
-        # 120-day-old log entry
         old_entry = LogEntry.objects.create(
             content_type=self.content_type,
             object_pk=str(self.user.pk),
@@ -36,7 +35,6 @@ class DailyMaintenanceTests(TestCase):
         )
         LogEntry.objects.filter(pk=old_entry.pk).update(timestamp=now - timedelta(days=120))
 
-        # Recent entry
         recent_entry = LogEntry.objects.create(
             content_type=self.content_type,
             object_pk=str(self.user.pk),
@@ -83,14 +81,12 @@ class DailyMaintenanceTests(TestCase):
                 timezone_str="Asia/Manila",
             )
 
-            # Assert trigger was instantiated with hour=1, minute=0, and Asia/Manila
             mock_trigger_cls.assert_called_once()
             _, kwargs = mock_trigger_cls.call_args
             self.assertEqual(kwargs["hour"], 1)
             self.assertEqual(kwargs["minute"], 0)
             self.assertEqual(str(kwargs["timezone"]), "Asia/Manila")
 
-            # Assert add_job was called with the job ID and maintenance function
             mock_scheduler.add_job.assert_called_once()
             args, kwargs = mock_scheduler.add_job.call_args
             self.assertEqual(args[0], run_daily_cleanup_and_maintenance)

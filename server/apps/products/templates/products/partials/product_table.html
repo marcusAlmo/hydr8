@@ -625,7 +625,7 @@ function productInventory(cfg) {
             this.pinVerifying = true;
             this.pinError = '';
             try {
-                // Step 1: verify the PIN client-side (fast feedback).
+                // Verify administrator PIN
                 const verifyResp = await fetch(this.verifyUrl, {
                     method: 'POST',
                     headers: {
@@ -640,7 +640,7 @@ function productInventory(cfg) {
                     return;
                 }
 
-                // Step 2: build the change payload from dirty state.
+                // Build change payload from dirty state
                 const edits = [];
                 const dirtyPrices = Object.entries(this.changedPrices)
                     .filter(([_, v]) => v !== null && v !== undefined);
@@ -685,8 +685,7 @@ function productInventory(cfg) {
                         price: p.price.trim() || '0',
                     }));
 
-                // Step 3: POST to the real save endpoint (PIN re-verified
-                // server-side as defence in depth).
+                // Post change payload to save endpoint (server re-verifies PIN)
                 const saveResp = await fetch(this.saveUrl, {
                     method: 'POST',
                     headers: {
@@ -709,9 +708,7 @@ function productInventory(cfg) {
                     return;
                 }
 
-                // Step 4: commit client-side — snap originals to the new
-                // values so the inputs show the saved value after exiting
-                // edit mode.
+                // Commit changes to local state
                 dirtyPrices.forEach(([key]) => { this.originalPrices[key] = this.currentPrices[key]; });
                 dirtyNames.forEach(([key]) => { this.originalNames[key] = this.currentNames[key]; });
                 dirtyVars.forEach(([key]) => { this.originalVariations[key] = this.currentVariations[key]; });

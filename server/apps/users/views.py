@@ -126,13 +126,11 @@ def index(request):
 @LOGIN_RATELIMIT
 def login_view(request):
     """
-    Handles the authentication flow using industry standard Django Forms.
-    - POST: Validates via AuthenticationForm. Returns failure state (form) or redirects.
+    Handles user authentication.
+    - POST: Validates credentials via AuthenticationForm.
     - GET:  Renders the dedicated split-screen login page (users/login.html).
     - Rate limited: 10 POSTs/min per IP (django-ratelimit).
     - Lockout: 5 failed attempts for a (ip, username) bucket locks for 1 minute.
-    - The `next` parameter is threaded through failed attempts so it survives
-      retries and is honored on successful login (with open-redirect protection).
     """
     if request.method == "POST":
         form = AuthenticationForm(request, data=request.POST)
@@ -177,10 +175,7 @@ def login_view(request):
             # Preserve `next` so the hidden input survives the HTMX swap.
             record_failed_login(ip=ip, username=username)
             login_failed.send(sender=None, request=request, username=username, ip=ip)
-            logger.warning(
-                "DEBUG login FAILED. form_errors=%r",
-                {k: [str(e) for e in v] for k, v in form.errors.items()},
-            )
+            logger.warning("Authentication failed for username=%s. ip=%s", username, ip)
             return render(request, 'users/partials/login_form.html', {'form': form, 'next': next_url})
 
     # GET: render the dedicated split-screen login page (users/login.html)

@@ -78,7 +78,7 @@ Expects context (from _mock_user_detail_data):
         </div>
     </div>
 
-    <!-- ====================== DRIVER EXPANDED REPORT ====================== -->
+    <!-- Driver report -->
     {% if is_driver %}
     <div class="flex-1 overflow-y-auto custom-scrollbar" x-init="init()">
 
@@ -324,7 +324,7 @@ Expects context (from _mock_user_detail_data):
         </section>
     </div>
 
-    <!-- ======================= STAFF EXPANDED REPORT ======================= -->
+    <!-- Staff report -->
     {% elif is_staff %}
     <div class="flex-1 overflow-y-auto custom-scrollbar">
 
@@ -408,7 +408,7 @@ Expects context (from _mock_user_detail_data):
         </section>
     </div>
 
-    <!-- ======================= ADMIN (no performance data) ======================= -->
+    <!-- Administrator view -->
     {% else %}
     <div class="flex-1 overflow-y-auto custom-scrollbar px-6 py-8">
         <div class="flex flex-col items-center justify-center text-center py-8">
@@ -451,7 +451,7 @@ Expects context (from _mock_user_detail_data):
     </div>
     {% endif %}
 
-    <!-- ======================= FOOTER ACTIONS ======================= -->
+    <!-- Footer actions -->
     <div class="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low/30 flex items-center justify-between gap-3 flex-shrink-0" x-data="{ showTempPw: false, showEdit: false, showTempPinModal: false, tempPinInput: '', tempPinError: '' }">
         <span class="font-data-mono text-[11px] text-on-surface-variant">{{ profile.id }} · {{ profile.role }}</span>
         <div class="flex items-center gap-2">

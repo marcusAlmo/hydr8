@@ -1,8 +1,8 @@
-"""APScheduler integration module for Hydr8 background jobs.
+"""Background task scheduling with APScheduler.
 
-Schedules recurring station operations including daily maintenance and audit log purging.
-Uses defensive imports so development/testing environments without APScheduler
-installed continue to function seamlessly.
+Registers periodic maintenance tasks including daily session cleanup and audit log purging.
+Imports APScheduler defensively so environments without the package installed
+continue to run without errors.
 """
 import logging
 from typing import Any
@@ -28,7 +28,7 @@ except ImportError:
 
 
 def is_apscheduler_available() -> bool:
-    """Returns True if APScheduler is installed in the current environment."""
+    """Return True if APScheduler is installed in the current environment."""
     return APSCHEDULER_INSTALLED
 
 
@@ -39,11 +39,10 @@ def schedule_daily_cleanup_job(
     minute: int = 0,
     timezone_str: str = "Asia/Manila",
 ) -> Any:
-    """Registers the daily cleanup and maintenance job on the provided scheduler.
+    """Register the daily cleanup and maintenance job on the scheduler.
 
-    Default schedule: 1:00 AM PHT (Asia/Manila) daily.
-    Calls `run_daily_cleanup_and_maintenance` to hard-delete audit logs older than
-    3 months and clear expired session data.
+    Runs daily at 1:00 AM PHT to prune audit logs older than retention cutoff
+    and clear expired user sessions.
     """
     if not APSCHEDULER_INSTALLED or CronTrigger is None:
         logger.warning(
@@ -73,10 +72,7 @@ def schedule_daily_cleanup_job(
 
 
 def create_scheduler(*, blocking: bool = False, timezone_str: str = "Asia/Manila") -> Any | None:
-    """Creates and configures an APScheduler instance (BlockingScheduler or BackgroundScheduler).
-
-    Returns None if APScheduler is not installed in the environment.
-    """
+    """Instantiate and configure an APScheduler instance."""
     if not APSCHEDULER_INSTALLED:
         logger.warning("APScheduler is not installed in this environment.")
         return None
@@ -85,7 +81,7 @@ def create_scheduler(*, blocking: bool = False, timezone_str: str = "Asia/Manila
     scheduler_cls = BlockingScheduler if blocking else BackgroundScheduler
     scheduler = scheduler_cls(timezone=tz)
 
-    # Register the default daily cleanup job at 1:00 AM PHT
+    # Register daily cleanup job for 1:00 AM PHT
     schedule_daily_cleanup_job(scheduler, hour=1, minute=0, timezone_str=timezone_str)
 
     return scheduler

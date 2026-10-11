@@ -547,7 +547,7 @@ def get_add_remittance_context(
     If a DRAFT remittance already exists for the given date (defaulting
     to today), the form is hydrated from the database draft — sold
     quantities, expenses, and offering amount are restored so the user
-    can continue editing seamlessly after a "Save as Draft" / page
+    can continue editing after a "Save as Draft" / page
     refresh cycle, or after clicking "Finalize" from the history page
     for a draft on a different date.
     """
@@ -1281,7 +1281,7 @@ def get_remittance_history_context(
         Q(tithes_paid=False) | Q(offering_paid=False)
     ).count()
 
-    # AI Projected Profit (EOQ)
+    # Projected profit (end of quarter extrapolation)
     quarter = (today.month - 1) // 3 + 1
     q_start_month = (quarter - 1) * 3 + 1
     q_end_month = q_start_month + 2
@@ -1356,12 +1356,10 @@ def get_remittance_detail(
     remittance_id: int,
     remittance: Remittance | None = None,
 ) -> dict | None:
-    """Compiles comprehensive audit details for a specific remittance.
+    """Compile audit details for a specific remittance.
 
     Aggregates summary totals, driver delivery product lines, staff compensations,
-    rider/staff credit extensions, and debt repayment collections. Supports
-    date-based operational attribution for credit lines and repayments collected
-    on the remittance date while preserving multi-tenant isolation.
+    rider/staff credit extensions, and debt repayment collections.
     """
     if remittance is None:
         try:

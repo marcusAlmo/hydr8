@@ -5,21 +5,20 @@ from apps.audit.services import purge_old_audit_logs
 
 
 class Command(BaseCommand):
-    help = "Hard deletes audit log records older than a specified number of days (default 90 days / 3 months)."
+    help = "Purge audit log records older than a specified number of days (default 90 days)."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--days",
             type=int,
             default=90,
-            help="Number of days to retain audit logs. Records older than this are hard deleted. Default: 90",
+            help="Number of days to retain audit logs. Default: 90",
         )
 
     def handle(self, *args, **options):
         days = options["days"]
         self.stdout.write(f"Purging audit log records older than {days} days...")
 
-        # System command execution actor
         class SystemActor:
             id = "system-cli"
 

@@ -1,5 +1,5 @@
 :root {
-    /* Premium Base Tokens */
+    /* Base Tokens */
     --bg-primary: #0B0E14;
     --bg-secondary: rgba(22, 27, 34, 0.6);
     --text-primary: #F0F6FC;
@@ -12,7 +12,7 @@
     --glass-bg: rgba(255, 255, 255, 0.03);
     --glass-blur: blur(16px);
 
-    /* Material Design 3 — Light Theme Semantic Tokens */
+    /* Light Theme Semantic Tokens */
     --color-background: #f9f9ff;
     --color-on-background: #111c2d;
     --color-surface: #f9f9ff;
@@ -52,7 +52,7 @@ html.light,
 html.dark,
 [data-theme="dark"] {
     color-scheme: dark;
-    /* Material Design 3 — Dark Theme Calibrated Tokens */
+    /* Dark Theme Semantic Tokens */
     --color-background: #0b1329;
     --color-on-background: #f1f5f9;
     --color-surface: #0f1b38;
@@ -144,7 +144,7 @@ html.dark select option,
     100% { transform: scale(1.2) translate(50px, 50px); opacity: 0.2; }
 }
 
-/* Premium Buttons */
+/* Button Styles */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -354,10 +354,7 @@ select option[value=""]:disabled {
     color: var(--color-outline-variant, #bec8d2);
 }
 
-/* ============================================================
-   Skeleton Loaders — shimmer placeholders shown while HTMX
-   fetches the real dashboard data.
-   ============================================================ */
+/* Skeleton Loaders — shimmer placeholders during HTMX content loads */
 
 /* Base shimmer bar — a grey rounded rectangle with a moving highlight */
 .hydr8-skeleton-bar {
@@ -382,13 +379,7 @@ select option[value=""]:disabled {
     100% { background-position: -200% 0; }
 }
 
-/* ============================================================
-   Reveal Animations — soft fade + slide-up when HTMX swaps in
-   real content to replace a skeleton, or when a server-rendered
-   page first paints.  Apply `.hydr8-reveal` to a container for a
-   single fade-in, or `.hydr8-stagger` to a parent + `.hydr8-reveal-item`
-   to each child for a cascading entrance.
-   ============================================================ */
+/* Reveal Animations — soft fade + slide-up for newly rendered content */
 
 .hydr8-reveal {
     animation: hydr8-reveal-in 0.5s ease-out both;

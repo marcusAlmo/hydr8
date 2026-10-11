@@ -5,7 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>Hydr8 | Water Refilling Station Operations & Management System</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'hydr8-icon.svg' %}">
-    <meta name="description" content="Hydr8 is the complete operating system for modern water refilling stations. Featuring offline-first Command Queue, daily cash remittance, 5-gallon bottle tracking, driver dispatch, and operations analytics. Only ₱499/month.">
+    <meta name="description" content="Hydr8 is the complete operating system for modern water refilling stations. Featuring offline-first Command Queue, daily cash remittance, 5-gallon bottle tracking, driver dispatch, and operations analytics. Only ₱999/month.">
 
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -204,9 +204,7 @@
     "
     class="bg-slate-50 dark:bg-[#070D1E] font-sans text-slate-900 dark:text-slate-100 antialiased selection:bg-sky-500 selection:text-white transition-colors duration-200">
 
-    <!-- ========================================================================= -->
-    <!-- 1. STICKY TOP NAVIGATION BAR                                             -->
-    <!-- ========================================================================= -->
+    <!-- Sticky top navigation bar -->
     <header class="sticky top-0 z-40 w-full backdrop-blur-xl bg-white/95 border-b border-slate-200 text-slate-900 dark:bg-[#070D1E]/95 dark:border-slate-700 dark:text-white transition-all">
         <!-- Reading / Scroll Progress Bar -->
         <div id="scroll-progress" class="absolute bottom-0 left-0 h-[2px] bg-gradient-to-r from-sky-400 via-teal-300 to-sky-500 w-0 transition-[width] duration-75 pointer-events-none" aria-hidden="true"></div>
@@ -252,11 +250,9 @@
         </div>
     </header>
 
-    <!-- ========================================================================= -->
-    <!-- 2. HERO SECTION (High-Contrast Theme-Adaptive Surface)                   -->
-    <!-- ========================================================================= -->
+    <!-- Hero section -->
     <section class="relative bg-gradient-to-b from-sky-50/70 via-white to-slate-50 dark:bg-none dark:bg-[#070D1E] overflow-hidden text-slate-900 dark:text-white pt-14 pb-24 md:pt-20 md:pb-32 border-b border-slate-200 dark:border-slate-800 transition-colors">
-        <!-- Ambient Atmospheric Glows -->
+        <!-- Ambient atmospheric glow -->
         <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-10 dark:opacity-25">
             <div class="absolute -top-40 -left-40 w-96 h-96 bg-sky-600 rounded-full blur-[140px]"></div>
             <div class="absolute top-1/2 -right-40 w-96 h-96 bg-teal-500 rounded-full blur-[150px]"></div>
@@ -265,31 +261,27 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
                 
-                <!-- Left: Headline & Call To Action -->
+                <!-- Headline & call to action -->
                 <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
-                    <!-- Feature Tag -->
                     <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-sky-500/10 text-sky-700 border border-sky-400/30 dark:bg-sky-500/20 dark:text-sky-200 dark:border-sky-400/50 backdrop-blur-md">
                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse"></span>
                         <span class="font-mono uppercase tracking-wider">RESILIENT OFFLINE-READY COMMAND QUEUE</span>
                     </div>
 
-                    <!-- Main Title (Crisp White + Sharp Blue Gradient) -->
                     <h1 class="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] font-geist text-slate-950 dark:text-white">
                         The Water Station OS That <span class="text-sky-600 dark:text-sky-400 underline decoration-sky-500/50 decoration-4 underline-offset-8">Never Drops a Gallon.</span>
                     </h1>
 
-                    <!-- High-Contrast Subtext -->
                     <p class="text-lg sm:text-xl text-slate-600 dark:text-slate-100 font-normal leading-relaxed max-w-2xl mx-auto lg:mx-0">
                         Purpose-built for Philippine water refilling stations. Manage counter walk-ins, driver delivery routes, 5-gallon bottle inventories, and daily remittance without ever stalling during brownouts or internet drops.
                     </p>
 
-                    <!-- CTAs -->
                     <div class="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
                         <button 
                             @click="getStartedModalOpen = true" 
                             type="button" 
                             class="w-full sm:w-auto px-8 py-4 text-base font-extrabold text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-xl shadow-xl shadow-sky-600/40 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer group">
-                            <span>Get Started — ₱499 / mo</span>
+                            <span>Get Started — ₱999 / mo</span>
                             <span class="material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
                         </button>
 
@@ -301,10 +293,10 @@
                         </a>
                     </div>
 
-                    <!-- Value Pill Highlights (High Contrast Borders & Text) -->
+                    <!-- Value highlights -->
                     <div class="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
                         <div class="p-3.5 rounded-xl bg-white dark:bg-[#0F1B38] border-2 border-slate-200 dark:border-slate-700 shadow-sm">
-                            <div class="text-sky-600 dark:text-sky-300 text-xl font-black font-mono">₱499/mo</div>
+                            <div class="text-sky-600 dark:text-sky-300 text-xl font-black font-mono">₱999/mo</div>
                             <div class="text-xs font-semibold text-slate-500 dark:text-slate-200 mt-0.5">All-Inclusive Station Plan</div>
                         </div>
                         <div class="p-3.5 rounded-xl bg-white dark:bg-[#0F1B38] border-2 border-slate-200 dark:border-slate-700 shadow-sm">
@@ -322,12 +314,11 @@
                     </div>
                 </div>
 
-                <!-- Right: Simulated Live Station Operations Card -->
+                <!-- Live station operations preview -->
                 <div class="lg:col-span-5">
                     <div class="relative mx-auto max-w-md lg:max-w-none rounded-2xl p-1 bg-gradient-to-b from-sky-400 via-sky-300 to-slate-200 dark:from-sky-400 dark:via-slate-600 dark:to-slate-800 shadow-2xl">
                         <div class="rounded-[15px] bg-white dark:bg-[#0A142E] p-6 text-slate-900 dark:text-white border-2 border-slate-200 dark:border-slate-700 space-y-5">
                             
-                            <!-- Card Header -->
                             <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700">
                                 <div class="flex items-center gap-2.5">
                                     <div class="w-3 h-3 rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-sm shadow-emerald-400 animate-ping"></div>
@@ -339,7 +330,6 @@
                                 </span>
                             </div>
 
-                            <!-- Live Metric Badges -->
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="bg-slate-50 dark:bg-[#11224D] p-3.5 rounded-xl border border-slate-200 dark:border-slate-600">
                                     <span class="text-[11px] font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider block font-mono">Today's Refills</span>
@@ -353,7 +343,7 @@
                                 </div>
                             </div>
 
-                            <!-- Real-Time Command Queue Activity Feed -->
+                            <!-- Command Queue activity feed -->
                             <div class="space-y-2">
                                 <div class="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-200 px-1 font-mono">
                                     <span>REAL-TIME COMMAND QUEUE</span>
@@ -383,13 +373,12 @@
                                     </div>
                                 </div>
                             </div>
-                            <!-- Footer CTA -->
                             <div class="pt-2">
                                 <button 
-                                    @click="getStartedModalOpen = true"
+                                    @click="getStartedModalOpen = true" 
                                     class="w-full py-3 text-xs font-black uppercase tracking-wider text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-lg transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer">
                                     <span class="material-symbols-outlined text-[16px]">touch_app</span>
-                                    <span>Subscribe Your Station for ₱499/mo</span>
+                                    <span>Subscribe Your Station for ₱999/mo</span>
                                 </button>
                             </div>
                         </div>
@@ -400,9 +389,7 @@
         </div>
     </section>
 
-    <!-- ========================================================================= -->
-    <!-- 3. COMMAND QUEUE DEEP DIVE SECTION                                        -->
-    <!-- ========================================================================= -->
+    <!-- Command Queue section -->
     <section id="command-queue" class="py-20 bg-slate-50 dark:bg-[#0A142E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 relative scroll-mt-20 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center max-w-3xl mx-auto space-y-4 mb-16 scroll-reveal">
@@ -418,9 +405,8 @@
                 </p>
             </div>
 
-            <!-- 4 Architecture Pillars (High Contrast Cards) -->
+            <!-- Feature highlights -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- Pillar 1 -->
                 <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all scroll-reveal stagger-1 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 border border-sky-400/50 text-sky-600 dark:text-sky-300 flex items-center justify-center mb-5">
                         <span class="material-symbols-outlined text-[28px]">bolt</span>
@@ -431,7 +417,6 @@
                     </p>
                 </div>
 
-                <!-- Pillar 2 -->
                 <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400 transition-all scroll-reveal stagger-2 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 border border-emerald-400/50 text-emerald-600 dark:text-emerald-300 flex items-center justify-center mb-5">
                         <span class="material-symbols-outlined text-[28px]">wifi_off</span>
@@ -442,7 +427,6 @@
                     </p>
                 </div>
 
-                <!-- Pillar 3 -->
                 <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 transition-all scroll-reveal stagger-3 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 border border-indigo-400/50 text-indigo-600 dark:text-indigo-300 flex items-center justify-center mb-5">
                         <span class="material-symbols-outlined text-[28px]">sync_saved_locally</span>
@@ -453,7 +437,6 @@
                     </p>
                 </div>
 
-                <!-- Pillar 4 -->
                 <div class="p-6 rounded-2xl bg-white dark:bg-[#0F1E42] border-2 border-slate-200 dark:border-slate-700 hover:border-amber-500 dark:hover:border-amber-400 transition-all scroll-reveal stagger-4 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 border border-amber-400/50 text-amber-600 dark:text-amber-300 flex items-center justify-center mb-5">
                         <span class="material-symbols-outlined text-[28px]">shield_check</span>
@@ -467,9 +450,7 @@
         </div>
     </section>
 
-    <!-- ========================================================================= -->
-    <!-- 4. CORE FEATURES (High Contrast Theme-Adaptive Surface)                   -->
-    <!-- ========================================================================= -->
+    <!-- Core features -->
     <section id="features" class="py-20 bg-white dark:bg-[#070D1E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center max-w-3xl mx-auto space-y-3 mb-16 scroll-reveal">
@@ -482,10 +463,7 @@
                 </p>
             </div>
 
-            <!-- High Contrast Cards on Theme-Adaptive Surface -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                
-                <!-- Feature 1 -->
                 <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-1 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[28px]">payments</span>
@@ -496,7 +474,6 @@
                     </p>
                 </div>
 
-                <!-- Feature 2 -->
                 <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-2 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[28px]">water_bottle</span>
@@ -507,7 +484,6 @@
                     </p>
                 </div>
 
-                <!-- Feature 3 -->
                 <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-3 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[28px]">local_shipping</span>
@@ -518,7 +494,6 @@
                     </p>
                 </div>
 
-                <!-- Feature 4 -->
                 <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-4 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[28px]">query_stats</span>
@@ -529,7 +504,6 @@
                     </p>
                 </div>
 
-                <!-- Feature 5 -->
                 <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-5 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[28px]">badge</span>
@@ -540,7 +514,6 @@
                     </p>
                 </div>
 
-                <!-- Feature 6 -->
                 <div class="bg-slate-50 dark:bg-[#0F1E42] p-8 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-400 transition-all space-y-4 scroll-reveal stagger-6 shadow-xs">
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 dark:bg-sky-500/20 text-sky-600 dark:text-sky-300 border border-sky-400/40 dark:border-sky-400/50 flex items-center justify-center">
                         <span class="material-symbols-outlined text-[28px]">history</span>
@@ -555,9 +528,7 @@
         </div>
     </section>
 
-    <!-- ========================================================================= -->
-    <!-- 5. INTERACTIVE FEATURE GALLERY (High Contrast Theme-Adaptive Showcase)    -->
-    <!-- ========================================================================= -->
+    <!-- Interactive feature gallery -->
     <section id="gallery" class="py-20 bg-slate-50 dark:bg-[#070D1E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center max-w-3xl mx-auto space-y-3 mb-12 scroll-reveal">
@@ -570,7 +541,7 @@
                 </p>
             </div>
 
-            <!-- Gallery Tabs (High Contrast) -->
+            <!-- Gallery tabs -->
             <div class="flex flex-wrap items-center justify-center gap-2.5 mb-10 scroll-reveal stagger-1">
                 <button 
                     @click="activeTab = 'queue'" 
@@ -636,7 +607,7 @@
                     </div>
                 </div>
 
-                <!-- Visual Mockup: Quick Order Buttons & Queue Stream -->
+                <!-- Order buttons and queue stream -->
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                     <div class="lg:col-span-7 space-y-4">
                         <span class="text-xs font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider block font-mono">QUICK PRODUCT DISPATCH</span>
@@ -706,7 +677,7 @@
                 </div>
             </div>
 
-            <!-- Tab 2: Remittance Ledger Showcase -->
+            <!-- Tab 2: Remittance ledger -->
             <div x-show="activeTab === 'remittance'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
                     <div>
@@ -749,7 +720,7 @@
                 </div>
             </div>
 
-            <!-- Tab 3: Customer & Bottle Ledger Showcase -->
+            <!-- Tab 3: Customer and bottle ledger -->
             <div x-show="activeTab === 'bottles'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
                 <div class="border-b border-slate-200 dark:border-slate-700 pb-6">
                     <div class="text-sky-600 dark:text-sky-300 font-mono text-xs font-bold uppercase">ZERO INVENTORY DRIFT</div>
@@ -799,7 +770,7 @@
                 </div>
             </div>
 
-            <!-- Tab 4: Driver Route Dispatch Showcase -->
+            <!-- Tab 4: Driver route dispatch -->
             <div x-show="activeTab === 'drivers'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
                 <div class="border-b border-slate-200 dark:border-slate-700 pb-6">
                     <div class="text-sky-600 dark:text-sky-300 font-mono text-xs font-bold uppercase">ROUTE OPTIMIZATION & PROOF OF DELIVERY</div>
@@ -835,7 +806,7 @@
                 </div>
             </div>
 
-            <!-- Tab 5: Station Analytics & Dashboard Showcase -->
+            <!-- Tab 5: Station analytics and dashboard -->
             <div x-show="activeTab === 'analytics'" x-cloak class="bg-white dark:bg-[#0B152E] rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-6 md:p-8 space-y-6 shadow-sm">
                 <div class="border-b border-slate-200 dark:border-slate-700 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -849,7 +820,7 @@
                     </span>
                 </div>
 
-                <!-- Dashboard Metrics Grid -->
+                <!-- Dashboard metrics grid -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-700">
                         <span class="text-xs font-mono font-bold text-slate-500 dark:text-slate-200 uppercase block">TODAY'S GROSS SALES</span>
@@ -873,7 +844,7 @@
                     </div>
                 </div>
 
-                <!-- Bottle Inventory Breakdown -->
+                <!-- Bottle inventory breakdown -->
                 <div class="p-5 rounded-xl bg-slate-100/70 dark:bg-[#0E1A38] border-2 border-slate-200 dark:border-slate-700 space-y-3">
                     <div class="flex items-center justify-between text-xs font-bold font-mono text-slate-800 dark:text-white">
                         <span>5-GALLON BOTTLE CIRCULATION STATUS</span>
@@ -895,26 +866,24 @@
         </div>
     </section>
 
-    <!-- ========================================================================= -->
-    <!-- 6. PRICING SECTION (₱499 Monthly — High Contrast Theme-Adaptive Card)     -->
-    <!-- ========================================================================= -->
+    <!-- Pricing section -->
     <section id="pricing" class="py-24 bg-white dark:bg-[#0A142E] text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-800 relative scroll-mt-20 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center max-w-3xl mx-auto space-y-3 mb-16 scroll-reveal">
                 <span class="text-sky-600 dark:text-sky-400 font-extrabold text-xs uppercase tracking-wider font-mono">TRANSPARENT PRICING</span>
                 <h2 class="text-3xl sm:text-5xl font-black text-slate-950 dark:text-white tracking-tight font-geist">
-                    Everything Included for Just ₱499 a Month
+                    Everything Included for Just ₱999 a Month
                 </h2>
                 <p class="text-base sm:text-lg text-slate-600 dark:text-slate-200 font-medium">
                     No complicated enterprise tiers. No per-transaction percentages. Just one simple monthly subscription that pays for itself on day one.
                 </p>
             </div>
 
-            <!-- Featured High-Contrast Pricing Card -->
+            <!-- Pricing card -->
             <div class="max-w-xl mx-auto rounded-3xl p-1 bg-gradient-to-b from-sky-500 via-sky-600 to-teal-500 shadow-2xl scroll-reveal stagger-2">
                 <div class="bg-white dark:bg-[#0F1E42] rounded-[23px] p-8 sm:p-10 space-y-8 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white shadow-xl">
                     
-                    <!-- Plan Header -->
+                    <!-- Plan header -->
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-slate-200 dark:border-slate-700 pb-6">
                         <div>
                             <span class="inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 mb-2 font-mono border border-sky-400/40 dark:border-sky-400/50">
@@ -925,22 +894,20 @@
                         </div>
                         <div class="text-left sm:text-right">
                             <div class="flex items-baseline gap-1">
-                                <span class="text-4xl sm:text-5xl font-black text-slate-950 dark:text-white font-mono">₱499</span>
+                                <span class="text-4xl sm:text-5xl font-black text-slate-950 dark:text-white font-mono">₱999</span>
                                 <span class="text-sm font-bold text-slate-500 dark:text-slate-200">/ month</span>
                             </div>
                             <span class="text-xs text-emerald-600 dark:text-emerald-400 font-bold">Billed monthly • Cancel anytime</span>
                         </div>
                     </div>
 
-                    <!-- Inclusions List with Command Queue Highlight -->
+                    <!-- Inclusions list -->
                     <div class="space-y-4">
                         <div class="text-xs font-extrabold text-slate-500 dark:text-slate-200 uppercase tracking-wider font-mono">
-                            WHAT'S INCLUDED IN YOUR ₱499 SUBSCRIPTION:
+                            WHAT'S INCLUDED IN YOUR ₱999 SUBSCRIPTION:
                         </div>
 
                         <div class="grid grid-cols-1 gap-3.5 text-sm font-medium">
-                            
-                            <!-- Highlighted Command Queue Feature -->
                             <div class="p-3.5 rounded-xl bg-sky-50 dark:bg-[#11224D] border-2 border-sky-400 dark:border-sky-500/60 flex items-start gap-3 shadow-xs">
                                 <span class="material-symbols-outlined text-sky-600 dark:text-sky-400 text-[24px] shrink-0 mt-0.5">check_circle</span>
                                 <div>
@@ -992,13 +959,13 @@
                         </div>
                     </div>
 
-                    <!-- Get Started CTA Action -->
+                    <!-- CTA -->
                     <div class="pt-4 space-y-3">
                         <button 
                             @click="getStartedModalOpen = true" 
                             type="button" 
                             class="w-full py-4 text-base font-extrabold text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-xl shadow-xl shadow-sky-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer">
-                            <span>Get Started — Subscribe for ₱499/mo</span>
+                            <span>Get Started — Subscribe for ₱999/mo</span>
                             <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
                         </button>
                         <p class="text-center text-xs font-semibold text-slate-500 dark:text-slate-200">
@@ -1011,9 +978,7 @@
         </div>
     </section>
 
-    <!-- ========================================================================= -->
-    <!-- 7. SECURITY & MULTI-TENANT TRUST SECTION                                  -->
-    <!-- ========================================================================= -->
+    <!-- Security & trust section -->
     <section id="security-trust" class="py-12 bg-white dark:bg-[#050A18] text-slate-600 dark:text-slate-300 text-xs border-t border-slate-200 dark:border-slate-800 scroll-mt-20 transition-colors">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 scroll-reveal">
             <div class="flex items-center gap-3">
@@ -1029,9 +994,7 @@
         </div>
     </section>
 
-    <!-- ========================================================================= -->
-    <!-- 9. FOOTER (High Contrast Dark Footer)                                     -->
-    <!-- ========================================================================= -->
+    <!-- Footer -->
     <footer class="bg-[#050A18] text-slate-300 py-12 border-t border-slate-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-slate-800">
@@ -1058,9 +1021,7 @@
         </div>
     </footer>
 
-    <!-- ========================================================================= -->
-    <!-- 10. GET STARTED / SUBSCRIPTION MODAL (Connecting to rushdashvx@gmail.com)  -->
-    <!-- ========================================================================= -->
+    <!-- Subscription modal -->
     <div 
         x-show="getStartedModalOpen" 
         x-cloak 
@@ -1069,7 +1030,6 @@
         role="dialog" 
         aria-modal="true">
         
-        <!-- Backdrop -->
         <div 
             x-show="getStartedModalOpen"
             x-transition:enter="ease-out duration-300"
@@ -1081,7 +1041,6 @@
             @click="getStartedModalOpen = false"
             class="fixed inset-0 bg-slate-950/85 backdrop-blur-md transition-opacity"></div>
 
-        <!-- Modal Container -->
         <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
             <div 
                 x-show="getStartedModalOpen"
@@ -1094,7 +1053,6 @@
                 @click.outside="getStartedModalOpen = false"
                 class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-[#0B152E] text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg border-2 border-slate-200 dark:border-slate-700 p-6 sm:p-8 space-y-6 text-slate-900 dark:text-white">
 
-                <!-- Close Button -->
                 <button 
                     @click="getStartedModalOpen = false" 
                     type="button" 
@@ -1103,11 +1061,10 @@
                     <span class="material-symbols-outlined text-[24px]">close</span>
                 </button>
 
-                <!-- Modal Header -->
                 <div class="space-y-2 pr-8">
                     <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 border border-sky-400/40 dark:border-sky-400/50 font-mono">
                         <span class="material-symbols-outlined text-[16px]">verified</span>
-                        <span>HYDR8 SUBSCRIPTION • ₱499 / MO</span>
+                        <span>HYDR8 SUBSCRIPTION • ₱999 / MO</span>
                     </div>
                     <h3 id="modal-title" class="text-2xl font-black font-geist text-slate-950 dark:text-white">
                         Get Started with Hydr8
@@ -1117,7 +1074,6 @@
                     </p>
                 </div>
 
-                <!-- Primary Email Contact Card -->
                 <div class="p-5 rounded-xl bg-slate-50 dark:bg-[#11224D] border-2 border-slate-200 dark:border-slate-600 space-y-3">
                     <div class="text-xs font-bold text-slate-500 dark:text-slate-200 uppercase tracking-wider font-mono">
                         DIRECT SUBSCRIPTION CONTACT
@@ -1137,10 +1093,9 @@
                     </div>
                 </div>
 
-                <!-- One-Click Mailto Launcher -->
                 <div class="space-y-3">
                     <a 
-                        href="mailto:rushdashvx@gmail.com?subject=Hydr8%20Subscription%20Inquiry%20(₱499/mo)&body=Hello%20Hydr8%20Team,%0D%0A%0D%0AI%20would%20like%20to%20get%20started%20with%20Hydr8%20(₱499/month)%20for%20our%20water%20refilling%20station.%0D%0A%0D%0AStation%20Name:%20%0D%0AOwner/Manager:%20%0D%0APhone%20Number:%20%0D%0ACity/Municipality:%20%0D%0AApproximate%20Daily%20Refills:%20%0D%0A%0D%0APlease%20send%20us%20the%20account%20setup%20instructions.%0D%0A%0D%0AThank%20you!" 
+                        href="mailto:rushdashvx@gmail.com?subject=Hydr8%20Subscription%20Inquiry%20(₱999/mo)&body=Hello%20Hydr8%20Team,%0D%0A%0D%0AI%20would%20like%20to%20get%20started%20with%20Hydr8%20(₱999/month)%20for%20our%20water%20refilling%20station.%0D%0A%0D%0AStation%20Name:%20%0D%0AOwner/Manager:%20%0D%0APhone%20Number:%20%0D%0ACity/Municipality:%20%0D%0AApproximate%20Daily%20Refills:%20%0D%0A%0D%0APlease%20send%20us%20the%20account%20setup%20instructions.%0D%0A%0D%0AThank%20you!" 
                         class="w-full py-4 px-4 text-center font-extrabold text-sm text-white bg-sky-600 hover:bg-sky-500 border border-sky-400 rounded-xl shadow-lg shadow-sky-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                         <span class="material-symbols-outlined text-[20px]">send</span>
                         <span>Open Email Client (rushdashvx@gmail.com)</span>
@@ -1154,7 +1109,6 @@
                     </button>
                 </div>
 
-                <!-- Setup Information Guarantee -->
                 <div class="pt-2 text-center text-xs text-slate-500 dark:text-slate-300 font-mono font-medium">
                     Fast 24-hour station setup • Command Queue included • Cancel anytime
                 </div>
@@ -1163,12 +1117,10 @@
         </div>
     </div>
 
-    <!-- ========================================================================= -->
-    <!-- 11. SCROLL PHYSICS, SMOOTH ANCHOR NAV & REVEAL OBSERVER                   -->
-    <!-- ========================================================================= -->
+    <!-- Scroll observer and navigation script -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. Reading / Scroll Progress Bar
+            // Reading / Scroll progress bar
             const progressBar = document.getElementById('scroll-progress');
             if (progressBar) {
                 const updateProgress = () => {
@@ -1181,7 +1133,7 @@
                 updateProgress();
             }
 
-            // 2. IntersectionObserver for Fluid Scroll Reveals
+            // IntersectionObserver for scroll reveals
             const revealElements = document.querySelectorAll('.scroll-reveal');
             if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
                 const revealObserver = new IntersectionObserver((entries, observer) => {
@@ -1199,11 +1151,10 @@
 
                 revealElements.forEach(el => revealObserver.observe(el));
             } else {
-                // Immediate display if reduced motion preferred or observer not supported
                 revealElements.forEach(el => el.classList.add('is-visible'));
             }
 
-            // 3. Smooth anchor scrolling with sticky header offset
+            // Smooth anchor scrolling
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function(e) {
                     const targetId = this.getAttribute('href');

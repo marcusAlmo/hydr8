@@ -27,7 +27,6 @@ class DarkModeTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         html = response.content.decode()
-        # Verify pre-hydration script runs in <head> to prevent FOUC
         self.assertIn("localStorage.getItem('hydr8_theme')", html)
         self.assertIn("window.getHydr8Theme", html)
         self.assertIn("window.setHydr8Theme", html)
@@ -42,7 +41,6 @@ class DarkModeTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         html = response.content.decode()
-        # Verify toggle button and its icons
         self.assertIn("window.toggleHydr8Theme()", html)
         self.assertIn("dark_mode", html)
         self.assertIn("light_mode", html)
@@ -58,7 +56,6 @@ class DarkModeTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         html = response.content.decode()
-        # Verify Appearance & Theme card
         self.assertIn("Appearance &amp; Theme", html)
         self.assertIn("setTheme('light')", html)
         self.assertIn("setTheme('dark')", html)

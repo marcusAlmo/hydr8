@@ -300,12 +300,7 @@ def get_today_remittance(user: User) -> dict:
 
 
 def _yesterday_ai_insight(user: User) -> dict:
-    """Computes daily operational AI insight based on yesterday's status.
-
-    Feeds on yesterday's remittance, net profit margin, and tithes status to
-    determine operational mood ('positive', 'warning', 'neutral') along with
-    sample summary text, key metrics, and diagnostic breakdown.
-    """
+    """Compute daily operational health metrics and status indicators for yesterday."""
     today = timezone.localdate()
     yesterday = today - timedelta(days=1)
     yesterday_str = yesterday.strftime("%A, %b %d, %Y")
@@ -611,5 +606,5 @@ def _yesterday_ai_insight(user: User) -> dict:
 
 
 def get_yesterday_ai_insight(user: User) -> dict:
-    """Public selector for daily AI operational insights."""
+    """Return yesterday's operational status indicators and diagnostic metrics."""
     return _yesterday_ai_insight(user)

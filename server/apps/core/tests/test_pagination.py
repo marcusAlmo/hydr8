@@ -36,7 +36,6 @@ class PaginationHelpersTestCase(SimpleTestCase):
         self.assertEqual(get_elided_page_numbers(2, 5), [1, 2, 3, 4, 5])
 
     def test_get_elided_page_numbers_large_first_pages(self):
-        # When current_page <= 3, should show 1, 2, 3, 4, …, 72
         res1 = get_elided_page_numbers(1, 72)
         self.assertEqual(res1, [1, 2, 3, 4, "…", 72])
         clickables1 = [x for x in res1 if isinstance(x, int)]
@@ -47,20 +46,17 @@ class PaginationHelpersTestCase(SimpleTestCase):
         self.assertEqual(len([x for x in res3 if isinstance(x, int)]), 5)
 
     def test_get_elided_page_numbers_middle_pages(self):
-        # Current page = 4 on 72 pages -> 1, …, 3, 4, 5, …, 72
         res4 = get_elided_page_numbers(4, 72)
         self.assertEqual(res4, [1, "…", 3, 4, 5, "…", 72])
         clickables4 = [x for x in res4 if isinstance(x, int)]
         self.assertEqual(len(clickables4), 5)
         self.assertEqual(clickables4, [1, 3, 4, 5, 72])
 
-        # Current page = 35 on 72 pages -> 1, …, 34, 35, 36, …, 72
         res35 = get_elided_page_numbers(35, 72)
         self.assertEqual(res35, [1, "…", 34, 35, 36, "…", 72])
         self.assertEqual(len([x for x in res35 if isinstance(x, int)]), 5)
 
     def test_get_elided_page_numbers_last_pages(self):
-        # Current page >= 70 on 72 pages -> 1, …, 69, 70, 71, 72
         res70 = get_elided_page_numbers(70, 72)
         self.assertEqual(res70, [1, "…", 69, 70, 71, 72])
         self.assertEqual(len([x for x in res70 if isinstance(x, int)]), 5)
@@ -70,7 +66,6 @@ class PaginationHelpersTestCase(SimpleTestCase):
         self.assertEqual(len([x for x in res72 if isinstance(x, int)]), 5)
 
     def test_get_elided_page_numbers_always_max_5_clickables(self):
-        # Test all pages for several total_page values
         for total in (6, 7, 10, 72):
             for curr in range(1, total + 1):
                 res = get_elided_page_numbers(curr, total)

@@ -543,7 +543,7 @@ function commissionMatrix(cfg) {
             this.pinVerifying = true;
             this.pinError = '';
             try {
-                // Step 1: verify PIN client-side (fast feedback).
+                // Verify administrator PIN
                 const verifyResp = await fetch(this.verifyPinUrl, {
                     method: 'POST',
                     headers: {
@@ -562,7 +562,7 @@ function commissionMatrix(cfg) {
                     return;
                 }
 
-                // Step 2: dispatch to the right endpoint based on pendingAction.
+                // Dispatch to the target endpoint based on pendingAction
                 const action = this.pendingAction;
                 if (action === 'save') {
                     await this._postSave();

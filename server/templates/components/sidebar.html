@@ -1,4 +1,4 @@
-<!-- SideNavBar (The Abyss Sidebar) -->
+<!-- Sidebar Navigation -->
 {% with active_item=active_page|default:request.resolver_match.url_name|default:request.resolver_match.app_name %}
 <aside x-data="{
         expanded: $persist(true).as('hydr8_sidebar_expanded'),

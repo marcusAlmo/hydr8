@@ -50,7 +50,7 @@ Expects context:
 
         <!-- Scrollable Modal Body -->
         <div class="overflow-y-auto custom-scrollbar p-6 space-y-6">
-            <!-- Mood Status Banner -->
+            <!-- Status banner -->
             <div class="p-4 rounded-xl border {{ insight.banner_class }}">
                 <div class="flex items-start gap-3">
                     <span class="material-symbols-outlined text-[24px] mt-0.5">{{ insight.icon }}</span>
@@ -61,9 +61,9 @@ Expects context:
                 </div>
             </div>
 
-            <!-- Yesterday's Core Financial Metrics -->
+            <!-- Financial metrics summary -->
             <div>
-                <h5 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-3">Yesterday's Financial Ground Truth</h5>
+                <h5 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-3">Yesterday's Financial Summary</h5>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div class="p-3 bg-surface-container rounded-lg border border-outline-variant/20">
                         <span class="text-[11px] font-label-caps text-on-surface-variant uppercase block mb-1">Total Sales</span>
@@ -84,9 +84,9 @@ Expects context:
                 </div>
             </div>
 
-            <!-- Categorized Diagnostic Breakdown -->
+            <!-- Diagnostic breakdown -->
             <div>
-                <h5 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-3">Operational Deep-Dive</h5>
+                <h5 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-3">Operational Details</h5>
                 <div class="space-y-3">
                     {% for item in insight.detailed_insights %}
                     <div class="p-3.5 bg-surface-container-lowest border border-outline-variant/20 rounded-xl shadow-xs">
@@ -100,7 +100,7 @@ Expects context:
                 </div>
             </div>
 
-            <!-- Actionable AI Recommendations -->
+            <!-- Daily recommendations -->
             <div>
                 <h5 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider mb-3">Recommendations for Today</h5>
                 <div class="space-y-2">

@@ -25,7 +25,6 @@ class AuditLogPurgeTests(TestCase):
         """Verify purge_old_audit_logs hard deletes records older than cutoff_days and keeps recent ones."""
         now = timezone.now()
 
-        # Create an entry older than 3 months (120 days old)
         old_entry = LogEntry.objects.create(
             content_type=self.content_type,
             object_pk=str(self.user.pk),
@@ -35,7 +34,6 @@ class AuditLogPurgeTests(TestCase):
         )
         LogEntry.objects.filter(pk=old_entry.pk).update(timestamp=now - timedelta(days=120))
 
-        # Create a recent entry (10 days old)
         recent_entry = LogEntry.objects.create(
             content_type=self.content_type,
             object_pk=str(self.user.pk),
@@ -45,11 +43,9 @@ class AuditLogPurgeTests(TestCase):
         )
         LogEntry.objects.filter(pk=recent_entry.pk).update(timestamp=now - timedelta(days=10))
 
-        # Initial assertion
         self.assertTrue(LogEntry.objects.filter(pk=old_entry.pk).exists())
         self.assertTrue(LogEntry.objects.filter(pk=recent_entry.pk).exists())
 
-        # Execute purge with 90-day retention
         deleted_count = purge_old_audit_logs(performed_by=self.user, cutoff_days=90)
 
         self.assertGreaterEqual(deleted_count, 1)
@@ -87,7 +83,6 @@ class AuditLogPurgeTests(TestCase):
             action=LogEntry.Action.DELETE,
             actor=self.user,
         )
-        # Set to 150 days old (> 3 months)
         LogEntry.objects.filter(pk=old_entry.pk).update(timestamp=now - timedelta(days=150))
 
         with connection.cursor() as cursor:

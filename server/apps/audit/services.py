@@ -18,10 +18,7 @@ def purge_old_audit_logs(
     performed_by: Any,
     cutoff_days: int = 90,
 ) -> int:
-    """Hard-deletes audit log records older than `cutoff_days` (default 90 days = ~3 months).
-
-    This performs a database hard delete to decongest table storage and index bloat.
-    """
+    """Delete audit log records older than cutoff_days."""
     cutoff_timestamp = timezone.now() - timedelta(days=cutoff_days)
 
     with transaction.atomic():
@@ -44,11 +41,7 @@ def run_daily_cleanup_and_maintenance(
     performed_by: Any = None,
     audit_log_cutoff_days: int = 90,
 ) -> dict[str, Any]:
-    """Orchestrates daily station system and database maintenance:
-    1. Hard deletes audit logs older than retention cutoff (90 days / 3 months).
-    2. Clears expired Django sessions from the database.
-    3. Logs operational metrics using actor ID only (zero PII/SPI).
-    """
+    """Run daily maintenance: purge stale audit logs and clear expired sessions."""
     from django.core.management import call_command
 
     actor = performed_by
@@ -61,13 +54,13 @@ def run_daily_cleanup_and_maintenance(
     actor_id = getattr(actor, "id", None) or "system"
     logger.info("[%s] Initiating daily system cleanup and maintenance...", actor_id)
 
-    # 1. Hard delete audit logs older than 90 days (3 months)
+    # Purge stale audit log records
     purged_audit_count = purge_old_audit_logs(
         performed_by=actor,
         cutoff_days=audit_log_cutoff_days,
     )
 
-    # 2. Clear expired sessions to prevent session table bloat
+    # Clear expired sessions
     try:
         call_command("clearsessions")
         sessions_cleared = True

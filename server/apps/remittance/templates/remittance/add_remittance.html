@@ -53,7 +53,7 @@
                 </div>
             </div>
 
-            <!-- ============ EXISTING REMITTANCE PANEL (read-only) ============ -->
+            <!-- Existing remittance panel (read-only) -->
             <!-- Shown when the selected date already has a DRAFT
                  remittance in the DB.  Renders the saved record's
                  details so the user can see what's there before
@@ -278,7 +278,7 @@
                 </div>
             </div>
 
-            <!-- ============ FINALIZED READ-ONLY BANNER ============ -->
+            <!-- Finalized read-only banner -->
             <!-- Shown when the selected date has a FINALIZED remittance.
                  The record's data is loaded into the form fields below
                  (all disabled); this banner explains why. -->
@@ -296,7 +296,7 @@
                 </div>
             </div>
 
-            <!-- ============ FULL-WIDTH SUMMARY KPI CARD ============ -->
+            <!-- Remittance summary KPI card -->
             <!-- Categorized into 4 columns:
                  Revenue    → Cash Sales · Repayments
                  Deductions → Credits · Expenses · Net Salaries & Commissions
@@ -311,7 +311,7 @@
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
 
-                        <!-- ===== REVENUE COLUMN ===== -->
+                        <!-- Revenue column -->
                         <div class="rounded-lg bg-primary/5 border border-primary/20 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-primary border-b border-primary/20 pb-2">Revenue</p>
                             <div class="flex flex-col">
@@ -328,7 +328,7 @@
                             </div>
                         </div>
 
-                        <!-- ===== DEDUCTIONS COLUMN ===== -->
+                        <!-- Deductions column -->
                         <div class="rounded-lg bg-error/5 border border-error/20 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-error border-b border-error/20 pb-2">Deductions</p>
                             <div class="flex flex-col">
@@ -349,7 +349,7 @@
                             </div>
                         </div>
 
-                        <!-- ===== SUMMARY COLUMN ===== -->
+                        <!-- Summary column -->
                         <div class="rounded-lg bg-tertiary/5 border border-tertiary/20 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-tertiary border-b border-tertiary/20 pb-2">Summary</p>
                             <div class="flex flex-col">
@@ -366,7 +366,7 @@
                             </div>
                         </div>
 
-                        <!-- ===== OBLIGATIONS COLUMN ===== -->
+                        <!-- Obligations column -->
                         <div class="rounded-lg bg-[#FFBF00]/5 border border-[#FFBF00]/30 p-4 space-y-4">
                             <p class="font-label-caps text-label-caps text-[#FFBF00] border-b border-[#FFBF00]/30 pb-2">Obligations</p>
                             <div class="flex flex-col">
@@ -383,7 +383,7 @@
                 </div>
             </div>
 
-            <!-- ============ LEFT COLUMN: input fields ============ -->
+            <!-- Form inputs column -->
             <div class="md:col-span-8 space-y-6 hydr8-reveal-item">
 
                 <!-- Rider/Staff Section with tab navigation -->
@@ -410,7 +410,7 @@
                         </button>
                     </div>
 
-                    <!-- ============ RIDER TAB PANEL ============ -->
+                    <!-- Rider tab panel -->
                     <div x-show="activeTab === 'rider'" class="space-y-4">
                     <!-- Rider combobox -->
                     <div class="flex items-center justify-between gap-4 p-3 bg-surface-container-low/50 rounded-lg border border-outline-variant/20">
@@ -573,7 +573,7 @@
                         </div>
                     </div>
 
-                    <!-- ===== RIDER EXPENSES (collapsible accordion) ===== -->
+                    <!-- Rider expenses accordion -->
                     <!-- Collapsed by default to reduce clutter on small
                          screens.  Click the header to expand/collapse. -->
                     <div class="border border-error/30 rounded-lg overflow-hidden">
@@ -656,7 +656,7 @@
                         </div>
                     </div>
 
-                    <!-- ===== COMMISSION DEDUCTIONS (collapsible accordion) ===== -->
+                    <!-- Commission deductions accordion -->
                     <div class="border border-[#D97706]/30 rounded-lg overflow-hidden">
                         <button type="button" @click="riderDeductionsOpen = !riderDeductionsOpen"
                                 class="w-full flex items-center justify-between px-4 py-3 bg-[#D97706]/5 hover:bg-[#D97706]/10 transition-colors">
@@ -737,15 +737,10 @@
                         </div>
                     </div>
 
-                    <!-- ===== REMITTANCE & COMMISSION FORMULA FOOTER ===== -->
-                    <!-- Two-column card:
-                         LEFT  — Remittance reconciliation:
-                                 Net Remittable − Remitted (input) = Balance
-                         RIGHT — Commission computation:
-                                 Gross Commission − Balance − Comm. Deductions = Net Commission -->
+                    <!-- Remittance and commission formula summary -->
                     <div class="rounded-lg border border-outline-variant/30 overflow-hidden bg-surface-container-low/30">
                         <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-outline-variant/20">
-                            <!-- ============ LEFT: Remittance Reconciliation ============ -->
+                            <!-- Remittance reconciliation -->
                             <div class="px-4 py-3">
                                 <div class="flex items-center gap-1.5 mb-2.5">
                                     <span class="material-symbols-outlined text-primary text-[16px]">payments</span>
@@ -798,7 +793,7 @@
                                     </p>
                                 </div>
                             </div>
-                            <!-- ============ RIGHT: Commission Computation ============ -->
+                            <!-- Commission computation -->
                             <div class="px-4 py-3 bg-surface-container-low/40">
                                 <div class="flex items-center gap-1.5 mb-2.5">
                                     <span class="material-symbols-outlined text-tertiary text-[16px]">savings</span>
@@ -846,15 +841,7 @@
 
                     </div><!-- /RIDER TAB PANEL -->
 
-                    <!-- ============ STAFF TAB PANEL ============ -->
-                    <!-- One staff at a time, mirroring the Rider tab's
-                         combobox + prev/next navigation.  For each staff:
-                           1. Base salary (editable, defaults to daily_rate)
-                           2. Deductions list (add/remove items)
-                           3. Net salary = base salary - total deductions
-                         A sticky footer shows the grand total of all
-                         staff net salaries.  UI prototype — mock data,
-                         no backend wiring yet. -->
+                    <!-- Staff tab panel: base salary and deductions for selected staff -->
                     <div x-show="activeTab === 'staff'" x-cloak class="space-y-4">
                         <!-- Staff combobox (mirrors Rider combobox layout) -->
                         <div class="flex items-center justify-between gap-4 p-3 bg-surface-container-low/50 rounded-lg border border-outline-variant/20">
@@ -937,7 +924,7 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-outline-variant/10">
-                                        <!-- ===== BASE SALARY ROW ===== -->
+                                        <!-- Base salary row -->
                                         <tr class="hover:bg-surface-container-low/50 transition-colors">
                                             <td class="py-4 px-4 font-body-md text-on-surface min-w-0">Base Salary</td>
                                             <td class="py-4 px-4 text-right whitespace-nowrap">
@@ -964,7 +951,7 @@
                                             </td>
                                         </tr>
 
-                                        <!-- ===== DEDUCTION ROWS ===== -->
+                                        <!-- Deductions list -->
                                         <template x-for="(ded, idx) in currentDeductions()" :key="idx">
                                             <tr class="hover:bg-surface-container-low/50 transition-colors">
                                                 <td class="py-4 px-4 min-w-0">
@@ -992,7 +979,7 @@
                                             </tr>
                                         </template>
 
-                                        <!-- ===== ADD DEDUCTION ROW (clickable, like Add Product) ===== -->
+                                        <!-- Add deduction action -->
                                         <tr x-show="!isFinalizedView">
                                             <td colspan="3" class="py-0">
                                                 <button type="button" @click="addDeduction()"
@@ -1004,7 +991,7 @@
                                         </tr>
                                     </tbody>
                                     <tfoot>
-                                        <!-- ===== NET PAY (underlined) ===== -->
+                                        <!-- Net pay -->
                                         <tr class="border-t-2 border-on-surface/20">
                                             <td class="py-3.5 px-4 font-body-md font-bold text-on-surface">Net Pay</td>
                                             <td class="py-3.5 px-4 text-right font-data-mono text-data-mono font-bold text-lg"
@@ -1015,7 +1002,7 @@
                                     </tfoot>
                                 </table>
 
-                                <!-- ===== STAFF OPERATIONAL EXPENSES (Handled by this staff member) ===== -->
+                                <!-- Staff operational expenses -->
                                 <div class="mt-6 rounded-lg border border-outline-variant/30 overflow-hidden bg-surface-container-low/30">
                                     <div class="px-4 py-3 bg-surface-container-low/60 border-b border-outline-variant/20 flex items-center justify-between">
                                         <div class="flex items-center gap-2">
@@ -1090,11 +1077,7 @@
 
                 </section>
 
-                <!-- ============ CREDIT REPAYMENTS (standalone, auto-populated) ============ -->
-                <!-- All CreditPayments collected today, regardless of whether
-                     the care_of is a rider or staff.  Driver-attributed
-                     repayments earn commission; staff-attributed do not.
-                     Read-only — recorded via the customer Collect modal. -->
+                <!-- Credit repayments collected today (read-only) -->
                 <section x-show="repayments.length > 0"
                          class="bg-surface-container-lowest border border-tertiary/20 rounded-lg overflow-hidden">
                     <div class="flex items-center gap-2 px-6 py-3 bg-tertiary/10 border-b border-tertiary/20">
@@ -1183,13 +1166,11 @@
                 </div>
             </div>
 
-            <!-- ============ RIGHT COLUMN: sticky panels ============ -->
+            <!-- Right column: summary and side panels -->
             <aside class="md:col-span-4 hydr8-reveal-item">
                 <div class="md:sticky md:top-32 space-y-4">
 
-                    <!-- ===== OTHER SALES CARD ===== -->
-                    <!-- Miscellaneous sales not tied to any product line.
-                         Added directly to Total Sales. -->
+                    <!-- Other sales card -->
                     <div class="bg-surface-container-lowest border border-outline-variant/20 rounded-lg overflow-hidden shadow-sm">
                         <div class="px-5 py-4 bg-surface-container-high border-b border-outline-variant/20 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary text-[20px]">point_of_sale</span>
@@ -1210,9 +1191,7 @@
                         </div>
                     </div>
 
-                    <!-- ===== EMPLOYEE COMMISSIONS / SALARY PANEL ===== -->
-                    <!-- Lists all riders (commission) and staff (net pay)
-                         in a single paginated list (5 per page). -->
+                    <!-- Employee commissions and salary summary panel -->
                     <div class="bg-surface-container-lowest border border-outline-variant/20 rounded-lg overflow-hidden shadow-sm">
                         <div class="px-5 py-4 bg-surface-container-high border-b border-outline-variant/20 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary text-[20px]">groups</span>
@@ -1348,7 +1327,7 @@
             </aside>
         </div>
 
-        <!-- ============ Clear Draft Confirmation Modal ============ -->
+        <!-- Clear draft confirmation modal -->
         <div x-show="showClearConfirm" x-cloak
              class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
              @keydown.escape.window="showClearConfirm = false">
@@ -1382,10 +1361,7 @@
             </div>
         </div>
 
-        <!-- ============ Draft Saved Confirmation Modal (staff) ============ -->
-        <!-- Staff cannot access Remittance History, so after a successful
-             draft save we show the saved date and an "Add Remittance"
-             button that reloads the page fresh for a new entry. -->
+        <!-- Draft saved modal (staff) -->
         <div x-show="showDraftSavedModal" x-cloak
              class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
              @keydown.escape.window="showDraftSavedModal = false">
@@ -1416,9 +1392,7 @@
             </div>
         </div>
 
-        <!-- ============ Load Draft Confirmation Modal ============ -->
-        <!-- Confirms before overwriting the current form entries with
-             the saved draft's values for the selected date. -->
+        <!-- Load draft confirmation modal -->
         <div x-show="showLoadDraftConfirm" x-cloak
              class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
              @keydown.escape.window="showLoadDraftConfirm = false">
@@ -1455,7 +1429,7 @@
             </div>
         </div>
 
-        <!-- ============ Finalize Review Modal ============ -->
+        <!-- Finalize review modal -->
         <div x-show="reviewOpen" x-cloak
              class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm"
              @keydown.escape.window="reviewOpen = false">
@@ -1718,7 +1692,7 @@
             </div>
         </div>
 
-        <!-- ============ Security PIN Modal (opens on Confirm & Finalize) ============ -->
+        <!-- Security PIN confirmation modal -->
         <div x-show="showPinModal" x-cloak
              class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-on-surface/50 backdrop-blur-sm"
              @keydown.escape.window="closePinModal()">
@@ -1787,7 +1761,7 @@
             </div>
         </div>
 
-        <!-- ============ Unsaved Changes Exit Modal ============ -->
+        <!-- Unsaved changes exit modal -->
         <div x-show="showExitModal" x-cloak
              class="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-on-surface/50 backdrop-blur-sm"
              @keydown.escape.window="cancelExit()">
@@ -3217,7 +3191,7 @@
                     const csrfToken = csrfInput ? csrfInput.value : '';
 
                     try {
-                        // Step 1: verify the PIN (3-strikes logout enforced server-side).
+                        // Verify the PIN (progressive lockout enforced server-side)
                         const verifyResp = await fetch(this.verifyPinUrl, {
                             method: 'POST',
                             headers: {
@@ -3248,8 +3222,7 @@
                             return;
                         }
 
-                        // Step 2: PIN verified — POST the finalize payload
-                        // (PIN re-verified server-side as defence in depth).
+                        // Submit finalize payload once PIN is verified
                         await this.confirmFinalize();
                     } catch (err) {
                         this.pinError = 'Network error: ' + err;

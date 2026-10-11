@@ -1,9 +1,4 @@
-<!-- =======================================================================
-  detail_staff_tab.html
-  Per-staff audit view for finalized/completed remittances.
-  Displays staff selection dropdown, pay details, deductions,
-  and any credit repayments or credit lines attributed to their care_of.
-  ======================================================================= -->
+<!-- Per-staff audit view for finalized remittances -->
 <div class="space-y-6">
 
     <!-- Empty state: No staff -->
@@ -15,7 +10,7 @@
     <!-- Active Staff Content -->
     <div x-show="staff.length > 0" class="space-y-6">
 
-        <!-- ============ STAFF SELECTION COMBOBOX BAR ============ -->
+        <!-- Staff selection bar -->
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm">
             <div class="flex items-center gap-4 flex-1">
                 <div class="w-10 h-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center shrink-0">
@@ -86,7 +81,7 @@
         <template x-if="selectedStaff()">
             <div class="space-y-6">
 
-                <!-- ============ STAFF PAY KPI CARDS ============ -->
+                <!-- Staff pay KPI cards -->
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
                     <div class="rounded-xl bg-surface-container-lowest border border-outline-variant/30 p-4 shadow-sm">
                         <p class="font-label-caps text-[10px] text-on-surface-variant uppercase mb-1">Base Daily Rate</p>
@@ -111,7 +106,7 @@
                     </div>
                 </div>
 
-                <!-- ============ DEDUCTIONS & EXPENSES DETAIL ============ -->
+                <!-- Deductions & expenses detail -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                     <!-- Deductions Detail -->
@@ -166,7 +161,7 @@
 
                 </div>
 
-                <!-- ============ PER-STAFF REPAYMENTS & CREDITS (AUDIT SECTION) ============ -->
+                <!-- Per-staff repayments & credits -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                     <!-- 1. Credit Repayments Collected By This Staff Member -->
