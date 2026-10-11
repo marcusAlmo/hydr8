@@ -1,5 +1,4 @@
 from django.conf import settings
-from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -90,11 +89,6 @@ class Customer(models.Model):
                 fields=['company', 'debt_balance'],
                 condition=models.Q(deleted_at__isnull=True, debt_balance__gt=0),
                 name='idx_customer_active_debtors',
-            ),
-            GinIndex(
-                OpClass('name', name='gin_trgm_ops'),
-                condition=models.Q(deleted_at__isnull=True),
-                name='idx_customer_name_trgm',
             ),
         ]
         constraints = [
