@@ -35,10 +35,30 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertContains(response, 'Water. Delivered. Managed.')
         self.assertContains(response, 'Sign In')
 
+    def test_landing_page_features_pricing_and_contact(self):
+        """Test landing page renders Command Queue, Gallery, ₱499 pricing, and subscription contact email."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        # Features and Command Queue
+        self.assertContains(response, 'Command Queue')
+        self.assertContains(response, 'Offline-First')
+        # Feature Gallery
+        self.assertContains(response, 'Feature Gallery')
+        self.assertContains(response, 'Daily Remittance Ledger')
+        # Pricing at 499
+        self.assertContains(response, '₱499')
+        # Action Buttons
+        self.assertContains(response, 'Get Started')
+        self.assertContains(response, 'Log In')
+        # Contact Email for Subscription
+        self.assertContains(response, 'rushdashvx@gmail.com')
+
     def test_login_view_get(self):
-        """Test direct GET request to login view redirects to the landing page."""
+        """Test direct GET request to login view renders dedicated login page."""
         response = self.client.get('/login/')
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Sign In')
+        self.assertContains(response, 'Hydr8')
 
     def test_login_htmx_failure_returns_partial(self):
         """Test HTMX login failure returns inline form errors."""

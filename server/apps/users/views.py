@@ -189,12 +189,12 @@ def login_view(request):
             )
             return render(request, 'users/partials/login_form.html', {'form': form, 'next': next_url})
 
-    # GET: redirect to the full landing page, preserving ?next= if present.
+    # GET: render the dedicated split-screen login page (users/login.html)
+    form = AuthenticationForm()
     next_url = request.GET.get('next', '')
-    target = reverse('users:index')
-    if next_url:
-        target = f"{target}?next={quote(next_url)}"
-    return redirect(target)
+    if request.GET.get('error') == 'rate_limited':
+        form = _form_with_non_field_error(form, "Too many requests. Please try again later.")
+    return render(request, 'users/login.html', {'form': form, 'next': next_url})
 
 
 def ratelimited_view(request, exception=None):
@@ -219,9 +219,9 @@ def ratelimited_view(request, exception=None):
     )
     safe_next = _safe_next_url(next_url, request)
     if safe_next:
-        target = f"{reverse('users:index')}?error=rate_limited&next={quote(safe_next)}"
+        target = f"{reverse('users:login')}?error=rate_limited&next={quote(safe_next)}"
     else:
-        target = f"{reverse('users:index')}?error=rate_limited"
+        target = f"{reverse('users:login')}?error=rate_limited"
     if request.headers.get('HX-Request') == 'true':
         response = HttpResponse()
         response['HX-Redirect'] = target
