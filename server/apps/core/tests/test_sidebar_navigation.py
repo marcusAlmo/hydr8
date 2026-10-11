@@ -28,14 +28,16 @@ class SidebarNavigationTests(TestCase):
             company=self.company,
         )
 
-    def test_sidebar_template_contains_hx_boost_and_exempts_logout(self):
-        """The sidebar template must enable hx-boost and exempt the logout form."""
+    def test_sidebar_template_uses_standard_navigation_and_exempts_logout(self):
+        """The sidebar template must use standard navigation (no hx-boost) to prevent
+        Alpine.js duplication issues, and explicitly exempt the logout form."""
         self.client.force_login(self.admin)
         response = self.client.get(reverse("analytics:dashboard"))
         self.assertEqual(response.status_code, 200)
 
         html = response.content.decode()
-        self.assertIn('hx-boost="true"', html)
+        self.assertNotIn('<aside hx-boost="true"', html)
+        self.assertNotIn('hx-boost="true"', html)
         self.assertIn('hx-boost="false"', html)
         self.assertIn('hx-ext="head-support"', html)
         self.assertIn("head-support.js", html)
@@ -56,21 +58,16 @@ class SidebarNavigationTests(TestCase):
 
         for route_name, kwargs in routes:
             url = reverse(route_name, kwargs=kwargs)
-            # Boosted navigation request sent by HTMX
-            response = self.client.get(
-                url,
-                HTTP_HX_REQUEST="true",
-                HTTP_HX_BOOSTED="true",
-            )
+            response = self.client.get(url)
             self.assertEqual(
                 response.status_code,
                 200,
-                f"Boosted HTMX request to {route_name} failed with status {response.status_code}",
+                f"Navigation request to {route_name} failed with status {response.status_code}",
             )
-            self.assertIn("hx-boost=\"true\"", response.content.decode())
+            self.assertNotIn("hx-boost=\"true\"", response.content.decode())
 
-    def test_staff_sidebar_navigation_boosted(self):
-        """Staff navigation items respond properly to boosted requests."""
+    def test_staff_sidebar_navigation(self):
+        """Staff navigation items respond properly to standard requests."""
         self.client.force_login(self.staff)
 
         # Staff can access Add Remittance, Customers, and Settings Profile
@@ -81,13 +78,10 @@ class SidebarNavigationTests(TestCase):
         ]
 
         for url in routes:
-            response = self.client.get(
-                url,
-                HTTP_HX_REQUEST="true",
-                HTTP_HX_BOOSTED="true",
-            )
+            response = self.client.get(url)
             self.assertEqual(
                 response.status_code,
                 200,
-                f"Staff boosted request to {url} failed with status {response.status_code}",
+                f"Staff request to {url} failed with status {response.status_code}",
             )
+            self.assertNotIn("hx-boost=\"true\"", response.content.decode())
