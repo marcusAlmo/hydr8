@@ -203,7 +203,7 @@
                 <div class="mt-8 flex justify-center items-center gap-6 text-xs font-bold text-slate-600">
                     <div class="flex items-center gap-1.5">
                         <span class="material-symbols-outlined text-[18px] text-sky-600">verified_user</span>
-                        <span>SESSION GUARD</span>
+                        <span>SECURE ACCESS</span>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="material-symbols-outlined text-[18px] text-emerald-600">lock</span>
@@ -211,7 +211,7 @@
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="material-symbols-outlined text-[18px] text-sky-600">sync</span>
-                        <span>REAL-TIME DATA</span>
+                        <span>LIVE SYNC</span>
                     </div>
                 </div>
 
@@ -227,5 +227,7 @@
         </div>
     </div>
 
+    <!-- Mobile device blocker overlay (warning to use tablet or larger) -->
+    {% include "components/modals/mobile_device_blocker.html" %}
 </body>
 </html>

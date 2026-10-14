@@ -1,0 +1,82 @@
+<!-- Mobile Device Blocker Overlay (Tablet / Desktop Only) -->
+<div id="hydr8-mobile-blocker"
+     class="fixed inset-0 z-[999999] flex flex-col items-center justify-center p-6 bg-[#070D1E] text-white text-center select-none"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="mobile-blocker-title"
+     aria-describedby="mobile-blocker-desc">
+    
+    <!-- Ambient Atmospheric Glow -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-25">
+        <div class="absolute -top-24 -left-24 w-80 h-80 bg-sky-600 rounded-full blur-[120px]"></div>
+        <div class="absolute -bottom-24 -right-24 w-80 h-80 bg-teal-500 rounded-full blur-[120px]"></div>
+    </div>
+
+    <!-- Modal Card -->
+    <div class="relative z-10 w-full max-w-sm mx-auto p-6 sm:p-8 rounded-3xl bg-[#0B1530]/95 border-2 border-slate-700/80 shadow-2xl shadow-black/80 backdrop-blur-2xl flex flex-col items-center">
+        
+        <!-- Icon Badge -->
+        <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-400 flex items-center justify-center mb-5 shadow-lg shadow-amber-500/10">
+            <span class="material-symbols-outlined text-[36px]">tablet_mac</span>
+        </div>
+
+        <!-- Warning Pill -->
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold tracking-wider uppercase bg-amber-500/10 text-amber-300 border border-amber-400/30 mb-4">
+            <span class="material-symbols-outlined text-[15px]">warning</span>
+            <span>Tablets or Larger Only</span>
+        </div>
+
+        <!-- Heading -->
+        <h2 id="mobile-blocker-title" class="text-xl sm:text-2xl font-black font-geist tracking-tight text-white mb-3">
+            Device Screen Not Supported
+        </h2>
+
+        <!-- Description -->
+        <p id="mobile-blocker-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal mb-6">
+            Hydr8 Water Station OS is designed exclusively for <strong class="text-white font-semibold">tablets, laptops, and desktop computers</strong>. Mobile phone screens are not supported to prevent operational errors.
+        </p>
+
+        <!-- Device Compatibility Info Box -->
+        <div class="w-full p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-left space-y-2.5 mb-6 text-xs">
+            <div class="flex items-center gap-2.5 text-emerald-400 font-medium">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <span class="text-slate-200">Tablets (iPad, Android Tablet)</span>
+            </div>
+            <div class="flex items-center gap-2.5 text-emerald-400 font-medium">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <span class="text-slate-200">Laptops &amp; Station Computers</span>
+            </div>
+            <div class="flex items-center gap-2.5 text-rose-400 font-medium">
+                <span class="material-symbols-outlined text-[18px]">cancel</span>
+                <span class="text-slate-400 line-through">Smartphones &amp; Mobile Phones</span>
+            </div>
+        </div>
+
+        <!-- Footer Notice -->
+        <p class="text-[11px] text-slate-400 font-mono">
+            Please reopen on a tablet or desktop browser.
+        </p>
+    </div>
+</div>
+
+<style>
+    /* Default: modal is visible on mobile (< 768px wide) and landscape phones (< 500px high) */
+    #hydr8-mobile-blocker {
+        display: flex !important;
+    }
+
+    @media (max-width: 767px), (max-height: 499px) {
+        html, body {
+            overflow: hidden !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+        }
+    }
+
+    /* On tablets and desktops (width >= 768px AND height >= 500px), hide completely */
+    @media (min-width: 768px) and (min-height: 500px) {
+        #hydr8-mobile-blocker {
+            display: none !important;
+        }
+    }
+</style>

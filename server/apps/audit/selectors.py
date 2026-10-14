@@ -47,9 +47,9 @@ def _enrich_entry(entry):
     if entry.content_type:
         model_class = entry.content_type.model_class()
         entry.content_type_str = (
-            f"{entry.content_type.app_label}.{model_class.__name__}"
+            model_class._meta.verbose_name.title()
             if model_class
-            else f"{entry.content_type.app_label}.{entry.content_type.model}"
+            else entry.content_type.name.title()
         )
     else:
         entry.content_type_str = "—"

@@ -204,7 +204,7 @@
                     data-htmx-search
                     name="q"
                     value="{{ search_query|default:'' }}"
-                    placeholder="Search object, IP, correlation ID, or username..."
+                    placeholder="Search staff, action, record, or device IP..."
                     class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
                     hx-get="{% url 'audit:list' %}"
                     hx-trigger="keyup changed delay:300ms, search"
@@ -225,10 +225,7 @@
         <div class="mt-4 flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
             <span class="material-symbols-outlined text-primary text-[18px] flex-shrink-0 mt-0.5">info</span>
             <p class="text-xs text-on-surface-variant">
-                Click any row to view the full mutation detail — field-level Before/After diff, serialized object snapshot, and request metadata.
-                Audit entries are recorded by <span class="font-data-mono text-primary">django-auditlog</span> via the
-                <span class="font-data-mono text-primary">AuditlogMiddleware</span> and correlated via
-                <span class="font-data-mono text-primary">X-Correlation-ID</span>.
+                Click any row to view full activity details — exact changes made, previous vs. new values, and recorded device info. Every station activity is securely tracked and timestamped for accountability.
             </p>
         </div>
 
