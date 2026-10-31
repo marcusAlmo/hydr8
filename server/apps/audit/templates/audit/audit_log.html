@@ -8,7 +8,7 @@
 
 {% block content %}
 <!-- Single Alpine scope wraps header + content for date range popover state -->
-<div x-data="auditLogPage('{{ date_range|default:'all' }}', '{{ custom_from|default:'' }}', '{{ custom_to|default:'' }}')"
+<div x-data="auditLogPage('{{ date_range|default:'7d' }}', '{{ custom_from|default:'' }}', '{{ custom_to|default:'' }}')"
      class="flex-1 flex flex-col overflow-hidden">
 
     <!-- TopNavBar -->
@@ -180,7 +180,7 @@
     <script>
         function auditLogPage(initialRange, initialFrom, initialTo) {
             return {
-                dateRange: initialRange || 'all',
+                dateRange: initialRange || '7d',
                 customRangeOpen: false,
                 customFrom: initialFrom || '',
                 customTo: initialTo || '',

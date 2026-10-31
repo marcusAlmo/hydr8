@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.remittance.models import Remittance
 from apps.remittance.selectors import get_remittance_row
@@ -280,7 +281,7 @@ class RemittanceHistoryPageRenderTests(TestCase):
             role=admin_role,
         )
         Remittance.objects.create(
-            date=date(2026, 8, 4),
+            date=timezone.localdate(),
             created_by=self.user,
             status=Remittance.StatusChoices.FINALIZED,
             tithes_paid=False,

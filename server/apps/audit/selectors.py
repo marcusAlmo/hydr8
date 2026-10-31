@@ -66,7 +66,7 @@ def list_log_entries(
     per_page: int = PER_PAGE,
     query: str = "",
     action: str = "",
-    date_range: str = "all",
+    date_range: str = "7d",
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> dict:

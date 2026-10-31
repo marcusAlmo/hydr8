@@ -156,3 +156,68 @@ class AuditLogViewTests(TestCase):
         self.assertContains(response, 'id="audit-active-action"')
         self.assertContains(response, 'id="audit-active-range"')
 
+    def test_audit_log_default_date_range_is_7d(self):
+        """The audit log page defaults to 7 days to prevent heavy loads on initial page open."""
+        response = self.client.get("/audit/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["date_range"], "7d")
+        self.assertContains(response, 'id="audit-active-range" name="range" value="7d"')
+        self.assertContains(response, "auditLogPage('7d'")
+
+    def test_audit_log_range_preset_all_and_unrecognized_fallback(self):
+        """Audit log ?range=all sets range to all, while invalid range falls back to 7d."""
+        res_all = self.client.get("/audit/?range=all")
+        self.assertEqual(res_all.status_code, 200)
+        self.assertEqual(res_all.context["date_range"], "all")
+        self.assertContains(res_all, 'id="audit-active-range" name="range" value="all"')
+
+        res_invalid = self.client.get("/audit/?range=invalid_preset")
+        self.assertEqual(res_invalid.status_code, 200)
+        self.assertEqual(res_invalid.context["date_range"], "7d")
+
+    def test_audit_log_default_filters_out_records_older_than_7_days(self):
+        """Default 7d filter only returns recent entries and excludes records older than 7 days."""
+        from datetime import timedelta
+
+        from auditlog.models import LogEntry
+        from django.utils import timezone
+
+        ct = ContentType.objects.get_for_model(User)
+        now = timezone.now()
+
+        # Clean slate for logs
+        LogEntry.objects.all().delete()
+
+        recent_entry = LogEntry.objects.create(
+            content_type=ct,
+            object_pk=str(self.user.pk),
+            object_repr="Recent Event",
+            action=LogEntry.Action.CREATE,
+            actor=self.user,
+            timestamp=now - timedelta(days=2),
+        )
+        old_entry = LogEntry.objects.create(
+            content_type=ct,
+            object_pk=str(self.user.pk),
+            object_repr="Old Event",
+            action=LogEntry.Action.CREATE,
+            actor=self.user,
+            timestamp=now - timedelta(days=20),
+        )
+
+        # 1. Default request (no range param) -> only recent_entry
+        res_default = self.client.get("/audit/", HTTP_HX_REQUEST="true")
+        self.assertEqual(res_default.status_code, 200)
+        pks_default = [log.pk for log in res_default.context["logs"]]
+        self.assertIn(recent_entry.pk, pks_default)
+        self.assertNotIn(old_entry.pk, pks_default)
+        self.assertEqual(res_default.context["pagination"]["total"], 1)
+
+        # 2. ?range=all request -> both entries
+        res_all = self.client.get("/audit/?range=all", HTTP_HX_REQUEST="true")
+        self.assertEqual(res_all.status_code, 200)
+        pks_all = [log.pk for log in res_all.context["logs"]]
+        self.assertIn(recent_entry.pk, pks_all)
+        self.assertIn(old_entry.pk, pks_all)
+        self.assertEqual(res_all.context["pagination"]["total"], 2)
+

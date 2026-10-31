@@ -31,7 +31,7 @@ def _build_list_context(
     page: int,
     query: str = "",
     action: str = "",
-    date_range: str = "all",
+    date_range: str = "7d",
     start_date: date | None = None,
     end_date: date | None = None,
     for_htmx: bool = False,
@@ -190,7 +190,7 @@ def audit_log_view(request):
         page = 1
     query = request.GET.get("q", "")
     action = request.GET.get("action", "")
-    date_range = request.GET.get("range", "all")
+    date_range = (request.GET.get("range") or "7d").strip().lower()
     from_str = request.GET.get("from")
     to_str = request.GET.get("to")
     start_date = None
@@ -205,6 +205,8 @@ def audit_log_view(request):
         except ValueError:
             start_date = None
             end_date = None
+    elif date_range not in ("today", "7d", "30d", "all"):
+        date_range = "7d"
 
     per_page = parse_per_page(request.GET.get("per_page"))
     for_htmx = getattr(request, "htmx", False) and not getattr(request.htmx, "boosted", False)

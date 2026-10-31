@@ -9,7 +9,7 @@ All filtering and pagination are server-side computed to accurately reflect retu
     {% endif %}
     <!-- Server-synchronized filter state for HTMX controls with hx-preserve / outside table -->
     <input type="hidden" id="audit-active-action" name="action" value="{{ active_action|default:'' }}">
-    <input type="hidden" id="audit-active-range" name="range" value="{{ date_range|default:'all' }}">
+    <input type="hidden" id="audit-active-range" name="range" value="{{ date_range|default:'7d' }}">
     <input type="hidden" id="audit-custom-from" name="from" value="{{ custom_from|default:'' }}">
     <input type="hidden" id="audit-custom-to" name="to" value="{{ custom_to|default:'' }}">
 
@@ -29,14 +29,14 @@ All filtering and pagination are server-side computed to accurately reflect retu
             </button>
             {% endfor %}
 
-            {% if active_action or date_range != 'all' or search_query %}
+            {% if active_action or date_range != '7d' or search_query %}
             <button
                 type="button"
                 class="px-3 py-1.5 rounded-full font-body-sm text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 flex items-center gap-1"
-                hx-get="{% url 'audit:list' %}?range=all&per_page={{ pagination.per_page }}"
+                hx-get="{% url 'audit:list' %}?range=7d&per_page={{ pagination.per_page }}"
                 hx-target="#audit-log-table"
                 hx-swap="outerHTML"
-                @click="dateRange = 'all'; customFrom = ''; customTo = ''; const s = document.getElementById('auditSearch'); if (s) s.value = '';"
+                @click="dateRange = '7d'; customFrom = ''; customTo = ''; const s = document.getElementById('auditSearch'); if (s) s.value = '';"
             >
                 <span class="material-symbols-outlined text-[16px]">close</span>
                 <span>Clear</span>
@@ -163,7 +163,7 @@ All filtering and pagination are server-side computed to accurately reflect retu
                             name="per_page"
                             aria-label="Entries per page"
                             class="bg-surface-container border border-outline-variant/30 rounded px-2 py-0.5 text-xs font-data-mono text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-                            hx-get="{% url 'audit:list' %}?page=1&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                            hx-get="{% url 'audit:list' %}?page=1&action={{ active_action|default:'' }}&range={{ date_range|default:'7d' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                             hx-target="#audit-log-table"
                             hx-swap="outerHTML"
                             hx-trigger="change"
@@ -178,7 +178,7 @@ All filtering and pagination are server-side computed to accurately reflect retu
                 {% if pagination.has_previous %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Previous page"
-                        hx-get="{% url 'audit:list' %}?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-get="{% url 'audit:list' %}?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'7d' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                         hx-target="#audit-log-table"
                         hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_left</span>
@@ -195,7 +195,7 @@ All filtering and pagination are server-side computed to accurately reflect retu
                     <span class="px-2.5 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ p }}</span>
                     {% else %}
                     <button class="px-2.5 py-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant text-xs font-data-mono"
-                            hx-get="{% url 'audit:list' %}?page={{ p }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                            hx-get="{% url 'audit:list' %}?page={{ p }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'7d' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                             hx-target="#audit-log-table"
                             hx-swap="outerHTML">
                         {{ p }}
@@ -205,7 +205,7 @@ All filtering and pagination are server-side computed to accurately reflect retu
                 {% if pagination.has_next %}
                 <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
                         title="Next page"
-                        hx-get="{% url 'audit:list' %}?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-get="{% url 'audit:list' %}?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'7d' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                         hx-target="#audit-log-table"
                         hx-swap="outerHTML">
                     <span class="material-symbols-outlined text-[18px]">chevron_right</span>
