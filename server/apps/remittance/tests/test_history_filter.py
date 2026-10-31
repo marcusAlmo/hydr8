@@ -206,7 +206,7 @@ class RemittanceHistoryDateFilterTests(TestCase):
         pagination = response.context["pagination"]
         self.assertEqual(pagination["total_pages"], 1)
         self.assertEqual(pagination["page_numbers"], [1])
-        self.assertEqual(pagination["showing"], "Showing 1–1 of 1 records")
+        self.assertEqual(pagination["showing"], "Showing 1-1 of 1 records")
         self.assertEqual(len(response.context["remittances"]), 1)
 
     def test_remittance_history_view_pagination_empty_for_zero_results(self):

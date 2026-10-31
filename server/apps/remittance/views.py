@@ -422,7 +422,7 @@ def remittance_history_view(request):
         page = min(max(1, page), total_pages)
         showing_from = (page - 1) * per_page + 1
         showing_to = min(page * per_page, total)
-        showing = f"Showing {showing_from}–{showing_to} of {total} records"
+        showing = f"Showing {showing_from}-{showing_to} of {total} records"
         page_numbers = get_elided_page_numbers(page, total_pages)
         page_range = list(range(1, total_pages + 1))
         has_previous = page > 1

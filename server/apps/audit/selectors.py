@@ -5,7 +5,6 @@ This keeps N+1 prevention (select_related) and tenant scoping in one place.
 """
 import json
 import logging
-
 from datetime import date, datetime, time, timedelta
 
 from auditlog.models import LogEntry
