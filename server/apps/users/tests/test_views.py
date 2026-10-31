@@ -49,7 +49,7 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertContains(response, 'Offline-First')
         self.assertContains(response, 'Feature Gallery')
         self.assertContains(response, 'Daily Remittance Ledger')
-        self.assertContains(response, '₱999')
+        self.assertContains(response, '₱499')
         self.assertContains(response, 'Get Started')
         self.assertContains(response, 'Log In')
         self.assertContains(response, 'rushdashvx@gmail.com')
