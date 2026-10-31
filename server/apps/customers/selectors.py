@@ -215,7 +215,7 @@ def _pagination_from_page(page_obj) -> dict:
             "total": 0,
             "total_display": "0",
             "current_page": page_obj.number,
-            "total_pages": page_obj.paginator.num_pages,
+            "total_pages": 0,
             "has_previous": False,
             "has_next": False,
             "previous_page_number": None,

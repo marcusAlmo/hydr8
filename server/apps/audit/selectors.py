@@ -5,10 +5,12 @@ This keeps N+1 prevention (select_related) and tenant scoping in one place.
 """
 import json
 import logging
+from datetime import date, datetime, time, timedelta
 
 from auditlog.models import LogEntry
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
+from django.utils import timezone
 
 from apps.core.pagination import DEFAULT_PER_PAGE
 
@@ -47,9 +49,9 @@ def _enrich_entry(entry):
     if entry.content_type:
         model_class = entry.content_type.model_class()
         entry.content_type_str = (
-            f"{entry.content_type.app_label}.{model_class.__name__}"
+            model_class._meta.verbose_name.title()
             if model_class
-            else f"{entry.content_type.app_label}.{entry.content_type.model}"
+            else entry.content_type.name.title()
         )
     else:
         entry.content_type_str = "—"
@@ -57,18 +59,35 @@ def _enrich_entry(entry):
     entry.changes_summary = f"{len(changes)} field(s) changed" if changes else "—"
 
 
-def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: str = "") -> dict:
+def list_log_entries(
+    *,
+    user,
+    page: int = 1,
+    per_page: int = PER_PAGE,
+    query: str = "",
+    action: str = "",
+    date_range: str = "all",
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> dict:
     """Returns a paginated, enriched, tenant-scoped view of the audit log.
 
     When ``query`` is non-empty, filters by object_repr, cid, remote_addr,
     or actor name/username using ``__ilike``.
+    When ``action`` is provided (0, 1, 2, 3), narrows to that action.
+    When ``date_range`` or ``start_date``/``end_date`` is provided, narrows by timestamp.
 
     Returns a dict with:
-        page_obj:      Django Page object (object_list entries are enriched)
-        paginator:     Paginator instance
-        total:         total entry count (full queryset)
-        action_counts: {0: int, 1: int, 2: int, 3: int} (full queryset)
-        active_actors: count of distinct non-null actors (full queryset)
+        page_obj:          Django Page object (object_list entries are enriched)
+        paginator:         Paginator instance
+        total:             filtered total count matching action, date, and query
+        date_scoped_total: total count matching date and query (before action filter)
+        action_counts:     {0: int, 1: int, 2: int, 3: int} matching date and query
+        active_actors:     count of distinct non-null actors matching date and query
+        active_action:     string representation of current action filter
+        date_range:        current date range key
+        start_date:        start date if custom range
+        end_date:          end date if custom range
     """
     qs = (
         LogEntry.objects
@@ -76,6 +95,23 @@ def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: st
         .order_by("-timestamp")
     )
     qs = _tenant_filter(qs, user)
+
+    # Apply date range filter
+    now = timezone.now()
+    today = timezone.localdate()
+    if date_range == "today":
+        today_start = timezone.make_aware(datetime.combine(today, time.min))
+        qs = qs.filter(timestamp__gte=today_start)
+    elif date_range == "7d":
+        qs = qs.filter(timestamp__gte=now - timedelta(days=7))
+    elif date_range == "30d":
+        qs = qs.filter(timestamp__gte=now - timedelta(days=30))
+    elif date_range == "custom" and start_date and end_date:
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        start_dt = timezone.make_aware(datetime.combine(start_date, time.min))
+        end_dt = timezone.make_aware(datetime.combine(end_date, time.max))
+        qs = qs.filter(timestamp__range=(start_dt, end_dt))
 
     # Apply search filter
     query = (query or "").strip()
@@ -89,12 +125,18 @@ def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: st
             | Q(actor__last_name__ilike=query)
         )
 
-    # Aggregate counts from the full queryset (single query via values+annotate)
-    total = qs.count()
-    action_counts_raw = qs.values("action").annotate(count=Count("action"))
+    # Action counts scoped to current date range & search query (before action filter)
+    date_scoped_total = qs.count()
+    action_counts_raw = qs.order_by().values("action").annotate(count=Count("id"))
     action_counts = {item["action"]: item["count"] for item in action_counts_raw}
-    active_actors = qs.exclude(actor=None).values("actor").distinct().count()
+    active_actors = qs.order_by().exclude(actor=None).values("actor").distinct().count()
 
+    # Apply action filter
+    action = (action or "").strip()
+    if action in ("0", "1", "2", "3"):
+        qs = qs.filter(action=int(action))
+
+    total = qs.count()
     paginator = Paginator(qs, per_page)
     page_obj = paginator.get_page(page)
 
@@ -105,8 +147,13 @@ def list_log_entries(*, user, page: int = 1, per_page: int = PER_PAGE, query: st
         "page_obj": page_obj,
         "paginator": paginator,
         "total": total,
+        "date_scoped_total": date_scoped_total,
         "action_counts": action_counts,
         "active_actors": active_actors,
+        "active_action": action,
+        "date_range": date_range,
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
 

@@ -83,3 +83,8 @@ class PaginationHelpersTestCase(SimpleTestCase):
         result = elided_pages(page_obj)
         self.assertEqual(result, [1, "…", 3, 4, 5, "…", 72])
         self.assertEqual(elided_pages(None), [])
+
+    def test_elided_pages_template_tag_empty(self):
+        paginator = Paginator([], 10)
+        page_obj = paginator.page(1)
+        self.assertEqual(elided_pages(page_obj), [])

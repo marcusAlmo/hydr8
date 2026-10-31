@@ -43,7 +43,7 @@ Expects context:
                         <span class="font-data-mono text-[10px] text-on-surface-variant">#{{ entry.id }}</span>
                     </div>
                     <h3 class="font-headline-sm text-headline-sm font-bold text-on-surface truncate">{{ entry.object_repr }}</h3>
-                    <p class="text-xs text-on-surface-variant font-data-mono">{{ entry.content_type_str }} · pk={{ entry.object_pk }}</p>
+                    <p class="text-xs text-on-surface-variant font-medium">{{ entry.content_type_str }} · Record #{{ entry.object_pk }}</p>
                 </div>
             </div>
             <button
@@ -61,7 +61,7 @@ Expects context:
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <!-- Actor -->
                 <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
-                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Actor</div>
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Staff / Initiator</div>
                     <div class="flex items-center gap-2">
                         <div class="w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[9px] flex-shrink-0">
                             {% if entry.actor_display == "System" or entry.actor_display == "system-scheduler" %}
@@ -85,16 +85,16 @@ Expects context:
 
                 <!-- IP Address -->
                 <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
-                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Remote Address</div>
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Device IP</div>
                     <div class="font-data-mono text-xs text-on-surface">{{ entry.remote_addr|default:"—" }}</div>
                     {% if entry.remote_port %}
                     <div class="text-[10px] text-on-surface-variant/70 font-data-mono mt-0.5">port {{ entry.remote_port }}</div>
                     {% endif %}
                 </div>
 
-                <!-- Correlation ID -->
+                <!-- Tracking Ref -->
                 <div class="bg-surface-container-low rounded-lg p-3 border border-outline-variant/20">
-                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Correlation ID</div>
+                    <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider mb-1">Tracking Ref</div>
                     <div class="font-data-mono text-[10px] text-on-surface break-all">{{ entry.cid|default:"—" }}</div>
                 </div>
             </div>
@@ -104,7 +104,7 @@ Expects context:
             <div class="bg-primary/5 border border-primary/20 rounded-lg p-4">
                 <div class="flex items-center gap-2 mb-2">
                     <span class="material-symbols-outlined text-primary text-[18px]">badge</span>
-                    <span class="font-label-caps text-label-caps text-primary uppercase tracking-wider">Event Metadata</span>
+                    <span class="font-label-caps text-label-caps text-primary uppercase tracking-wider">Activity Details</span>
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div>
@@ -119,13 +119,13 @@ Expects context:
                     {% endif %}
                     {% if entry.additional_data.device_name %}
                     <div class="col-span-2 md:col-span-1">
-                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider">Device / User-Agent</div>
+                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider">Device Browser / App</div>
                         <div class="font-data-mono text-[10px] text-on-surface-variant break-all">{{ entry.additional_data.device_name }}</div>
                     </div>
                     {% endif %}
                     {% if entry.additional_data.ip_address %}
                     <div>
-                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider">Captured IP</div>
+                        <div class="font-label-caps text-[9px] text-on-surface-variant uppercase tracking-wider">Captured Device IP</div>
                         <div class="font-data-mono text-xs text-on-surface">{{ entry.additional_data.ip_address }}</div>
                     </div>
                     {% endif %}
@@ -249,7 +249,7 @@ Expects context:
                     class="w-full flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/20 hover:bg-surface-container transition-colors">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-on-surface-variant text-[18px]">data_object</span>
-                        <span class="font-label-caps text-label-caps text-on-surface uppercase tracking-wider">Serialized Object Snapshot</span>
+                        <span class="font-label-caps text-label-caps text-on-surface uppercase tracking-wider">Saved Record Snapshot</span>
                     </div>
                     <span class="material-symbols-outlined text-on-surface-variant text-[18px] transition-transform" :class="open ? 'rotate-90' : ''">chevron_right</span>
                 </button>
@@ -267,7 +267,7 @@ Expects context:
                     class="w-full flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/20 hover:bg-surface-container transition-colors">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined text-on-surface-variant text-[18px]">code</span>
-                        <span class="font-label-caps text-label-caps text-on-surface uppercase tracking-wider">Raw Additional Data (JSON)</span>
+                        <span class="font-label-caps text-label-caps text-on-surface uppercase tracking-wider">Additional Event Details</span>
                     </div>
                     <span class="material-symbols-outlined text-on-surface-variant text-[18px] transition-transform" :class="open ? 'rotate-90' : ''">chevron_right</span>
                 </button>
@@ -282,8 +282,8 @@ Expects context:
         <!-- Footer -->
         <div class="flex items-center justify-between p-4 border-t border-outline-variant/20 bg-surface-container-low">
             <div class="flex items-center gap-2 text-[10px] text-on-surface-variant/70 font-data-mono">
-                <span class="material-symbols-outlined text-[14px]">fingerprint</span>
-                <span>Recorded by django-auditlog · AuditlogMiddleware</span>
+                <span class="material-symbols-outlined text-[14px]">verified</span>
+                <span>Automated Station Audit Trail • Verified Activity Record</span>
             </div>
             <button
                 @click="$dispatch('close-modal')"

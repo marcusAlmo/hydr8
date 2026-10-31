@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_required
@@ -349,6 +349,7 @@ def remittance_history_view(request):
 
     from_str = request.GET.get("from") or request.GET.get("date_from") or request.GET.get("start_date")
     to_str = request.GET.get("to") or request.GET.get("date_to") or request.GET.get("end_date")
+    range_preset = (request.GET.get("range") or "").strip().lower()
 
     start_date = None
     end_date = None
@@ -358,6 +359,23 @@ def remittance_history_view(request):
             end_date = date.fromisoformat(to_str)
         except ValueError:
             pass
+    elif range_preset:
+        today = timezone.localdate()
+        if range_preset == "today":
+            start_date = today
+            end_date = today
+        elif range_preset == "7d":
+            start_date = today - timedelta(days=6)
+            end_date = today
+        elif range_preset == "14d":
+            start_date = today - timedelta(days=13)
+            end_date = today
+        elif range_preset == "30d":
+            start_date = today - timedelta(days=29)
+            end_date = today
+        elif range_preset == "all":
+            start_date = None
+            end_date = None
 
     # Direct backend JSON call from Alpine custom filter
     is_json = request.GET.get("format") == "json" or request.headers.get("x-requested-with") == "XMLHttpRequest"
@@ -391,36 +409,53 @@ def remittance_history_view(request):
     )
 
     total = recent["total"]
-    shown = len(recent["remittances"])
-    total_pages = max(1, (total + per_page - 1) // per_page)
-    page = min(max(1, page), total_pages)
+    if total == 0:
+        showing = "No records found"
+        total_pages = 0
+        page = 1
+        page_numbers = []
+        page_range = []
+        has_previous = False
+        has_next = False
+    else:
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = min(max(1, page), total_pages)
+        showing_from = (page - 1) * per_page + 1
+        showing_to = min(page * per_page, total)
+        showing = f"Showing {showing_from}-{showing_to} of {total} records"
+        page_numbers = get_elided_page_numbers(page, total_pages)
+        page_range = list(range(1, total_pages + 1))
+        has_previous = page > 1
+        has_next = page < total_pages
 
     context["remittances"] = recent["remittances"]
     context["is_admin"] = is_admin(request.user)
     context["pagination"] = {
-        "showing": f"Showing {shown} of {total} records",
+        "showing": showing,
         "current_page": page,
         "total_pages": total_pages,
         "per_page": per_page,
         "per_page_choices": list(PER_PAGE_CHOICES),
-        "has_previous": page > 1,
-        "has_next": page < total_pages,
-        "previous_page_number": page - 1,
-        "next_page_number": page + 1,
-        "page_range": list(range(1, total_pages + 1)),
-        "page_numbers": get_elided_page_numbers(page, total_pages),
+        "has_previous": has_previous,
+        "has_next": has_next,
+        "previous_page_number": page - 1 if has_previous else None,
+        "next_page_number": page + 1 if has_next else None,
+        "page_range": page_range,
+        "page_numbers": page_numbers,
     }
-    context["custom_from"] = from_str or ""
-    context["custom_to"] = to_str or ""
-    context["initial_range"] = "custom" if (start_date and end_date) else "7d"
+    has_valid_custom = bool(start_date and end_date and not range_preset)
+    context["custom_from"] = from_str if has_valid_custom else ""
+    context["custom_to"] = to_str if has_valid_custom else ""
+    context["range_preset"] = range_preset
+    if from_str or to_str:
+        context["initial_range"] = "custom" if has_valid_custom else "7d"
+    elif range_preset:
+        context["initial_range"] = range_preset
+    else:
+        context["initial_range"] = "all"
 
-    default_trends = (
-        get_remittance_history_context(request.user)["trends"]
-        if (start_date and end_date)
-        else context["trends"]
-    )
-    context["default_trends_seed"] = _safe_json(default_trends)
     context["trends_seed"] = _safe_json(context["trends"])
+    context["default_trends_seed"] = context["trends_seed"]
     return render(request, "remittance/remittance_history.html", context)
 
 

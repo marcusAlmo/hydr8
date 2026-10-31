@@ -49,7 +49,7 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertContains(response, 'Offline-First')
         self.assertContains(response, 'Feature Gallery')
         self.assertContains(response, 'Daily Remittance Ledger')
-        self.assertContains(response, '₱999')
+        self.assertContains(response, '₱499')
         self.assertContains(response, 'Get Started')
         self.assertContains(response, 'Log In')
         self.assertContains(response, 'rushdashvx@gmail.com')
@@ -77,6 +77,38 @@ class UserLandingAndLoginViewTests(TestCase):
         self.assertContains(response, '99.9% Station Uptime • 100% Audit Accurate')
         self.assertContains(response, 'Automatic Balance Protection')
         self.assertContains(response, 'Speed: Instant')
+
+    def test_landing_page_removes_station_terminal_preview_card(self):
+        """Test landing page does not render the mock pump #1 station terminal preview card."""
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Station Terminal: PUMP #1 ACTIVE')
+        self.assertNotContains(response, '428 jugs')
+        self.assertNotContains(response, '₱14,980.00 Gross')
+        self.assertNotContains(response, 'Driver Jun Remittance')
+        self.assertNotContains(response, 'Return 5x Empty Slim')
+
+    def test_mobile_device_blocker_modal_rendered_across_surfaces(self):
+        """Test that the mobile device blocker overlay is rendered with tablet/desktop warning."""
+        # 1. Landing page
+        landing_response = self.client.get('/')
+        self.assertEqual(landing_response.status_code, 200)
+        self.assertContains(landing_response, 'id="hydr8-mobile-blocker"')
+        self.assertContains(landing_response, 'Tablets or Larger Only')
+        self.assertContains(landing_response, 'Device Screen Not Supported')
+
+        # 2. Login page
+        login_response = self.client.get('/login/')
+        self.assertEqual(login_response.status_code, 200)
+        self.assertContains(login_response, 'id="hydr8-mobile-blocker"')
+        self.assertContains(login_response, 'Tablets or Larger Only')
+
+        # 3. Authenticated back-office app (base.html)
+        self.client.force_login(self.user)
+        app_response = self.client.get('/analytics/dashboard/')
+        self.assertEqual(app_response.status_code, 200)
+        self.assertContains(app_response, 'id="hydr8-mobile-blocker"')
+        self.assertContains(app_response, 'Tablets or Larger Only')
 
     def test_login_view_get(self):
         """Test direct GET request to login view renders dedicated login page."""

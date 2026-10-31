@@ -1807,18 +1807,19 @@ def get_credit_repayments_for_remittance(
             "credit_recorded_on": recorded_date.isoformat() if recorded_date else "—",
         })
 
-    page_range = list(paginator.page_range)
+    total = paginator.count
+    page_range = list(paginator.page_range) if total else []
     return {
         "repayments": repayments,
-        "total": paginator.count,
+        "total": total,
         "page": page_obj.number,
         "page_size": page_size,
-        "total_pages": paginator.num_pages,
+        "total_pages": paginator.num_pages if total else 0,
         "page_range": page_range,
-        "page_start": page_obj.start_index() if page_obj else 0,
-        "page_end": page_obj.end_index() if page_obj else 0,
+        "page_start": page_obj.start_index() if total else 0,
+        "page_end": page_obj.end_index() if total else 0,
         "per_page_choices": list(PER_PAGE_CHOICES),
-        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages),
+        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages) if total else [],
     }
 
 
@@ -1894,16 +1895,17 @@ def get_credits_recorded_for_remittance(
             "remittance_date": credit.remittance.date.isoformat() if credit.remittance else "—",
         })
 
-    page_range = list(paginator.page_range)
+    total = paginator.count
+    page_range = list(paginator.page_range) if total else []
     return {
         "credits": credits,
-        "total": paginator.count,
+        "total": total,
         "page": page_obj.number,
         "page_size": page_size,
-        "total_pages": paginator.num_pages,
+        "total_pages": paginator.num_pages if total else 0,
         "page_range": page_range,
-        "page_start": page_obj.start_index() if page_obj else 0,
-        "page_end": page_obj.end_index() if page_obj else 0,
+        "page_start": page_obj.start_index() if total else 0,
+        "page_end": page_obj.end_index() if total else 0,
         "per_page_choices": list(PER_PAGE_CHOICES),
-        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages),
+        "page_numbers": get_elided_page_numbers(page_obj.number, paginator.num_pages) if total else [],
     }

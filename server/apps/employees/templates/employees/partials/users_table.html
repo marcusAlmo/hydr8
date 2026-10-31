@@ -11,7 +11,7 @@ Expects context:
                   current_page, total_pages }
 {% endcomment %}
 <div id="users-table" class="flex-1 flex flex-col gap-6"
-     hx-get="{% url 'employees:search' %}"
+     hx-get="{% url 'employees:search' %}?filter={{ active_filter|default:'all' }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&per_page={{ pagination.per_page }}&page={{ pagination.current_page }}"
      hx-trigger="refreshUsersTable from:body"
      hx-target="this"
      hx-swap="outerHTML"

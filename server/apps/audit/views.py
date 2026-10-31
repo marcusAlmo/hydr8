@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -24,27 +25,49 @@ from apps.users.permissions import is_admin
 logger = logging.getLogger(__name__)
 
 
-def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = False, per_page: int = DEFAULT_PER_PAGE) -> dict:
+def _build_list_context(
+    *,
+    user,
+    page: int,
+    query: str = "",
+    action: str = "",
+    date_range: str = "all",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    for_htmx: bool = False,
+    per_page: int = DEFAULT_PER_PAGE,
+) -> dict:
     """Builds the template context for the audit log list page from real data."""
-    data = list_log_entries(user=user, page=page, per_page=per_page, query=query)
+    data = list_log_entries(
+        user=user,
+        page=page,
+        per_page=per_page,
+        query=query,
+        action=action,
+        date_range=date_range,
+        start_date=start_date,
+        end_date=end_date,
+    )
     page_obj = data["page_obj"]
     action_counts = data["action_counts"]
+    total = data["total"]
 
     action_filters = [
-        {"value": "", "label": "All Actions", "count": data["total"], "active": True},
-        {"value": "0", "label": "Create", "count": action_counts.get(0, 0), "active": False},
-        {"value": "1", "label": "Update", "count": action_counts.get(1, 0), "active": False},
-        {"value": "2", "label": "Delete", "count": action_counts.get(2, 0), "active": False},
-        {"value": "3", "label": "Access", "count": action_counts.get(3, 0), "active": False},
+        {"value": "", "label": "All Actions", "count": data["date_scoped_total"], "active": action == ""},
+        {"value": "0", "label": "Create", "count": action_counts.get(0, 0), "active": action == "0"},
+        {"value": "1", "label": "Update", "count": action_counts.get(1, 0), "active": action == "1"},
+        {"value": "2", "label": "Delete", "count": action_counts.get(2, 0), "active": action == "2"},
+        {"value": "3", "label": "Access", "count": action_counts.get(3, 0), "active": action == "3"},
     ]
 
     mutations = sum(action_counts.get(a, 0) for a in (0, 1, 2))
     access_events = action_counts.get(3, 0)
+    date_scoped_total = data["date_scoped_total"]
     stats = [
         {
             "label": "Total Entries",
-            "value": str(data["total"]),
-            "raw_value": data["total"],
+            "value": str(date_scoped_total),
+            "raw_value": date_scoped_total,
             "value_prefix": "",
             "value_decimals": 0,
             "icon": "history",
@@ -80,18 +103,19 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
     ]
 
     pagination = {
-        "showing_from": page_obj.start_index() if page_obj.object_list else 0,
-        "showing_to": page_obj.end_index() if page_obj.object_list else 0,
-        "total_display": str(data["total"]),
+        "showing_from": page_obj.start_index() if total else 0,
+        "showing_to": page_obj.end_index() if total else 0,
+        "total": total,
+        "total_display": f"{total:,}",
         "current_page": page_obj.number,
-        "total_pages": page_obj.paginator.num_pages,
+        "total_pages": page_obj.paginator.num_pages if total else 0,
         "has_previous": page_obj.has_previous(),
         "has_next": page_obj.has_next(),
         "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
         "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
         "per_page": page_obj.paginator.per_page,
         "per_page_choices": list(PER_PAGE_CHOICES),
-        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages),
+        "page_numbers": get_elided_page_numbers(page_obj.number, page_obj.paginator.num_pages) if total else [],
     }
 
     if for_htmx:
@@ -107,7 +131,7 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
 
         # Action counts for the Alpine filter chips (full dataset counts)
         action_counts_data = {
-            "total": data["total"],
+            "total": data["date_scoped_total"],
             "0": action_counts.get(0, 0),
             "1": action_counts.get(1, 0),
             "2": action_counts.get(2, 0),
@@ -120,7 +144,8 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
         "logs": page_obj.object_list,
         "logs_data": logs_data,
         "action_counts_data": action_counts_data,
-        "total": data["total"],
+        "total": total,
+        "date_scoped_total": data["date_scoped_total"],
         "action_filters": action_filters,
         "stats": stats,
         "pagination": pagination,
@@ -128,6 +153,11 @@ def _build_list_context(*, user, page: int, query: str = "", for_htmx: bool = Fa
         "action_counts_json": action_counts_json,
         "page_obj": page_obj,
         "search_query": query,
+        "active_action": action,
+        "date_range": date_range,
+        "custom_from": start_date.strftime("%Y-%m-%d") if start_date else "",
+        "custom_to": end_date.strftime("%Y-%m-%d") if end_date else "",
+        "for_htmx": for_htmx,
     }
 
 
@@ -159,10 +189,35 @@ def audit_log_view(request):
     except (TypeError, ValueError):
         page = 1
     query = request.GET.get("q", "")
+    action = request.GET.get("action", "")
+    date_range = request.GET.get("range", "all")
+    from_str = request.GET.get("from")
+    to_str = request.GET.get("to")
+    start_date = None
+    end_date = None
+    if from_str and to_str:
+        try:
+            start_date = datetime.strptime(from_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(to_str, "%Y-%m-%d").date()
+            if start_date > end_date:
+                start_date, end_date = end_date, start_date
+            date_range = "custom"
+        except ValueError:
+            start_date = None
+            end_date = None
+
     per_page = parse_per_page(request.GET.get("per_page"))
     for_htmx = getattr(request, "htmx", False) and not getattr(request.htmx, "boosted", False)
     context = _build_list_context(
-        user=request.user, page=page, query=query, for_htmx=for_htmx, per_page=per_page
+        user=request.user,
+        page=page,
+        query=query,
+        action=action,
+        date_range=date_range,
+        start_date=start_date,
+        end_date=end_date,
+        for_htmx=for_htmx,
+        per_page=per_page,
     )
 
     # Internal HTMX requests (search/pagination) get just the table partial;
