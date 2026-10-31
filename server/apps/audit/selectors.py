@@ -128,9 +128,9 @@ def list_log_entries(
 
     # Action counts scoped to current date range & search query (before action filter)
     date_scoped_total = qs.count()
-    action_counts_raw = qs.values("action").annotate(count=Count("action"))
+    action_counts_raw = qs.order_by().values("action").annotate(count=Count("id"))
     action_counts = {item["action"]: item["count"] for item in action_counts_raw}
-    active_actors = qs.exclude(actor=None).values("actor").distinct().count()
+    active_actors = qs.order_by().exclude(actor=None).values("actor").distinct().count()
 
     # Apply action filter
     action = (action or "").strip()

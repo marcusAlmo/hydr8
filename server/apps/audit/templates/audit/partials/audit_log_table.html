@@ -4,6 +4,9 @@ Contains action filter chips, search input, records table, and pagination contro
 All filtering and pagination are server-side computed to accurately reflect returned quantities.
 {% endcomment %}
 <div id="audit-log-table" class="flex flex-col gap-4">
+    {% if for_htmx %}
+    {% include "audit/partials/audit_stats_cards.html" %}
+    {% endif %}
     <!-- Server-synchronized filter state for HTMX controls with hx-preserve / outside table -->
     <input type="hidden" id="audit-active-action" name="action" value="{{ active_action|default:'' }}">
     <input type="hidden" id="audit-active-range" name="range" value="{{ date_range|default:'all' }}">

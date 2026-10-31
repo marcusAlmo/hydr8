@@ -88,6 +88,8 @@ class AuditLogViewTests(TestCase):
         from auditlog.models import LogEntry
 
         ct = ContentType.objects.get_for_model(User)
+        # Clear preexisting setup logs for clean count assertions
+        LogEntry.objects.all().delete()
         # Create 3 update entries and 2 delete entries
         for i in range(3):
             LogEntry.objects.create(
@@ -117,6 +119,14 @@ class AuditLogViewTests(TestCase):
         self.assertContains(response, "Delete 0")
         self.assertContains(response, "Delete 1")
         self.assertNotContains(response, "Update 0")
+
+        # Verify action counts breakdown accurately reflects each action, not 1
+        filters = {f["value"]: f["count"] for f in response.context["action_filters"]}
+        self.assertEqual(filters["1"], 3)
+        self.assertEqual(filters["2"], 2)
+        self.assertEqual(filters["0"], 0)
+        self.assertContains(response, 'hx-swap-oob="true"')
+        self.assertContains(response, 'id="audit-stats-cards"')
 
     def test_audit_log_pagination_empty_for_zero_results(self):
         """When filter matches zero results, pagination reflects 0 entries and empty page numbers."""

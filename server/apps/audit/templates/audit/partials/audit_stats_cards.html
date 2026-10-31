@@ -1,0 +1,19 @@
+<div id="audit-stats-cards" {% if for_htmx %}hx-swap-oob="true"{% endif %} class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 hydr8-stagger">
+    {% for stat in stats %}
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 flex items-center gap-3 hydr8-reveal-item">
+        <div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined {{ stat.accent }}">{{ stat.icon }}</span>
+        </div>
+        <div class="min-w-0">
+            <div class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider truncate">{{ stat.label }}</div>
+            <div class="font-data-mono font-bold text-xl text-on-surface leading-tight"
+                 x-data="countUp({
+                     target: {{ stat.raw_value|default_if_none:'null' }},
+                     prefix: '{{ stat.value_prefix|default:'' }}',
+                     decimals: {{ stat.value_decimals|default:'0' }}
+                 })">{{ stat.value }}</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+

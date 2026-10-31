@@ -157,6 +157,7 @@ def _build_list_context(
         "date_range": date_range,
         "custom_from": start_date.strftime("%Y-%m-%d") if start_date else "",
         "custom_to": end_date.strftime("%Y-%m-%d") if end_date else "",
+        "for_htmx": for_htmx,
     }
 
 
