@@ -353,13 +353,19 @@ def remittance_history_view(request):
 
     start_date = None
     end_date = None
+    custom_date_valid = False
     if from_str and to_str:
         try:
             start_date = date.fromisoformat(from_str)
             end_date = date.fromisoformat(to_str)
+            custom_date_valid = True
         except ValueError:
-            pass
-    elif range_preset:
+            start_date = None
+            end_date = None
+
+    if not (start_date and end_date):
+        if not range_preset:
+            range_preset = "7d"
         today = timezone.localdate()
         if range_preset == "today":
             start_date = today
@@ -376,6 +382,10 @@ def remittance_history_view(request):
         elif range_preset == "all":
             start_date = None
             end_date = None
+        else:
+            range_preset = "7d"
+            start_date = today - timedelta(days=6)
+            end_date = today
 
     # Direct backend JSON call from Alpine custom filter
     is_json = request.GET.get("format") == "json" or request.headers.get("x-requested-with") == "XMLHttpRequest"
@@ -443,16 +453,16 @@ def remittance_history_view(request):
         "page_range": page_range,
         "page_numbers": page_numbers,
     }
-    has_valid_custom = bool(start_date and end_date and not range_preset)
+    has_valid_custom = bool(custom_date_valid and not request.GET.get("range"))
     context["custom_from"] = from_str if has_valid_custom else ""
     context["custom_to"] = to_str if has_valid_custom else ""
-    context["range_preset"] = range_preset
-    if from_str or to_str:
-        context["initial_range"] = "custom" if has_valid_custom else "7d"
+    context["range_preset"] = "" if has_valid_custom else range_preset
+    if has_valid_custom:
+        context["initial_range"] = "custom"
     elif range_preset:
         context["initial_range"] = range_preset
     else:
-        context["initial_range"] = "all"
+        context["initial_range"] = "7d"
 
     context["trends_seed"] = _safe_json(context["trends"])
     context["default_trends_seed"] = context["trends_seed"]

@@ -249,14 +249,14 @@ class RemittanceHistoryDateFilterTests(TestCase):
         self.assertIn(self.rem2.id, rem_ids_all)
         self.assertEqual(res_all.context["initial_range"], "all")
 
-        # 3. Default (no range param) returns all remittances and sets initial_range to 'all'
+        # 3. Default (no range param) defaults to 7 days and sets initial_range to '7d'
         res_default = self.client.get("/remittance/history/")
         self.assertEqual(res_default.status_code, 200)
         rem_ids_default = [r["id"] for r in res_default.context["remittances"]]
         self.assertIn(rem_today.id, rem_ids_default)
-        self.assertIn(self.rem1.id, rem_ids_default)
-        self.assertIn(self.rem2.id, rem_ids_default)
-        self.assertEqual(res_default.context["initial_range"], "all")
+        self.assertNotIn(self.rem1.id, rem_ids_default)
+        self.assertNotIn(self.rem2.id, rem_ids_default)
+        self.assertEqual(res_default.context["initial_range"], "7d")
 
     def test_remittance_history_buttons_include_all_button(self):
         """Remittance history date range header renders the All button."""
