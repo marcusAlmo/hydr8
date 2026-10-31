@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.core.models import Product
 from apps.remittance.models import (
@@ -195,3 +196,74 @@ class RemittanceHistoryDateFilterTests(TestCase):
             end_date=date(2026, 7, 31),
         )
         self.assertEqual(res_none["total"], 0)
+
+    def test_remittance_history_view_pagination_filtered_qty(self):
+        """Remittance history view pagination updates based on qty returned by filter."""
+        self.client.force_login(self.admin)
+        # Narrow range covering only rem1
+        response = self.client.get("/remittance/history/?from=2026-08-14&to=2026-08-16")
+        self.assertEqual(response.status_code, 200)
+        pagination = response.context["pagination"]
+        self.assertEqual(pagination["total_pages"], 1)
+        self.assertEqual(pagination["page_numbers"], [1])
+        self.assertEqual(pagination["showing"], "Showing 1–1 of 1 records")
+        self.assertEqual(len(response.context["remittances"]), 1)
+
+    def test_remittance_history_view_pagination_empty_for_zero_results(self):
+        """When date filter returns zero records, pagination shows empty state."""
+        self.client.force_login(self.admin)
+        response = self.client.get("/remittance/history/?from=2025-01-01&to=2025-01-31")
+        self.assertEqual(response.status_code, 200)
+        pagination = response.context["pagination"]
+        self.assertEqual(pagination["total_pages"], 0)
+        self.assertEqual(pagination["page_numbers"], [])
+        self.assertEqual(pagination["showing"], "No records found")
+        self.assertEqual(len(response.context["remittances"]), 0)
+
+    def test_remittance_history_view_range_preset_affects_returned_instances(self):
+        """Selecting range presets filters returned instances and updates pagination."""
+        today = timezone.localdate()
+        rem_today = Remittance.objects.create(
+            company=self.company,
+            created_by=self.admin,
+            date=today,
+            status=Remittance.StatusChoices.FINALIZED,
+            total_sales=Decimal("3000.00"),
+            net_profit=Decimal("2500.00"),
+        )
+        self.client.force_login(self.admin)
+
+        # 1. ?range=today returns only today's remittance
+        res_today = self.client.get("/remittance/history/?range=today")
+        self.assertEqual(res_today.status_code, 200)
+        rem_ids_today = [r["id"] for r in res_today.context["remittances"]]
+        self.assertEqual(rem_ids_today, [rem_today.id])
+        self.assertEqual(res_today.context["initial_range"], "today")
+
+        # 2. ?range=all returns all remittances (today + past)
+        res_all = self.client.get("/remittance/history/?range=all")
+        self.assertEqual(res_all.status_code, 200)
+        rem_ids_all = [r["id"] for r in res_all.context["remittances"]]
+        self.assertIn(rem_today.id, rem_ids_all)
+        self.assertIn(self.rem1.id, rem_ids_all)
+        self.assertIn(self.rem2.id, rem_ids_all)
+        self.assertEqual(res_all.context["initial_range"], "all")
+
+        # 3. Default (no range param) returns all remittances and sets initial_range to 'all'
+        res_default = self.client.get("/remittance/history/")
+        self.assertEqual(res_default.status_code, 200)
+        rem_ids_default = [r["id"] for r in res_default.context["remittances"]]
+        self.assertIn(rem_today.id, rem_ids_default)
+        self.assertIn(self.rem1.id, rem_ids_default)
+        self.assertIn(self.rem2.id, rem_ids_default)
+        self.assertEqual(res_default.context["initial_range"], "all")
+
+    def test_remittance_history_buttons_include_all_button(self):
+        """Remittance history date range header renders the All button."""
+        self.client.force_login(self.admin)
+        response = self.client.get("/remittance/history/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("@click=\"setDateRange('all')\"", content)
+
+

@@ -227,7 +227,7 @@ Expects context:
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button @click="prevPage()" :disabled="currentPage === 1"
+                <button @click="prevPage()" :disabled="currentPage <= 1 || totalPages() === 0"
                         class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Previous page">
                     <span class="material-symbols-outlined text-[20px]">chevron_left</span>
@@ -242,7 +242,7 @@ Expects context:
                                 x-text="p"></button>
                     </span>
                 </template>
-                <button @click="nextPage()" :disabled="currentPage === totalPages()"
+                <button @click="nextPage()" :disabled="currentPage >= totalPages() || totalPages() === 0"
                         class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Next page">
                     <span class="material-symbols-outlined text-[20px]">chevron_right</span>
@@ -411,7 +411,8 @@ function commissionMatrix(cfg) {
             return list.slice(start, start + this.pageSize);
         },
         totalPages() {
-            return Math.max(1, Math.ceil(this.filteredRiders.length / this.pageSize));
+            if (this.filteredRiders.length === 0) return 0;
+            return Math.ceil(this.filteredRiders.length / this.pageSize);
         },
         nextPage() {
             if (this.currentPage < this.totalPages()) this.currentPage++;
@@ -431,6 +432,7 @@ function commissionMatrix(cfg) {
         },
         elidedPages() {
             const total = this.totalPages();
+            if (total === 0) return [];
             const curr = this.currentPage;
             if (total <= 5) {
                 return Array.from({ length: total }, (_, i) => i + 1);

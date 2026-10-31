@@ -82,3 +82,67 @@ class AuditLogViewTests(TestCase):
         self.assertEqual(ctx_entry.changes_list[0]["new"], "New")
         self.assertTrue(ctx_entry.serialized_data_pretty)
         self.assertTrue(ctx_entry.additional_data_pretty)
+
+    def test_audit_log_pagination_updates_with_action_filter(self):
+        """Action filter updates total count and pagination reflecting filtered quantity."""
+        from auditlog.models import LogEntry
+
+        ct = ContentType.objects.get_for_model(User)
+        # Create 3 update entries and 2 delete entries
+        for i in range(3):
+            LogEntry.objects.create(
+                content_type=ct,
+                object_pk=str(self.user.pk),
+                object_repr=f"Update {i}",
+                action=1,
+                actor=self.user,
+            )
+        for i in range(2):
+            LogEntry.objects.create(
+                content_type=ct,
+                object_pk=str(self.user.pk),
+                object_repr=f"Delete {i}",
+                action=2,
+                actor=self.user,
+            )
+
+        # Test action=2 (Delete)
+        response = self.client.get("/audit/?action=2", HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        pagination = response.context["pagination"]
+        self.assertEqual(pagination["total"], 2)
+        self.assertEqual(pagination["total_pages"], 1)
+        self.assertEqual(len(response.context["logs"]), 2)
+        self.assertEqual(response.context["active_action"], "2")
+        self.assertContains(response, "Delete 0")
+        self.assertContains(response, "Delete 1")
+        self.assertNotContains(response, "Update 0")
+
+    def test_audit_log_pagination_empty_for_zero_results(self):
+        """When filter matches zero results, pagination reflects 0 entries and empty page numbers."""
+        response = self.client.get("/audit/?q=nonexistent_staff_query_12345", HTTP_HX_REQUEST="true")
+        self.assertEqual(response.status_code, 200)
+        pagination = response.context["pagination"]
+        self.assertEqual(pagination["total"], 0)
+        self.assertEqual(pagination["total_pages"], 0)
+        self.assertEqual(pagination["page_numbers"], [])
+        self.assertEqual(pagination["showing_from"], 0)
+        self.assertEqual(pagination["showing_to"], 0)
+
+    def test_audit_log_custom_date_range_and_inverted_dates_normalized(self):
+        """Custom date range filters entries and normalizes inverted start/end dates."""
+        from django.utils import timezone
+
+        today_str = timezone.localdate().strftime("%Y-%m-%d")
+        response = self.client.get(
+            f"/audit/?range=custom&from=2099-12-31&to={today_str}",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["date_range"], "custom")
+        self.assertEqual(response.context["custom_from"], today_str)
+        self.assertEqual(response.context["custom_to"], "2099-12-31")
+        self.assertGreaterEqual(response.context["pagination"]["total"], 1)
+        self.assertContains(response, 'id="audit-active-action"')
+        self.assertContains(response, 'id="audit-active-range"')
+

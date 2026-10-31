@@ -93,6 +93,13 @@
             <!-- Global date range filter — drives ALL sections -->
             <div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1 relative">
                 <button
+                    @click="setDateRange('all')"
+                    :class="dateRange === 'all'
+                        ? 'bg-primary text-on-primary shadow-sm'
+                        : 'text-on-surface-variant hover:bg-surface-container-high'"
+                    class="px-3 py-1.5 rounded-md text-body-sm font-body-sm transition-all"
+                >All</button>
+                <button
                     @click="setDateRange('today')"
                     :class="dateRange === 'today'
                         ? 'bg-primary text-on-primary shadow-sm'
@@ -593,7 +600,7 @@
                 </div>
                 <div class="flex items-center gap-1">
                     {% if pagination.has_previous %}
-                    <a href="?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
+                    <a href="?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}{% if range_preset %}&range={{ range_preset }}{% endif %}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
                         <span class="material-symbols-outlined text-[18px]">chevron_left</span>
                     </a>
                     {% else %}
@@ -608,12 +615,12 @@
                         {% elif p == pagination.current_page %}
                         <span class="px-2.5 py-1 bg-primary text-on-primary rounded text-[12px] font-bold">{{ p }}</span>
                         {% else %}
-                        <a href="?page={{ p }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="px-2.5 py-1 hover:bg-surface-container-high rounded text-[12px] text-on-surface transition-colors">{{ p }}</a>
+                        <a href="?page={{ p }}&per_page={{ pagination.per_page }}{% if range_preset %}&range={{ range_preset }}{% endif %}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="px-2.5 py-1 hover:bg-surface-container-high rounded text-[12px] text-on-surface transition-colors">{{ p }}</a>
                         {% endif %}
                     {% endfor %}
 
                     {% if pagination.has_next %}
-                    <a href="?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
+                    <a href="?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}{% if range_preset %}&range={{ range_preset }}{% endif %}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}" class="p-1 rounded hover:bg-surface-container-high transition-colors text-on-surface">
                         <span class="material-symbols-outlined text-[18px]">chevron_right</span>
                     </a>
                     {% else %}
@@ -694,10 +701,11 @@
                 customTo: initTo,
                 loadingCustom: false,
                 dateRanges: [
+                    { key: 'all',   label: 'All'   },
                     { key: 'today', label: 'Today' },
-                    { key: '7d',  label: '7D'  },
-                    { key: '14d', label: '14D' },
-                    { key: '30d', label: '30D' },
+                    { key: '7d',    label: '7D'    },
+                    { key: '14d',   label: '14D'   },
+                    { key: '30d',   label: '30D'   },
                 ],
                 // --- Rider filter ---
                 selectedRiders: seed.riders.map(r => r.name),
@@ -737,44 +745,26 @@
 
                 // --- Global date-range actions -------------------------------------
                 setDateRange(key) {
-                    if (this.dateRange === 'custom') {
-                        // Restore default seed for preset slicing
-                        this.seed = JSON.parse(JSON.stringify(this._defaultSeed));
-                        if (window.history && window.history.pushState) {
-                            window.history.pushState(null, '', window.location.pathname);
-                        }
+                    const url = new URL(window.location);
+                    if (key === 'all') {
+                        url.searchParams.set('range', 'all');
+                    } else {
+                        url.searchParams.set('range', key);
                     }
-                    this.dateRange = key;
-                    this.customRangeOpen = false;
+                    url.searchParams.delete('from');
+                    url.searchParams.delete('to');
+                    url.searchParams.set('page', '1');
+                    window.location.href = url.toString();
                 },
-                async applyCustomRange() {
+                applyCustomRange() {
                     if (this.customFrom && this.customTo) {
                         this.loadingCustom = true;
-                        try {
-                            const url = `{% url 'remittance:history' %}?format=json&from=${encodeURIComponent(this.customFrom)}&to=${encodeURIComponent(this.customTo)}`;
-                            const res = await fetch(url, {
-                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                            });
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (data.ok && data.trends) {
-                                    this.seed = data.trends;
-                                    this.dateRange = 'custom';
-                                    this.customRangeOpen = false;
-                                    if (window.history && window.history.pushState) {
-                                        window.history.pushState(null, '', `?from=${encodeURIComponent(this.customFrom)}&to=${encodeURIComponent(this.customTo)}`);
-                                    }
-                                    this.renderAll();
-                                    return;
-                                }
-                            }
-                        } catch (err) {
-                            console.error('Error fetching custom date range:', err);
-                        } finally {
-                            this.loadingCustom = false;
-                        }
-                        // Fallback navigation
-                        window.location.href = `?from=${encodeURIComponent(this.customFrom)}&to=${encodeURIComponent(this.customTo)}`;
+                        const url = new URL(window.location);
+                        url.searchParams.delete('range');
+                        url.searchParams.set('from', this.customFrom);
+                        url.searchParams.set('to', this.customTo);
+                        url.searchParams.set('page', '1');
+                        window.location.href = url.toString();
                     }
                 },
                 // Human-readable label for the active range, shown in context
@@ -783,6 +773,7 @@
                     if (this.dateRange === 'custom' && this.customFrom && this.customTo) {
                         return `${this.customFrom} → ${this.customTo}`;
                     }
+                    if (this.dateRange === 'all') return 'All Time';
                     if (this.dateRange === 'today') return 'Today';
                     const r = this.dateRanges.find(d => d.key === this.dateRange);
                     return r ? `Last ${r.label}` : 'Last 30D';
@@ -793,16 +784,17 @@
                     return { 'today': 1, '7d': 7, '14d': 14, '30d': 30 }[this.dateRange] ?? 30;
                 },
                 sliceStart() {
+                    if (this.dateRange === 'all') return 0;
                     return Math.max(0, this.seed.labels.length - this.rangeLength());
                 },
                 filteredLabels() {
-                    if (this.dateRange === 'custom') {
+                    if (this.dateRange === 'custom' || this.dateRange === 'all') {
                         return this.seed.labels;
                     }
                     return this.seed.labels.slice(this.sliceStart());
                 },
                 filteredSeries(field) {
-                    if (this.dateRange === 'custom') {
+                    if (this.dateRange === 'custom' || this.dateRange === 'all') {
                         return this.seed[field] || [];
                     }
                     return (this.seed[field] || []).slice(this.sliceStart());
@@ -858,13 +850,13 @@
                     return Math.round(((last - first) / first) * 100);
                 },
                 totalRiderUnits() {
-                    const isCustom = this.dateRange === 'custom';
+                    const isFull = this.dateRange === 'custom' || this.dateRange === 'all';
                     const start = this.sliceStart();
                     return this.seed.riders
                         .filter(r => this.selectedRiders.includes(r.name))
                         .reduce(
                             (sum, r) => {
-                                const units = isCustom ? r.units_sold : r.units_sold.slice(start);
+                                const units = isFull ? r.units_sold : r.units_sold.slice(start);
                                 return sum + units.reduce((a, b) => a + (Number(b) || 0), 0);
                             },
                             0,
@@ -899,14 +891,14 @@
                 },
                 // Rider unit aggregates across all selected riders, per day
                 _riderDailyTotals() {
-                    const isCustom = this.dateRange === 'custom';
+                    const isFull = this.dateRange === 'custom' || this.dateRange === 'all';
                     const start = this.sliceStart();
-                    const len = isCustom ? this.filteredLabels().length : this.rangeLength();
+                    const len = isFull ? this.filteredLabels().length : this.rangeLength();
                     const totals = new Array(len).fill(0);
                     this.seed.riders
                         .filter(r => this.selectedRiders.includes(r.name))
                         .forEach(r => {
-                            const slice = isCustom ? r.units_sold : r.units_sold.slice(start);
+                            const slice = isFull ? r.units_sold : r.units_sold.slice(start);
                             slice.forEach((v, i) => { totals[i] = (totals[i] || 0) + (Number(v) || 0); });
                         });
                     return totals;
@@ -1064,10 +1056,11 @@
                 renderRiderChart(forceRecreate = false) {
                     const labels = this.filteredLabels();
                     const start = this.sliceStart();
+                    const isFull = this.dateRange === 'custom' || this.dateRange === 'all';
                     const activeRiders = this.seed.riders.filter(r => this.selectedRiders.includes(r.name));
                     const series = activeRiders.map(r => ({
                         name: r.name,
-                        data: this.dateRange === 'custom' ? r.units_sold : r.units_sold.slice(start),
+                        data: isFull ? r.units_sold : r.units_sold.slice(start),
                     }));
                     const colors = activeRiders.map(r => this.riderColor(r));
 

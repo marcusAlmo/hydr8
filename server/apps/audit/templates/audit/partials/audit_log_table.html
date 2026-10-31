@@ -1,175 +1,218 @@
 {% comment %}
-Audit log table partial — returned by HTMX search/pagination requests.
-Expects the same context as audit_log.html for the table + pagination section.
-
-Alpine action/date filters still apply via x-show on each row, but text search
-is now server-side (HTMX). matchesSearch() has been removed.
+Audit log table partial — returned by HTMX search/filter/pagination requests.
+Contains action filter chips, search input, records table, and pagination controls.
+All filtering and pagination are server-side computed to accurately reflect returned quantities.
 {% endcomment %}
-<div id="audit-log-table" class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
-    <div class="overflow-x-auto custom-scrollbar">
-        <table class="w-full text-left border-collapse">
-            <thead>
-                <tr class="bg-surface-container-low border-b border-outline-variant/20">
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Timestamp</th>
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Staff / Initiator</th>
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Action</th>
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Record / Target</th>
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Changes</th>
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Device IP</th>
-                    <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tracking Ref</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
-                {% for entry in logs %}
-                <tr
-                    x-show="matchesAction('{{ entry.action }}') && matchesDate('{{ entry.timestamp|escapejs }}')"
-                    x-cloak
-                    class="hover:bg-surface-container-low transition-colors group cursor-pointer"
-                    hx-get="{% url 'audit:detail' entry.id %}"
-                    hx-target="#modal-root"
-                    hx-swap="innerHTML">
-                    <!-- Timestamp -->
-                    <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
-                        {{ entry.timestamp|date:"Y-m-d H:i:s" }}
-                    </td>
-                    <!-- Actor -->
-                    <td class="px-4 py-3 whitespace-nowrap">
-                        <div class="flex items-center gap-2">
-                            <div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">
-                                {% if entry.actor_display == "System" or entry.actor_display == "system-scheduler" %}
-                                <span class="material-symbols-outlined text-[14px]">memory</span>
-                                {% else %}
-                                {{ entry.actor_display|slice:":2"|upper }}
-                                {% endif %}
-                            </div>
-                            <div class="flex flex-col gap-0.5 min-w-0">
-                                <span class="font-sans text-on-surface text-xs font-medium truncate">{{ entry.actor_display }}</span>
-                                {% if entry.actor_email %}
-                                <span class="text-[10px] text-on-surface-variant/70 truncate">{{ entry.actor_email }}</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </td>
-                    <!-- Action badge -->
-                    <td class="px-4 py-3 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border {{ entry.badge_class }}">
-                            {{ entry.action_label }}
-                        </span>
-                    </td>
-                    <!-- Object -->
-                    <td class="px-4 py-3 max-w-[220px]">
-                        <div class="flex flex-col gap-0.5">
-                            <span class="font-sans text-on-surface text-xs font-medium truncate" title="{{ entry.object_repr }}">{{ entry.object_repr }}</span>
-                            <span class="text-[10px] text-on-surface-variant/70 font-data-mono">{{ entry.content_type_str }}</span>
-                        </div>
-                    </td>
-                    <!-- Changes summary -->
-                    <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
-                        {{ entry.changes_summary }}
-                    </td>
-                    <!-- IP -->
-                    <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono">
-                        {{ entry.remote_addr|default:"—" }}
-                    </td>
-                    <!-- Correlation ID -->
-                    <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono max-w-[140px]">
-                        <span class="truncate inline-block max-w-[120px] align-bottom" title="{{ entry.cid|default:'' }}">
-                            {{ entry.cid|default:"—" }}
-                        </span>
-                    </td>
-                </tr>
-                {% endfor %}
-                <!-- Server-side empty state: search returned no results -->
-                {% if not logs %}
-                <tr>
-                    <td colspan="7" class="px-4 py-12 text-center">
-                        <div class="flex flex-col items-center gap-3">
-                            <span class="material-symbols-outlined text-outline-variant text-[40px]">search_off</span>
-                            <p class="font-body-md text-body-md text-on-surface-variant">No entries match your search.</p>
-                        </div>
-                    </td>
-                </tr>
-                {% endif %}
-                <!-- Client-side empty state: action/date filters hid all rows -->
-                <tr x-show="filteredCount() === 0 && total > 0" x-cloak>
-                    <td colspan="7" class="px-4 py-12 text-center">
-                        <div class="flex flex-col items-center gap-3">
-                            <span class="material-symbols-outlined text-outline-variant text-[40px]">search_off</span>
-                            <p class="font-body-md text-body-md text-on-surface-variant">No entries match the current filters.</p>
-                            <button @click="clearFilters()" class="text-primary font-body-sm text-body-sm hover:underline">Clear all filters</button>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+<div id="audit-log-table" class="flex flex-col gap-4">
+    <!-- Server-synchronized filter state for HTMX controls with hx-preserve / outside table -->
+    <input type="hidden" id="audit-active-action" name="action" value="{{ active_action|default:'' }}">
+    <input type="hidden" id="audit-active-range" name="range" value="{{ date_range|default:'all' }}">
+    <input type="hidden" id="audit-custom-from" name="from" value="{{ custom_from|default:'' }}">
+    <input type="hidden" id="audit-custom-to" name="to" value="{{ custom_to|default:'' }}">
+
+    <!-- Filters & Search -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center flex-wrap gap-2">
+            {% for filter in action_filters %}
+            <button
+                type="button"
+                class="px-4 py-1.5 rounded-full font-body-sm transition-all duration-200 flex items-center gap-1.5 {% if filter.active %}bg-primary text-on-primary shadow-sm{% else %}bg-surface-container text-on-surface-variant hover:bg-surface-container-highest{% endif %}"
+                hx-get="{% url 'audit:list' %}?action={{ filter.value }}&range={{ date_range }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&per_page={{ pagination.per_page }}"
+                hx-target="#audit-log-table"
+                hx-swap="outerHTML"
+            >
+                <span>{{ filter.label }}</span>
+                <span class="font-data-mono text-xs {% if filter.active %}text-on-primary/70{% else %}text-on-surface-variant/60{% endif %}">{{ filter.count }}</span>
+            </button>
+            {% endfor %}
+
+            {% if active_action or date_range != 'all' or search_query %}
+            <button
+                type="button"
+                class="px-3 py-1.5 rounded-full font-body-sm text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 flex items-center gap-1"
+                hx-get="{% url 'audit:list' %}?range=all&per_page={{ pagination.per_page }}"
+                hx-target="#audit-log-table"
+                hx-swap="outerHTML"
+                @click="dateRange = 'all'; customFrom = ''; customTo = ''; const s = document.getElementById('auditSearch'); if (s) s.value = '';"
+            >
+                <span class="material-symbols-outlined text-[16px]">close</span>
+                <span>Clear</span>
+            </button>
+            {% endif %}
+        </div>
+        <div class="relative max-w-sm w-full">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+            <input
+                type="text"
+                id="auditSearch"
+                data-htmx-search
+                name="q"
+                value="{{ search_query|default:'' }}"
+                placeholder="Search staff, action, record, or device IP..."
+                class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-body-md text-on-surface-variant"
+                hx-get="{% url 'audit:list' %}"
+                hx-trigger="keyup changed delay:300ms, search"
+                hx-target="#audit-log-table"
+                hx-swap="outerHTML"
+                hx-include="this, #audit-per-page, #audit-active-action, #audit-active-range, #audit-custom-from, #audit-custom-to"
+                hx-preserve="true"
+            >
+        </div>
     </div>
 
-    <!-- Pagination -->
-    <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-4">
-            <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
-                Showing {{ pagination.showing_from }}–{{ pagination.showing_to }}
-                of <span class="font-data-mono">{{ pagination.total_display }}</span> entries
-                <span x-show="hasFilters" x-cloak class="text-on-surface-variant/60 normal-case font-body-sm"> · filtered on page</span>
-            </span>
-            <div class="flex items-center gap-1.5">
-                <label for="audit-per-page" class="text-label-caps text-[11px] text-on-surface-variant uppercase tracking-wider">Per page:</label>
-                <select id="audit-per-page"
-                        name="per_page"
-                        aria-label="Entries per page"
-                        class="bg-surface-container border border-outline-variant/30 rounded px-2 py-0.5 text-xs font-data-mono text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-                        hx-get="{% url 'audit:list' %}?page=1{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
-                        hx-target="#audit-log-table"
-                        hx-swap="outerHTML"
-                        hx-trigger="change"
-                        hx-include="this">
-                    {% for choice in pagination.per_page_choices %}
-                    <option value="{{ choice }}" {% if pagination.per_page == choice %}selected{% endif %}>{{ choice }}</option>
+    <!-- Table Card -->
+    <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-outline-variant/20">
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Timestamp</th>
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Staff / Initiator</th>
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Action</th>
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Record / Target</th>
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Changes</th>
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Device IP</th>
+                        <th class="px-4 py-3 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tracking Ref</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/20 font-data-mono text-sm">
+                    {% for entry in logs %}
+                    <tr
+                        class="hover:bg-surface-container-low transition-colors group cursor-pointer"
+                        hx-get="{% url 'audit:detail' entry.id %}"
+                        hx-target="#modal-root"
+                        hx-swap="innerHTML">
+                        <!-- Timestamp -->
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
+                            {{ entry.timestamp|date:"Y-m-d H:i:s" }}
+                        </td>
+                        <!-- Actor -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center text-primary font-bold text-[10px] flex-shrink-0">
+                                    {% if entry.actor_display == "System" or entry.actor_display == "system-scheduler" %}
+                                    <span class="material-symbols-outlined text-[14px]">memory</span>
+                                    {% else %}
+                                    {{ entry.actor_display|slice:":2"|upper }}
+                                    {% endif %}
+                                </div>
+                                <div class="flex flex-col gap-0.5 min-w-0">
+                                    <span class="font-sans text-on-surface text-xs font-medium truncate">{{ entry.actor_display }}</span>
+                                    {% if entry.actor_email %}
+                                    <span class="text-[10px] text-on-surface-variant/70 truncate">{{ entry.actor_email }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <!-- Action badge -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border {{ entry.badge_class }}">
+                                {{ entry.action_label }}
+                            </span>
+                        </td>
+                        <!-- Object -->
+                        <td class="px-4 py-3 max-w-[220px]">
+                            <div class="flex flex-col gap-0.5">
+                                <span class="font-sans text-on-surface text-xs font-medium truncate" title="{{ entry.object_repr }}">{{ entry.object_repr }}</span>
+                                <span class="text-[10px] text-on-surface-variant/70 font-data-mono">{{ entry.content_type_str }}</span>
+                            </div>
+                        </td>
+                        <!-- Changes summary -->
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant">
+                            {{ entry.changes_summary }}
+                        </td>
+                        <!-- IP -->
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono">
+                            {{ entry.remote_addr|default:"—" }}
+                        </td>
+                        <!-- Correlation ID -->
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-on-surface-variant font-data-mono max-w-[140px]">
+                            <span class="truncate inline-block max-w-[120px] align-bottom" title="{{ entry.cid|default:'' }}">
+                                {{ entry.cid|default:"—" }}
+                            </span>
+                        </td>
+                    </tr>
                     {% endfor %}
-                </select>
-            </div>
+                    {% if not logs %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-12 text-center">
+                            <div class="flex flex-col items-center gap-3">
+                                <span class="material-symbols-outlined text-outline-variant text-[40px]">search_off</span>
+                                <p class="font-body-md text-body-md text-on-surface-variant">No entries match your search or filters.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
-        <div class="flex items-center gap-1">
-            {% if pagination.has_previous %}
-            <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
-                    title="Previous page"
-                    hx-get="{% url 'audit:list' %}?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
-                    hx-target="#audit-log-table"
-                    hx-swap="outerHTML">
-                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-            {% else %}
-            <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
-                <span class="material-symbols-outlined text-[18px]">chevron_left</span>
-            </button>
-            {% endif %}
-            {% for p in pagination.page_numbers %}
-                {% if p == "…" %}
-                <span class="px-1 text-on-surface-variant text-xs font-data-mono">…</span>
-                {% elif p == pagination.current_page %}
-                <span class="px-2.5 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ p }}</span>
-                {% else %}
-                <button class="px-2.5 py-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant text-xs font-data-mono"
-                        hx-get="{% url 'audit:list' %}?page={{ p }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+
+        <!-- Pagination -->
+        <div class="px-6 py-3 bg-surface-container-lowest border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-4">
+                <span class="font-label-caps text-label-caps text-on-surface-variant uppercase">
+                    Showing {{ pagination.showing_from }}–{{ pagination.showing_to }}
+                    of <span class="font-data-mono">{{ pagination.total_display }}</span> entries
+                </span>
+                <div class="flex items-center gap-1.5">
+                    <label for="audit-per-page" class="text-label-caps text-[11px] text-on-surface-variant uppercase tracking-wider">Per page:</label>
+                    <select id="audit-per-page"
+                            name="per_page"
+                            aria-label="Entries per page"
+                            class="bg-surface-container border border-outline-variant/30 rounded px-2 py-0.5 text-xs font-data-mono text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                            hx-get="{% url 'audit:list' %}?page=1&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                            hx-target="#audit-log-table"
+                            hx-swap="outerHTML"
+                            hx-trigger="change"
+                            hx-include="this">
+                        {% for choice in pagination.per_page_choices %}
+                        <option value="{{ choice }}" {% if pagination.per_page == choice %}selected{% endif %}>{{ choice }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                {% if pagination.has_previous %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Previous page"
+                        hx-get="{% url 'audit:list' %}?page={{ pagination.previous_page_number }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
                         hx-target="#audit-log-table"
                         hx-swap="outerHTML">
-                    {{ p }}
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Previous page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_left</span>
                 </button>
                 {% endif %}
-            {% endfor %}
-            {% if pagination.has_next %}
-            <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
-                    title="Next page"
-                    hx-get="{% url 'audit:list' %}?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
-                    hx-target="#audit-log-table"
-                    hx-swap="outerHTML">
-                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
-            {% else %}
-            <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
-                <span class="material-symbols-outlined text-[18px]">chevron_right</span>
-            </button>
-            {% endif %}
+                {% for p in pagination.page_numbers %}
+                    {% if p == "…" %}
+                    <span class="px-1 text-on-surface-variant text-xs font-data-mono">…</span>
+                    {% elif p == pagination.current_page %}
+                    <span class="px-2.5 py-1 rounded bg-primary text-on-primary text-xs font-data-mono font-bold">{{ p }}</span>
+                    {% else %}
+                    <button class="px-2.5 py-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant text-xs font-data-mono"
+                            hx-get="{% url 'audit:list' %}?page={{ p }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                            hx-target="#audit-log-table"
+                            hx-swap="outerHTML">
+                        {{ p }}
+                    </button>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                <button class="p-1 rounded hover:bg-surface-container transition-colors text-on-surface-variant"
+                        title="Next page"
+                        hx-get="{% url 'audit:list' %}?page={{ pagination.next_page_number }}&per_page={{ pagination.per_page }}&action={{ active_action|default:'' }}&range={{ date_range|default:'all' }}{% if custom_from %}&from={{ custom_from }}{% endif %}{% if custom_to %}&to={{ custom_to }}{% endif %}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}"
+                        hx-target="#audit-log-table"
+                        hx-swap="outerHTML">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% else %}
+                <button disabled class="p-1 rounded text-on-surface-variant/30 cursor-not-allowed" title="Next page">
+                    <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
